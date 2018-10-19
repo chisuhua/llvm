@@ -1,0 +1,27 @@
+*** Settings ***
+Documentation     This suite covers below scenarios:
+...               1. pasim sanity check
+
+Library           robot_utils.py
+Library           BuiltIn
+
+*** Variables ***
+${case1_cmd}      case_1_build.sh
+${case1_token}    llvm regression test
+
+*** Test Cases ***
+case1
+    [Documentation]    llvm regress test case 1 : build
+    [Tags]    build
+    [Setup]    test_setup
+    [Timeout]    3 hours
+    ${status}=    test_run    ${case1_cmd}
+    should_be_true    ${status}==True
+    [Teardown]    test_clean_up
+
+*** Keywords ***
+template_test_run
+    [Arguments]    ${cmd}    ${keyword}
+    [Documentation]    The main body to verify command
+    test_run    ${cmd}    ${keyword}
+
