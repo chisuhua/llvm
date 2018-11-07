@@ -70,7 +70,7 @@ namespace ISD {
     /// of the frame or return address to return.  An index of zero corresponds
     /// to the current function's frame or return address, an index of one to
     /// the parent's frame or return address, and so on.
-    FRAMEADDR, RETURNADDR, ADDROFRETURNADDR,
+    FRAMEADDR, RETURNADDR, ADDROFRETURNADDR, SPONENTRY,
 
     /// LOCAL_RECOVER - Represents the llvm.localrecover intrinsic.
     /// Materializes the offset from the local object pointer of another
@@ -264,6 +264,14 @@ namespace ISD {
     /// resulting value is this minimum value.
     SADDSAT, UADDSAT,
 
+    /// RESULT = [US]SUBSAT(LHS, RHS) - Perform saturation subtraction on 2
+    /// integers with the same bit width (W). If the true value of LHS - RHS
+    /// exceeds the largest value that can be represented by W bits, the
+    /// resulting value is this maximum value. Otherwise, if this value is less
+    /// than the smallest value that can be represented by W bits, the
+    /// resulting value is this minimum value.
+    SSUBSAT, USUBSAT,
+
     /// Simple binary floating point operators.
     FADD, FSUB, FMUL, FDIV, FREM,
 
@@ -280,7 +288,8 @@ namespace ISD {
     /// They are used to limit optimizations while the DAG is being optimized.
     STRICT_FSQRT, STRICT_FPOW, STRICT_FPOWI, STRICT_FSIN, STRICT_FCOS,
     STRICT_FEXP, STRICT_FEXP2, STRICT_FLOG, STRICT_FLOG10, STRICT_FLOG2,
-    STRICT_FRINT, STRICT_FNEARBYINT,
+    STRICT_FRINT, STRICT_FNEARBYINT, STRICT_FMAXNUM, STRICT_FMINNUM,
+    STRICT_FCEIL, STRICT_FFLOOR, STRICT_FROUND, STRICT_FTRUNC,
 
     /// FMA - Perform a * b + c with no intermediate rounding step.
     FMA,

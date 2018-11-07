@@ -106,7 +106,11 @@ DisassembleFunctions("df",
 static StringSet<> DisasmFuncsSet;
 
 cl::opt<bool>
-llvm::Relocations("r", cl::desc("Display the relocation entries in the file"));
+llvm::Relocations("reloc",
+                  cl::desc("Display the relocation entries in the file"));
+static cl::alias RelocationsShort("r", cl::desc("Alias for --reloc"),
+                                  cl::NotHidden,
+                                  cl::aliasopt(llvm::Relocations));
 
 cl::opt<bool>
 llvm::DynamicRelocations("dynamic-reloc",
@@ -116,10 +120,16 @@ DynamicRelocationsd("R", cl::desc("Alias for --dynamic-reloc"),
              cl::aliasopt(DynamicRelocations));
 
 cl::opt<bool>
-llvm::SectionContents("s", cl::desc("Display the content of each section"));
+    llvm::SectionContents("full-contents",
+                          cl::desc("Display the content of each section"));
+static cl::alias SectionContentsShort("s",
+                                      cl::desc("Alias for --full-contents"),
+                                      cl::aliasopt(SectionContents));
 
-cl::opt<bool>
-llvm::SymbolTable("t", cl::desc("Display the symbol table"));
+cl::opt<bool> llvm::SymbolTable("syms", cl::desc("Display the symbol table"));
+static cl::alias SymbolTableShort("t", cl::desc("Alias for --syms"),
+                                  cl::NotHidden,
+                                  cl::aliasopt(llvm::SymbolTable));
 
 cl::opt<bool>
 llvm::ExportsTrie("exports-trie", cl::desc("Display mach-o exported symbols"));
@@ -2305,8 +2315,8 @@ static void DumpObject(ObjectFile *o, const Archive *a = nullptr,
     outs() << ":\tfile format " << o->getFileFormatName() << "\n\n";
   }
 
-  if (ArchiveHeaders && !MachOOpt)
-    printArchiveChild(a->getFileName(), *c);
+  if (ArchiveHeaders && !MachOOpt && c)
+    printArchiveChild(ArchiveName, *c);
   if (Disassemble)
     DisassembleObject(o, Relocations);
   if (Relocations && !Disassemble)
@@ -2359,8 +2369,8 @@ static void DumpObject(const COFFImportFile *I, const Archive *A,
            << ":\tfile format COFF-import-file"
            << "\n\n";
 
-  if (ArchiveHeaders && !MachOOpt)
-    printArchiveChild(A->getFileName(), *C);
+  if (ArchiveHeaders && !MachOOpt && C)
+    printArchiveChild(ArchiveName, *C);
   if (SymbolTable)
     printCOFFSymbolTable(I);
 }

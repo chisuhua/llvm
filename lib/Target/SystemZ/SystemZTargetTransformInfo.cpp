@@ -635,6 +635,25 @@ static Type *getCmpOpsType(const Instruction *I, unsigned VF = 1) {
   return nullptr;
 }
 
+// Get the cost of converting a boolean vector to a vector with same width
+// and element size as Dst, plus the cost of zero extending if needed.
+unsigned SystemZTTIImpl::
+getBoolVecToIntConversionCost(unsigned Opcode, Type *Dst,
+                              const Instruction *I) {
+  assert (Dst->isVectorTy());
+  unsigned VF = Dst->getVectorNumElements();
+  unsigned Cost = 0;
+  // If we know what the widths of the compared operands, get any cost of
+  // converting it to match Dst. Otherwise assume same widths.
+  Type *CmpOpTy = ((I != nullptr) ? getCmpOpsType(I, VF) : nullptr);
+  if (CmpOpTy != nullptr)
+    Cost = getVectorBitmaskConversionCost(CmpOpTy, Dst);
+  if (Opcode == Instruction::ZExt || Opcode == Instruction::UIToFP)
+    // One 'vn' per dst vector with an immediate mask.
+    Cost += getNumVectorRegs(Dst);
+  return Cost;
+}
+
 int SystemZTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
                                      const Instruction *I) {
   unsigned DstScalarBits = Dst->getScalarSizeInBits();
@@ -666,19 +685,8 @@ int SystemZTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
 
         return (NumUnpacks * NumDstVectors) + NumSrcVectorOps;
       }
-      else if (SrcScalarBits == 1) {
-        // This should be extension of a compare i1 result.
-        // If we know what the widths of the compared operands, get the
-        // cost of converting it to Dst. Otherwise assume same widths.
-        unsigned Cost = 0;
-        Type *CmpOpTy = ((I != nullptr) ? getCmpOpsType(I, VF) : nullptr);
-        if (CmpOpTy != nullptr)
-          Cost = getVectorBitmaskConversionCost(CmpOpTy, Dst);
-        if (Opcode == Instruction::ZExt)
-          // One 'vn' per dst vector with an immediate mask.
-          Cost += NumDstVectors;
-        return Cost;
-      }
+      else if (SrcScalarBits == 1)
+        return getBoolVecToIntConversionCost(Opcode, Dst, I);
     }
 
     if (Opcode == Instruction::SIToFP || Opcode == Instruction::UIToFP ||
@@ -687,8 +695,13 @@ int SystemZTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
       // (seems to miss on differentiating on scalar/vector types).
 
       // Only 64 bit vector conversions are natively supported.
-      if (SrcScalarBits == 64 && DstScalarBits == 64)
-        return NumDstVectors;
+      if (DstScalarBits == 64) {
+        if (SrcScalarBits == 64)
+          return NumDstVectors;
+
+        if (SrcScalarBits == 1)
+          return getBoolVecToIntConversionCost(Opcode, Dst, I) + NumDstVectors;
+      }
 
       // Return the cost of multiple scalar invocation plus the cost of
       // inserting and extracting the values. Base implementation does not
@@ -735,8 +748,12 @@ int SystemZTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
   else { // Scalar
     assert (!Dst->isVectorTy());
 
-    if (Opcode == Instruction::SIToFP || Opcode == Instruction::UIToFP)
-      return (SrcScalarBits >= 32 ? 1 : 2 /*i8/i16 extend*/);
+    if (Opcode == Instruction::SIToFP || Opcode == Instruction::UIToFP) {
+      if (SrcScalarBits >= 32 ||
+          (I != nullptr && isa<LoadInst>(I->getOperand(0))))
+        return 1;
+      return SrcScalarBits > 1 ? 2 /*i8/i16 extend*/ : 5 /*branch seq.*/;
+    }
 
     if ((Opcode == Instruction::ZExt || Opcode == Instruction::SExt) &&
         Src->isIntegerTy(1)) {
@@ -876,6 +893,11 @@ isFoldableLoad(const LoadInst *Ld, const Instruction *&FoldedValue) {
     UserI = cast<Instruction>(*UserI->user_begin());
     // Load (single use) -> trunc/extend (single use) -> UserI
   }
+  if ((UserI->getOpcode() == Instruction::Sub ||
+       UserI->getOpcode() == Instruction::SDiv ||
+       UserI->getOpcode() == Instruction::UDiv) &&
+      UserI->getOperand(1) != FoldedValue)
+    return false; // Not commutative, only RHS foldable.
   switch (UserI->getOpcode()) {
   case Instruction::Add: // SE: 16->32, 16/32->64, z14:16->64. ZE: 32->64
   case Instruction::Sub:
@@ -959,34 +981,68 @@ int SystemZTTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,
   return  NumOps;
 }
 
+// The generic implementation of getInterleavedMemoryOpCost() is based on
+// adding costs of the memory operations plus all the extracts and inserts
+// needed for using / defining the vector operands. The SystemZ version does
+// roughly the same but bases the computations on vector permutations
+// instead.
 int SystemZTTIImpl::getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
                                                unsigned Factor,
                                                ArrayRef<unsigned> Indices,
                                                unsigned Alignment,
                                                unsigned AddressSpace,
-                                               bool IsMasked) {
-  if (IsMasked)
+                                               bool UseMaskForCond,
+                                               bool UseMaskForGaps) {
+  if (UseMaskForCond || UseMaskForGaps)
     return BaseT::getInterleavedMemoryOpCost(Opcode, VecTy, Factor, Indices,
-                                             Alignment, AddressSpace, IsMasked);
+                                             Alignment, AddressSpace,
+                                             UseMaskForCond, UseMaskForGaps);
   assert(isa<VectorType>(VecTy) &&
          "Expect a vector type for interleaved memory op");
 
-  int NumWideParts = getNumVectorRegs(VecTy);
+  // Return the ceiling of dividing A by B.
+  auto ceil = [](unsigned A, unsigned B) { return (A + B - 1) / B; };
 
-  // How many source vectors are handled to produce a vectorized operand?
-  int NumElsPerVector = (VecTy->getVectorNumElements() / NumWideParts);
-  int NumSrcParts =
-    ((NumWideParts > NumElsPerVector) ? NumElsPerVector : NumWideParts);
+  unsigned NumElts = VecTy->getVectorNumElements();
+  assert(Factor > 1 && NumElts % Factor == 0 && "Invalid interleave factor");
+  unsigned VF = NumElts / Factor;
+  unsigned NumEltsPerVecReg = (128U / getScalarSizeInBits(VecTy));
+  unsigned NumVectorMemOps = getNumVectorRegs(VecTy);
+  unsigned NumPermutes = 0;
 
-  // A Load group may have gaps.
-  unsigned NumOperands =
-    ((Opcode == Instruction::Load) ? Indices.size() : Factor);
+  if (Opcode == Instruction::Load) {
+    // Loading interleave groups may have gaps, which may mean fewer
+    // loads. Find out how many vectors will be loaded in total, and in how
+    // many of them each value will be in.
+    BitVector UsedInsts(NumVectorMemOps, false);
+    std::vector<BitVector> ValueVecs(Factor, BitVector(NumVectorMemOps, false));
+    for (unsigned Index : Indices)
+      for (unsigned Elt = 0; Elt < VF; ++Elt) {
+        unsigned Vec = (Index + Elt * Factor) / NumEltsPerVecReg;
+        UsedInsts.set(Vec);
+        ValueVecs[Index].set(Vec);
+      }
+    NumVectorMemOps = UsedInsts.count();
 
-  // Each needed permute takes two vectors as input.
-  if (NumSrcParts > 1)
-    NumSrcParts--;
-  int NumPermutes = NumSrcParts * NumOperands;
+    for (unsigned Index : Indices) {
+      // Estimate that each loaded source vector containing this Index
+      // requires one operation, except that vperm can handle two input
+      // registers first time for each dst vector.
+      unsigned NumSrcVecs = ValueVecs[Index].count();
+      unsigned NumDstVecs = ceil(VF * getScalarSizeInBits(VecTy), 128U);
+      assert (NumSrcVecs >= NumDstVecs && "Expected at least as many sources");
+      NumPermutes += std::max(1U, NumSrcVecs - NumDstVecs);
+    }
+  } else {
+    // Estimate the permutes for each stored vector as the smaller of the
+    // number of elements and the number of source vectors. Subtract one per
+    // dst vector for vperm (S.A.).
+    unsigned NumSrcVecs = std::min(NumEltsPerVecReg, Factor);
+    unsigned NumDstVecs = NumVectorMemOps;
+    assert (NumSrcVecs > 1 && "Expected at least two source vectors.");
+    NumPermutes += (NumDstVecs * NumSrcVecs) - NumDstVecs;
+  }
 
   // Cost of load/store operations and the permutations needed.
-  return NumWideParts + NumPermutes;
+  return NumVectorMemOps + NumPermutes;
 }

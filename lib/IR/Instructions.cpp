@@ -2109,25 +2109,6 @@ BinaryOperator *BinaryOperator::CreateNot(Value *Op, const Twine &Name,
                             Op->getType(), Name, InsertAtEnd);
 }
 
-bool BinaryOperator::isFNeg(const Value *V, bool IgnoreZeroSign) {
-  if (const BinaryOperator *Bop = dyn_cast<BinaryOperator>(V))
-    if (Bop->getOpcode() == Instruction::FSub)
-      if (Constant *C = dyn_cast<Constant>(Bop->getOperand(0))) {
-        if (!IgnoreZeroSign)
-          IgnoreZeroSign = cast<Instruction>(V)->hasNoSignedZeros();
-        return !IgnoreZeroSign ? C->isNegativeZeroValue() : C->isZeroValue();
-      }
-  return false;
-}
-
-Value *BinaryOperator::getFNegArgument(Value *BinOp) {
-  return cast<BinaryOperator>(BinOp)->getOperand(1);
-}
-
-const Value *BinaryOperator::getFNegArgument(const Value *BinOp) {
-  return getFNegArgument(const_cast<Value*>(BinOp));
-}
-
 // Exchange the two operands to this instruction. This instruction is safe to
 // use on any binary instruction and does not modify the semantics of the
 // instruction. If the instruction is order-dependent (SetLT f.e.), the opcode
@@ -3168,15 +3149,18 @@ AddrSpaceCastInst::AddrSpaceCastInst(
 //===----------------------------------------------------------------------===//
 
 CmpInst::CmpInst(Type *ty, OtherOps op, Predicate predicate, Value *LHS,
-                 Value *RHS, const Twine &Name, Instruction *InsertBefore)
+                 Value *RHS, const Twine &Name, Instruction *InsertBefore,
+                 Instruction *FlagsSource)
   : Instruction(ty, op,
                 OperandTraits<CmpInst>::op_begin(this),
                 OperandTraits<CmpInst>::operands(this),
                 InsertBefore) {
-    Op<0>() = LHS;
-    Op<1>() = RHS;
+  Op<0>() = LHS;
+  Op<1>() = RHS;
   setPredicate((Predicate)predicate);
   setName(Name);
+  if (FlagsSource)
+    copyIRFlags(FlagsSource);
 }
 
 CmpInst::CmpInst(Type *ty, OtherOps op, Predicate predicate, Value *LHS,

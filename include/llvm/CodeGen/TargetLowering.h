@@ -279,7 +279,7 @@ public:
 
   /// Return the preferred vector type legalization action.
   virtual TargetLoweringBase::LegalizeTypeAction
-  getPreferredVectorAction(EVT VT) const {
+  getPreferredVectorAction(MVT VT) const {
     // The default action for one element vectors is to scalarize
     if (VT.getVectorNumElements() == 1)
       return TypeScalarizeVector;
@@ -819,6 +819,12 @@ public:
       case ISD::STRICT_FLOG2: EqOpc = ISD::FLOG2; break;
       case ISD::STRICT_FRINT: EqOpc = ISD::FRINT; break;
       case ISD::STRICT_FNEARBYINT: EqOpc = ISD::FNEARBYINT; break;
+      case ISD::STRICT_FMAXNUM: EqOpc = ISD::FMAXNUM; break;
+      case ISD::STRICT_FMINNUM: EqOpc = ISD::FMINNUM; break;
+      case ISD::STRICT_FCEIL: EqOpc = ISD::FCEIL; break;
+      case ISD::STRICT_FFLOOR: EqOpc = ISD::FFLOOR; break;
+      case ISD::STRICT_FROUND: EqOpc = ISD::FROUND; break;
+      case ISD::STRICT_FTRUNC: EqOpc = ISD::FTRUNC; break;
     }
 
     auto Action = getOperationAction(EqOpc, VT);
@@ -3736,9 +3742,10 @@ public:
   SDValue getVectorElementPointer(SelectionDAG &DAG, SDValue VecPtr, EVT VecVT,
                                   SDValue Index) const;
 
-  /// Method for building the DAG expansion of ISD::[US]ADDSAT. This method
-  /// accepts integers or vectors of integers as its arguments.
-  SDValue getExpandedSaturationAddition(SDNode *Node, SelectionDAG &DAG) const;
+  /// Method for building the DAG expansion of ISD::[US][ADD|SUB]SAT. This
+  /// method accepts integers or vectors of integers as its arguments.
+  SDValue getExpandedSaturationAdditionSubtraction(SDNode *Node,
+                                                   SelectionDAG &DAG) const;
 
   //===--------------------------------------------------------------------===//
   // Instruction Emitting Hooks

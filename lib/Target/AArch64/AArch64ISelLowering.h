@@ -395,7 +395,7 @@ public:
 
   bool useLoadStackGuardNode() const override;
   TargetLoweringBase::LegalizeTypeAction
-  getPreferredVectorAction(EVT VT) const override;
+  getPreferredVectorAction(MVT VT) const override;
 
   /// If the target has a standard location for the stack protector cookie,
   /// returns the address of that location. Otherwise, returns nullptr.
@@ -617,6 +617,7 @@ private:
   SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVAARG(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSPONENTRY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;

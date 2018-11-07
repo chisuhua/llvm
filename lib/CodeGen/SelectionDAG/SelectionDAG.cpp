@@ -1118,39 +1118,6 @@ SDValue SelectionDAG::getZeroExtendInReg(SDValue Op, const SDLoc &DL, EVT VT) {
                  getConstant(Imm, DL, Op.getValueType()));
 }
 
-SDValue SelectionDAG::getAnyExtendVectorInReg(SDValue Op, const SDLoc &DL,
-                                              EVT VT) {
-  assert(VT.isVector() && "This DAG node is restricted to vector types.");
-  assert(VT.getSizeInBits() == Op.getValueSizeInBits() &&
-         "The sizes of the input and result must match in order to perform the "
-         "extend in-register.");
-  assert(VT.getVectorNumElements() < Op.getValueType().getVectorNumElements() &&
-         "The destination vector type must have fewer lanes than the input.");
-  return getNode(ISD::ANY_EXTEND_VECTOR_INREG, DL, VT, Op);
-}
-
-SDValue SelectionDAG::getSignExtendVectorInReg(SDValue Op, const SDLoc &DL,
-                                               EVT VT) {
-  assert(VT.isVector() && "This DAG node is restricted to vector types.");
-  assert(VT.getSizeInBits() == Op.getValueSizeInBits() &&
-         "The sizes of the input and result must match in order to perform the "
-         "extend in-register.");
-  assert(VT.getVectorNumElements() < Op.getValueType().getVectorNumElements() &&
-         "The destination vector type must have fewer lanes than the input.");
-  return getNode(ISD::SIGN_EXTEND_VECTOR_INREG, DL, VT, Op);
-}
-
-SDValue SelectionDAG::getZeroExtendVectorInReg(SDValue Op, const SDLoc &DL,
-                                               EVT VT) {
-  assert(VT.isVector() && "This DAG node is restricted to vector types.");
-  assert(VT.getSizeInBits() == Op.getValueSizeInBits() &&
-         "The sizes of the input and result must match in order to perform the "
-         "extend in-register.");
-  assert(VT.getVectorNumElements() < Op.getValueType().getVectorNumElements() &&
-         "The destination vector type must have fewer lanes than the input.");
-  return getNode(ISD::ZERO_EXTEND_VECTOR_INREG, DL, VT, Op);
-}
-
 /// getNOT - Create a bitwise NOT operation as (XOR Val, -1).
 SDValue SelectionDAG::getNOT(const SDLoc &DL, SDValue Val, EVT VT) {
   EVT EltVT = VT.getScalarType();
@@ -3805,6 +3772,38 @@ bool SelectionDAG::haveNoCommonBitsSet(SDValue A, SDValue B) const {
   return (computeKnownBits(A).Zero | computeKnownBits(B).Zero).isAllOnesValue();
 }
 
+static SDValue FoldBUILD_VECTOR(const SDLoc &DL, EVT VT,
+                                ArrayRef<SDValue> Ops,
+                                SelectionDAG &DAG) {
+  int NumOps = Ops.size();
+  assert(NumOps != 0 && "Can't build an empty vector!");
+  assert(VT.getVectorNumElements() == (unsigned)NumOps &&
+         "Incorrect element count in BUILD_VECTOR!");
+
+  // BUILD_VECTOR of UNDEFs is UNDEF.
+  if (llvm::all_of(Ops, [](SDValue Op) { return Op.isUndef(); }))
+    return DAG.getUNDEF(VT);
+
+  // BUILD_VECTOR of seq extract/insert from the same vector + type is Identity.
+  SDValue IdentitySrc;
+  bool IsIdentity = true;
+  for (int i = 0; i != NumOps; ++i) {
+    if (Ops[i].getOpcode() != ISD::EXTRACT_VECTOR_ELT ||
+        Ops[i].getOperand(0).getValueType() != VT ||
+        (IdentitySrc && Ops[i].getOperand(0) != IdentitySrc) ||
+        !isa<ConstantSDNode>(Ops[i].getOperand(1)) ||
+        cast<ConstantSDNode>(Ops[i].getOperand(1))->getAPIntValue() != i) {
+      IsIdentity = false;
+      break;
+    }
+    IdentitySrc = Ops[i].getOperand(0);
+  }
+  if (IsIdentity)
+    return IdentitySrc;
+
+  return SDValue();
+}
+
 static SDValue FoldCONCAT_VECTORS(const SDLoc &DL, EVT VT,
                                   ArrayRef<SDValue> Ops,
                                   SelectionDAG &DAG) {
@@ -4059,6 +4058,13 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   case ISD::MERGE_VALUES:
   case ISD::CONCAT_VECTORS:
     return Operand;         // Factor, merge or concat of one node?  No need.
+  case ISD::BUILD_VECTOR: {
+    // Attempt to simplify BUILD_VECTOR.
+    SDValue Ops[] = {Operand};
+    if (SDValue V = FoldBUILD_VECTOR(DL, VT, Ops, *this))
+      return V;
+    break;
+  }
   case ISD::FP_ROUND: llvm_unreachable("Invalid method to make FP_ROUND node");
   case ISD::FP_EXTEND:
     assert(VT.isFloatingPoint() &&
@@ -4156,6 +4162,17 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     }
     if (OpOpcode == ISD::UNDEF)
       return getUNDEF(VT);
+    break;
+  case ISD::ANY_EXTEND_VECTOR_INREG:
+  case ISD::ZERO_EXTEND_VECTOR_INREG:
+  case ISD::SIGN_EXTEND_VECTOR_INREG:
+    assert(VT.isVector() && "This DAG node is restricted to vector types.");
+    assert(VT.getSizeInBits() == Operand.getValueSizeInBits() &&
+           "The sizes of the input and result must match in order to perform the "
+           "extend in-register.");
+    assert(VT.getVectorNumElements() <
+             Operand.getValueType().getVectorNumElements() &&
+           "The destination vector type must have fewer lanes than the input.");
     break;
   case ISD::ABS:
     assert(VT.isInteger() && VT == Operand.getValueType() &&
@@ -4392,10 +4409,10 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
     SDValue V2 = BV2->getOperand(I);
 
     if (SVT.isInteger()) {
-        if (V1->getValueType(0).bitsGT(SVT))
-          V1 = getNode(ISD::TRUNCATE, DL, SVT, V1);
-        if (V2->getValueType(0).bitsGT(SVT))
-          V2 = getNode(ISD::TRUNCATE, DL, SVT, V2);
+      if (V1->getValueType(0).bitsGT(SVT))
+        V1 = getNode(ISD::TRUNCATE, DL, SVT, V1);
+      if (V2->getValueType(0).bitsGT(SVT))
+        V2 = getNode(ISD::TRUNCATE, DL, SVT, V2);
     }
 
     if (V1->getValueType(0) != SVT || V2->getValueType(0) != SVT)
@@ -4548,6 +4565,13 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     if (N2.getOpcode() == ISD::EntryToken) return N1;
     if (N1 == N2) return N1;
     break;
+  case ISD::BUILD_VECTOR: {
+    // Attempt to simplify BUILD_VECTOR.
+    SDValue Ops[] = {N1, N2};
+    if (SDValue V = FoldBUILD_VECTOR(DL, VT, Ops, *this))
+      return V;
+    break;
+  }
   case ISD::CONCAT_VECTORS: {
     // Attempt to fold CONCAT_VECTORS into BUILD_VECTOR or UNDEF.
     SDValue Ops[] = {N1, N2};
@@ -5017,6 +5041,13 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
       if (!TLI->hasFloatingPointExceptions() || s != APFloat::opInvalidOp)
         return getConstantFP(V1, DL, VT);
     }
+    break;
+  }
+  case ISD::BUILD_VECTOR: {
+    // Attempt to simplify BUILD_VECTOR.
+    SDValue Ops[] = {N1, N2, N3};
+    if (SDValue V = FoldBUILD_VECTOR(DL, VT, Ops, *this))
+      return V;
     break;
   }
   case ISD::CONCAT_VECTORS: {
@@ -6788,6 +6819,11 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
 
   switch (Opcode) {
   default: break;
+  case ISD::BUILD_VECTOR:
+    // Attempt to simplify BUILD_VECTOR.
+    if (SDValue V = FoldBUILD_VECTOR(DL, VT, Ops, *this))
+      return V;
+    break;
   case ISD::CONCAT_VECTORS:
     // Attempt to fold CONCAT_VECTORS into BUILD_VECTOR or UNDEF.
     if (SDValue V = FoldCONCAT_VECTORS(DL, VT, Ops, *this))
@@ -7346,6 +7382,12 @@ SDNode* SelectionDAG::mutateStrictFPToFP(SDNode *Node) {
     NewOpc = ISD::FNEARBYINT;
     IsUnary = true;
     break;
+  case ISD::STRICT_FMAXNUM: NewOpc = ISD::FMAXNUM; break;
+  case ISD::STRICT_FMINNUM: NewOpc = ISD::FMINNUM; break;
+  case ISD::STRICT_FCEIL: NewOpc = ISD::FCEIL; IsUnary = true; break;
+  case ISD::STRICT_FFLOOR: NewOpc = ISD::FFLOOR; IsUnary = true; break;
+  case ISD::STRICT_FROUND: NewOpc = ISD::FROUND; IsUnary = true; break;
+  case ISD::STRICT_FTRUNC: NewOpc = ISD::FTRUNC; IsUnary = true; break;
   }
 
   // We're taking this node out of the chain, so we need to re-link things.

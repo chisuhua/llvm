@@ -1521,7 +1521,7 @@ static SDValue emitComparison(SDValue LHS, SDValue RHS, ISD::CondCode CC,
 /// The CCMP/CCMN/FCCMP/FCCMPE instructions allow the conditional execution of
 /// a comparison. They set the NZCV flags to a predefined value if their
 /// predicate is false. This allows to express arbitrary conjunctions, for
-/// example "cmp 0 (and (setCA (cmp A)) (setCB (cmp B))))"
+/// example "cmp 0 (and (setCA (cmp A)) (setCB (cmp B)))"
 /// expressed as:
 ///   cmp A
 ///   ccmp B, inv(CB), CA
@@ -1591,14 +1591,12 @@ static SDValue emitConditionalComparison(SDValue LHS, SDValue RHS,
   return DAG.getNode(Opcode, DL, MVT_CC, LHS, RHS, NZCVOp, Condition, CCOp);
 }
 
-/// Returns true if @p Val is a tree of AND/OR/SETCC operations.
-/// CanPushNegate is set to true if we can push a negate operation through
-/// the tree in a was that we are left with AND operations and negate operations
-/// at the leafs only. i.e. "not (or (or x y) z)" can be changed to
-/// "and (and (not x) (not y)) (not z)"; "not (or (and x y) z)" cannot be
-/// brought into such a form.
-static bool isConjunctionDisjunctionTree(const SDValue Val, bool &CanNegate,
-                                         unsigned Depth = 0) {
+/// Returns true if @p Val is a tree of AND/OR/SETCC operations that can be
+/// expressed as a conjunction. See \ref AArch64CCMP.
+/// \param CanNegate        Set to true if we can also emit the negation of the
+///                         tree as a conjunction.
+static bool canEmitConjunction(const SDValue Val, bool &CanNegate,
+                               unsigned Depth = 0) {
   if (!Val.hasOneUse())
     return false;
   unsigned Opcode = Val->getOpcode();
@@ -1615,10 +1613,10 @@ static bool isConjunctionDisjunctionTree(const SDValue Val, bool &CanNegate,
     SDValue O0 = Val->getOperand(0);
     SDValue O1 = Val->getOperand(1);
     bool CanNegateL;
-    if (!isConjunctionDisjunctionTree(O0, CanNegateL, Depth+1))
+    if (!canEmitConjunction(O0, CanNegateL, Depth+1))
       return false;
     bool CanNegateR;
-    if (!isConjunctionDisjunctionTree(O1, CanNegateR, Depth+1))
+    if (!canEmitConjunction(O1, CanNegateR, Depth+1))
       return false;
 
     if (Opcode == ISD::OR) {
@@ -1626,8 +1624,11 @@ static bool isConjunctionDisjunctionTree(const SDValue Val, bool &CanNegate,
       // we cannot do the transformation at all.
       if (!CanNegateL && !CanNegateR)
         return false;
-      // We can however change a (not (or x y)) to (and (not x) (not y)) if we
-      // can negate the x and y subtrees.
+      // However if we can negate x and y, then we can change
+      // (not (or x y))
+      // into
+      // (and (not x) (not y))
+      // to eliminate the outer negation.
       CanNegate = CanNegateL && CanNegateR;
     } else {
       // If the operands are OR expressions then we finally need to negate their
@@ -1637,7 +1638,7 @@ static bool isConjunctionDisjunctionTree(const SDValue Val, bool &CanNegate,
       bool NeedsNegOutR = O1->getOpcode() == ISD::OR;
       if (NeedsNegOutL && NeedsNegOutR)
         return false;
-      // We cannot negate an AND operation (it would become an OR),
+      // We cannot negate an AND operation.
       CanNegate = false;
     }
     return true;
@@ -1655,7 +1656,7 @@ static bool isConjunctionDisjunctionTree(const SDValue Val, bool &CanNegate,
 /// effects pushed to the tree leafs; @p Predicate is an NZCV flag predicate
 /// for the comparisons in the current subtree; @p Depth limits the search
 /// depth to avoid stack overflow.
-static SDValue emitConjunctionDisjunctionTreeRec(SelectionDAG &DAG, SDValue Val,
+static SDValue emitConjunctionRec(SelectionDAG &DAG, SDValue Val,
     AArch64CC::CondCode &OutCC, bool Negate, SDValue CCOp,
     AArch64CC::CondCode Predicate) {
   // We're at a tree leaf, produce a conditional comparison operation.
@@ -1712,13 +1713,13 @@ static SDValue emitConjunctionDisjunctionTreeRec(SelectionDAG &DAG, SDValue Val,
   if (NegateOpsAndResult) {
     // See which side we can negate.
     bool CanNegateL;
-    bool isValidL = isConjunctionDisjunctionTree(LHS, CanNegateL);
+    bool isValidL = canEmitConjunction(LHS, CanNegateL);
     assert(isValidL && "Valid conjunction/disjunction tree");
     (void)isValidL;
 
 #ifndef NDEBUG
     bool CanNegateR;
-    bool isValidR = isConjunctionDisjunctionTree(RHS, CanNegateR);
+    bool isValidR = canEmitConjunction(RHS, CanNegateR);
     assert(isValidR && "Valid conjunction/disjunction tree");
     assert((CanNegateL || CanNegateR) && "Valid conjunction/disjunction tree");
 #endif
@@ -1740,12 +1741,12 @@ static SDValue emitConjunctionDisjunctionTreeRec(SelectionDAG &DAG, SDValue Val,
   // through if we are already in a PushNegate case, otherwise we can negate
   // the "flags to test" afterwards.
   AArch64CC::CondCode RHSCC;
-  SDValue CmpR = emitConjunctionDisjunctionTreeRec(DAG, RHS, RHSCC, Negate,
+  SDValue CmpR = emitConjunctionRec(DAG, RHS, RHSCC, Negate,
                                                    CCOp, Predicate);
   if (NegateOpsAndResult && !Negate)
     RHSCC = AArch64CC::getInvertedCondCode(RHSCC);
   // Emit LHS. We may need to negate it.
-  SDValue CmpL = emitConjunctionDisjunctionTreeRec(DAG, LHS, OutCC,
+  SDValue CmpL = emitConjunctionRec(DAG, LHS, OutCC,
                                                    NegateOpsAndResult, CmpR,
                                                    RHSCC);
   // If we transformed an OR to and AND then we have to negate the result
@@ -1755,17 +1756,17 @@ static SDValue emitConjunctionDisjunctionTreeRec(SelectionDAG &DAG, SDValue Val,
   return CmpL;
 }
 
-/// Emit conjunction or disjunction tree with the CMP/FCMP followed by a chain
-/// of CCMP/CFCMP ops. See @ref AArch64CCMP.
-/// \see emitConjunctionDisjunctionTreeRec().
-static SDValue emitConjunctionDisjunctionTree(SelectionDAG &DAG, SDValue Val,
-                                              AArch64CC::CondCode &OutCC) {
-  bool CanNegate;
-  if (!isConjunctionDisjunctionTree(Val, CanNegate))
+/// Emit expression as a conjunction (a series of CCMP/CFCMP ops).
+/// In some cases this is even possible with OR operations in the expression.
+/// See \ref AArch64CCMP.
+/// \see emitConjunctionRec().
+static SDValue emitConjunction(SelectionDAG &DAG, SDValue Val,
+                               AArch64CC::CondCode &OutCC) {
+  bool DummyCanNegate;
+  if (!canEmitConjunction(Val, DummyCanNegate))
     return SDValue();
 
-  return emitConjunctionDisjunctionTreeRec(DAG, Val, OutCC, false, SDValue(),
-                                           AArch64CC::AL);
+  return emitConjunctionRec(DAG, Val, OutCC, false, SDValue(), AArch64CC::AL);
 }
 
 /// @}
@@ -1922,7 +1923,7 @@ static SDValue getAArch64Cmp(SDValue LHS, SDValue RHS, ISD::CondCode CC,
     }
 
     if (!Cmp && (RHSC->isNullValue() || RHSC->isOne())) {
-      if ((Cmp = emitConjunctionDisjunctionTree(DAG, LHS, AArch64CC))) {
+      if ((Cmp = emitConjunction(DAG, LHS, AArch64CC))) {
         if ((CC == ISD::SETNE) ^ RHSC->isNullValue())
           AArch64CC = AArch64CC::getInvertedCondCode(AArch64CC);
       }
@@ -2863,8 +2864,12 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerFP_EXTEND(Op, DAG);
   case ISD::FRAMEADDR:
     return LowerFRAMEADDR(Op, DAG);
+  case ISD::SPONENTRY:
+    return LowerSPONENTRY(Op, DAG);
   case ISD::RETURNADDR:
     return LowerRETURNADDR(Op, DAG);
+  case ISD::ADDROFRETURNADDR:
+    return LowerADDROFRETURNADDR(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:
     return LowerINSERT_VECTOR_ELT(Op, DAG);
   case ISD::EXTRACT_VECTOR_ELT:
@@ -3148,6 +3153,17 @@ SDValue AArch64TargetLowering::LowerFormalArguments(
     // We currently pass all varargs at 8-byte alignment.
     StackOffset = ((StackOffset + 7) & ~7);
     FuncInfo->setVarArgsStackIndex(MFI.CreateFixedObject(4, StackOffset, true));
+
+    if (MFI.hasMustTailInVarArgFunc()) {
+      SmallVector<MVT, 2> RegParmTypes;
+      RegParmTypes.push_back(MVT::i64);
+      RegParmTypes.push_back(MVT::f128);
+      // Compute the set of forwarded registers. The rest are scratch.
+      SmallVectorImpl<ForwardedRegister> &Forwards =
+                                       FuncInfo->getForwardedMustTailRegParms();
+      CCInfo.analyzeMustTailForwardedRegisters(Forwards, RegParmTypes,
+                                               CC_AArch64_AAPCS);
+    }
   }
 
   unsigned StackArgSize = CCInfo.getNextStackOffset();
@@ -3607,6 +3623,14 @@ AArch64TargetLowering::LowerCall(CallLoweringInfo &CLI,
   SmallVector<std::pair<unsigned, SDValue>, 8> RegsToPass;
   SmallVector<SDValue, 8> MemOpChains;
   auto PtrVT = getPointerTy(DAG.getDataLayout());
+
+  if (IsVarArg && CLI.CS && CLI.CS.isMustTailCall()) {
+    const auto &Forwards = FuncInfo->getForwardedMustTailRegParms();
+    for (const auto &F : Forwards) {
+      SDValue Val = DAG.getCopyFromReg(Chain, DL, F.VReg, F.VT);
+       RegsToPass.push_back(std::make_pair(unsigned(F.PReg), Val));
+    }
+  }
 
   // Walk the register/memloc assignments, inserting copies/loads.
   for (unsigned i = 0, realArgIdx = 0, e = ArgLocs.size(); i != e;
@@ -5152,6 +5176,16 @@ SDValue AArch64TargetLowering::LowerFRAMEADDR(SDValue Op,
   return FrameAddr;
 }
 
+SDValue AArch64TargetLowering::LowerSPONENTRY(SDValue Op,
+                                              SelectionDAG &DAG) const {
+  MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
+
+  EVT VT = getPointerTy(DAG.getDataLayout());
+  SDLoc DL(Op);
+  int FI = MFI.CreateFixedObject(4, 0, false);
+  return DAG.getFrameIndex(FI, VT);
+}
+
 // FIXME? Maybe this could be a TableGen attribute on some registers and
 // this table could be generated automatically from RegInfo.
 unsigned AArch64TargetLowering::getRegisterByName(const char* RegName, EVT VT,
@@ -5200,6 +5234,20 @@ unsigned AArch64TargetLowering::getRegisterByName(const char* RegName, EVT VT,
     return Reg;
   report_fatal_error(Twine("Invalid register name \""
                               + StringRef(RegName)  + "\"."));
+}
+
+SDValue AArch64TargetLowering::LowerADDROFRETURNADDR(SDValue Op,
+                                                     SelectionDAG &DAG) const {
+  DAG.getMachineFunction().getFrameInfo().setFrameAddressIsTaken(true);
+
+  EVT VT = Op.getValueType();
+  SDLoc DL(Op);
+
+  SDValue FrameAddr =
+      DAG.getCopyFromReg(DAG.getEntryNode(), DL, AArch64::FP, VT);
+  SDValue Offset = DAG.getConstant(8, DL, getPointerTy(DAG.getDataLayout()));
+
+  return DAG.getNode(ISD::ADD, DL, VT, FrameAddr, Offset);
 }
 
 SDValue AArch64TargetLowering::LowerRETURNADDR(SDValue Op,
@@ -7972,7 +8020,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.opc = ISD::INTRINSIC_VOID;
     // Conservatively set memVT to the entire set of vectors stored.
     unsigned NumElts = 0;
-    for (unsigned ArgI = 1, ArgE = I.getNumArgOperands(); ArgI < ArgE; ++ArgI) {
+    for (unsigned ArgI = 0, ArgE = I.getNumArgOperands(); ArgI < ArgE; ++ArgI) {
       Type *ArgTy = I.getArgOperand(ArgI)->getType();
       if (!ArgTy->isVectorTy())
         break;
@@ -11017,9 +11065,9 @@ static SDValue performNVCASTCombine(SDNode *N) {
 static SDValue performGlobalAddressCombine(SDNode *N, SelectionDAG &DAG,
                                            const AArch64Subtarget *Subtarget,
                                            const TargetMachine &TM) {
-  auto *GN = dyn_cast<GlobalAddressSDNode>(N);
-  if (!GN || Subtarget->ClassifyGlobalReference(GN->getGlobal(), TM) !=
-                 AArch64II::MO_NO_FLAG)
+  auto *GN = cast<GlobalAddressSDNode>(N);
+  if (Subtarget->ClassifyGlobalReference(GN->getGlobal(), TM) !=
+      AArch64II::MO_NO_FLAG)
     return SDValue();
 
   uint64_t MinOffset = -1ull;
@@ -11151,6 +11199,7 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     default:
       break;
     }
+    break;
   case ISD::GlobalAddress:
     return performGlobalAddressCombine(N, DAG, Subtarget, getTargetMachine());
   }
@@ -11458,12 +11507,11 @@ unsigned AArch64TargetLowering::combineRepeatedFPDivisors() const {
 }
 
 TargetLoweringBase::LegalizeTypeAction
-AArch64TargetLowering::getPreferredVectorAction(EVT VT) const {
-  MVT SVT = VT.getSimpleVT();
+AArch64TargetLowering::getPreferredVectorAction(MVT VT) const {
   // During type legalization, we prefer to widen v1i8, v1i16, v1i32  to v8i8,
   // v4i16, v2i32 instead of to promote.
-  if (SVT == MVT::v1i8 || SVT == MVT::v1i16 || SVT == MVT::v1i32
-      || SVT == MVT::v1f32)
+  if (VT == MVT::v1i8 || VT == MVT::v1i16 || VT == MVT::v1i32 ||
+      VT == MVT::v1f32)
     return TypeWidenVector;
 
   return TargetLoweringBase::getPreferredVectorAction(VT);

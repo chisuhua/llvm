@@ -124,6 +124,8 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
 
   case ISD::SADDSAT:
   case ISD::UADDSAT:
+  case ISD::SSUBSAT:
+  case ISD::USUBSAT:
 
   case ISD::FPOW:
   case ISD::FREM:
@@ -162,6 +164,12 @@ void DAGTypeLegalizer::ScalarizeVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::STRICT_FLOG2:
   case ISD::STRICT_FRINT:
   case ISD::STRICT_FNEARBYINT:
+  case ISD::STRICT_FMAXNUM:
+  case ISD::STRICT_FMINNUM:
+  case ISD::STRICT_FCEIL:
+  case ISD::STRICT_FFLOOR:
+  case ISD::STRICT_FROUND:
+  case ISD::STRICT_FTRUNC:
     R = ScalarizeVecRes_StrictFPOp(N);
     break;
   }
@@ -807,6 +815,8 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::UMAX:
   case ISD::SADDSAT:
   case ISD::UADDSAT:
+  case ISD::SSUBSAT:
+  case ISD::USUBSAT:
     SplitVecRes_BinOp(N, Lo, Hi);
     break;
   case ISD::FMA:
@@ -830,6 +840,12 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::STRICT_FLOG2:
   case ISD::STRICT_FRINT:
   case ISD::STRICT_FNEARBYINT:
+  case ISD::STRICT_FMAXNUM:
+  case ISD::STRICT_FMINNUM:
+  case ISD::STRICT_FCEIL:
+  case ISD::STRICT_FFLOOR:
+  case ISD::STRICT_FROUND:
+  case ISD::STRICT_FTRUNC:
     SplitVecRes_StrictFPOp(N, Lo, Hi);
     break;
   }
@@ -2396,6 +2412,12 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::STRICT_FLOG2:
   case ISD::STRICT_FRINT:
   case ISD::STRICT_FNEARBYINT:
+  case ISD::STRICT_FMAXNUM:
+  case ISD::STRICT_FMINNUM:
+  case ISD::STRICT_FCEIL:
+  case ISD::STRICT_FFLOOR:
+  case ISD::STRICT_FROUND:
+  case ISD::STRICT_FTRUNC:
     Res = WidenVecRes_StrictFP(N);
     break;
 
@@ -2801,9 +2823,9 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
       // operations should be done with SIGN/ZERO_EXTEND_VECTOR_INREG, which
       // accepts fewer elements in the result than in the input.
       if (Opcode == ISD::SIGN_EXTEND)
-        return DAG.getSignExtendVectorInReg(InOp, DL, WidenVT);
+        return DAG.getNode(ISD::SIGN_EXTEND_VECTOR_INREG, DL, WidenVT, InOp);
       if (Opcode == ISD::ZERO_EXTEND)
-        return DAG.getZeroExtendVectorInReg(InOp, DL, WidenVT);
+        return DAG.getNode(ISD::ZERO_EXTEND_VECTOR_INREG, DL, WidenVT, InOp);
     }
   }
 
@@ -2873,11 +2895,9 @@ SDValue DAGTypeLegalizer::WidenVecRes_EXTEND_VECTOR_INREG(SDNode *N) {
     if (InVT.getSizeInBits() == WidenVT.getSizeInBits()) {
       switch (Opcode) {
       case ISD::ANY_EXTEND_VECTOR_INREG:
-        return DAG.getAnyExtendVectorInReg(InOp, DL, WidenVT);
       case ISD::SIGN_EXTEND_VECTOR_INREG:
-        return DAG.getSignExtendVectorInReg(InOp, DL, WidenVT);
       case ISD::ZERO_EXTEND_VECTOR_INREG:
-        return DAG.getZeroExtendVectorInReg(InOp, DL, WidenVT);
+        return DAG.getNode(Opcode, DL, WidenVT, InOp);
       }
     }
   }
@@ -3712,11 +3732,11 @@ SDValue DAGTypeLegalizer::WidenVecOp_EXTEND(SDNode *N) {
   default:
     llvm_unreachable("Extend legalization on extend operation!");
   case ISD::ANY_EXTEND:
-    return DAG.getAnyExtendVectorInReg(InOp, DL, VT);
+    return DAG.getNode(ISD::ANY_EXTEND_VECTOR_INREG, DL, VT, InOp);
   case ISD::SIGN_EXTEND:
-    return DAG.getSignExtendVectorInReg(InOp, DL, VT);
+    return DAG.getNode(ISD::SIGN_EXTEND_VECTOR_INREG, DL, VT, InOp);
   case ISD::ZERO_EXTEND:
-    return DAG.getZeroExtendVectorInReg(InOp, DL, VT);
+    return DAG.getNode(ISD::ZERO_EXTEND_VECTOR_INREG, DL, VT, InOp);
   }
 }
 

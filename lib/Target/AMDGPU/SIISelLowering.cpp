@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__MINGW32__)
 // Provide M_PI.
 #define _USE_MATH_DEFINES
 #endif
@@ -679,7 +679,6 @@ SITargetLowering::SITargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::SCALAR_TO_VECTOR);
   setTargetDAGCombine(ISD::ZERO_EXTEND);
   setTargetDAGCombine(ISD::EXTRACT_VECTOR_ELT);
-  setTargetDAGCombine(ISD::BUILD_VECTOR);
 
   // All memory operations. Some folding on the pointer operand is done to help
   // matching the constant offsets in the addressing modes.
@@ -1186,7 +1185,7 @@ bool SITargetLowering::isMemOpUniform(const SDNode *N) const {
 }
 
 TargetLoweringBase::LegalizeTypeAction
-SITargetLowering::getPreferredVectorAction(EVT VT) const {
+SITargetLowering::getPreferredVectorAction(MVT VT) const {
   if (VT.getVectorNumElements() != 1 && VT.getScalarType().bitsLE(MVT::i16))
     return TypeSplitVector;
 
@@ -4727,9 +4726,11 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
   // Check for 16 bit addresses and pack if true.
   unsigned DimIdx = AddrIdx + BaseOpcode->NumExtraArgs;
   MVT VAddrVT = Op.getOperand(DimIdx).getSimpleValueType();
-  if (VAddrVT.getScalarType() == MVT::f16 &&
+  const MVT VAddrScalarVT = VAddrVT.getScalarType();
+  if (((VAddrScalarVT == MVT::f16) || (VAddrScalarVT == MVT::i16)) &&
       ST->hasFeature(AMDGPU::FeatureR128A16)) {
     IsA16 = true;
+    const MVT VectorVT = VAddrScalarVT == MVT::f16 ? MVT::v2f16 : MVT::v2i16;
     for (unsigned i = AddrIdx; i < (AddrIdx + NumMIVAddrs); ++i) {
       SDValue AddrLo, AddrHi;
       // Push back extra arguments.
@@ -4748,7 +4749,7 @@ SDValue SITargetLowering::lowerImage(SDValue Op,
           AddrHi = Op.getOperand(i + 1);
           i++;
         }
-        AddrLo = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, MVT::v2f16,
+        AddrLo = DAG.getNode(ISD::SCALAR_TO_VECTOR, DL, VectorVT,
                              {AddrLo, AddrHi});
         AddrLo = DAG.getBitcast(MVT::i32, AddrLo);
       }
@@ -5048,12 +5049,11 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::r600_read_tgid_z:
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_Z);
-  case Intrinsic::amdgcn_workitem_id_x: {
+  case Intrinsic::amdgcn_workitem_id_x:
   case Intrinsic::r600_read_tidig_x:
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDX);
-  }
   case Intrinsic::amdgcn_workitem_id_y:
   case Intrinsic::r600_read_tidig_y:
     return loadInputValue(DAG, &AMDGPU::VGPR_32RegClass, MVT::i32,
@@ -8133,48 +8133,6 @@ SDValue SITargetLowering::performExtractVectorEltCombine(
   return SDValue();
 }
 
-static bool convertBuildVectorCastElt(SelectionDAG &DAG,
-                                      SDValue &Lo, SDValue &Hi) {
-  if (Hi.getOpcode() == ISD::BITCAST &&
-      Hi.getOperand(0).getValueType() == MVT::f16 &&
-      (isa<ConstantSDNode>(Lo) || Lo.isUndef())) {
-    Lo = DAG.getNode(ISD::BITCAST, SDLoc(Lo), MVT::f16, Lo);
-    Hi = Hi.getOperand(0);
-    return true;
-  }
-
-  return false;
-}
-
-SDValue SITargetLowering::performBuildVectorCombine(
-  SDNode *N, DAGCombinerInfo &DCI) const {
-  SDLoc SL(N);
-
-  if (!isTypeLegal(MVT::v2i16))
-    return SDValue();
-  SelectionDAG &DAG = DCI.DAG;
-  EVT VT = N->getValueType(0);
-
-  if (VT == MVT::v2i16) {
-    SDValue Lo = N->getOperand(0);
-    SDValue Hi = N->getOperand(1);
-
-    // v2i16 build_vector (const|undef), (bitcast f16:$x)
-    // -> bitcast (v2f16 build_vector const|undef, $x
-    if (convertBuildVectorCastElt(DAG, Lo, Hi)) {
-      SDValue NewVec = DAG.getBuildVector(MVT::v2f16, SL, { Lo, Hi  });
-      return DAG.getNode(ISD::BITCAST, SL, VT, NewVec);
-    }
-
-    if (convertBuildVectorCastElt(DAG, Hi, Lo)) {
-      SDValue NewVec = DAG.getBuildVector(MVT::v2f16, SL, { Hi, Lo  });
-      return DAG.getNode(ISD::BITCAST, SL, VT, NewVec);
-    }
-  }
-
-  return SDValue();
-}
-
 unsigned SITargetLowering::getFusedOpcode(const SelectionDAG &DAG,
                                           const SDNode *N0,
                                           const SDNode *N1) const {
@@ -8783,8 +8741,6 @@ SDValue SITargetLowering::PerformDAGCombine(SDNode *N,
   }
   case ISD::EXTRACT_VECTOR_ELT:
     return performExtractVectorEltCombine(N, DCI);
-  case ISD::BUILD_VECTOR:
-    return performBuildVectorCombine(N, DCI);
   }
   return AMDGPUTargetLowering::PerformDAGCombine(N, DCI);
 }
@@ -8843,7 +8799,7 @@ SDNode *SITargetLowering::adjustWritemask(MachineSDNode *&Node,
 
     // Set which texture component corresponds to the lane.
     unsigned Comp;
-    for (unsigned i = 0, Dmask = OldDmask; i <= Lane; i++) {
+    for (unsigned i = 0, Dmask = OldDmask; (i <= Lane) && (Dmask != 0); i++) {
       Comp = countTrailingZeros(Dmask);
       Dmask &= ~(1 << Comp);
     }

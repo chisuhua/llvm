@@ -31,6 +31,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -65,6 +66,10 @@ using namespace llvm;
 static cl::opt<bool> EnableStaticAnalyis("hot-cold-static-analysis",
                               cl::init(true), cl::Hidden);
 
+static cl::opt<int>
+    MinOutliningThreshold("min-outlining-thresh", cl::init(3), cl::Hidden,
+                          cl::desc("Code size threshold for outlining within a "
+                                   "single BB (as a multiple of TCC_Basic)"));
 
 namespace {
 
@@ -130,6 +135,23 @@ static bool mayExtractBlock(const BasicBlock &BB) {
   return !BB.hasAddressTaken();
 }
 
+/// Check whether \p BB is profitable to outline (i.e. its code size cost meets
+/// the threshold set in \p MinOutliningThreshold).
+static bool isProfitableToOutline(const BasicBlock &BB,
+                                  TargetTransformInfo &TTI) {
+  int Cost = 0;
+  for (const Instruction &I : BB) {
+    if (isa<DbgInfoIntrinsic>(&I) || &I == BB.getTerminator())
+      continue;
+
+    Cost += TTI.getInstructionCost(&I, TargetTransformInfo::TCK_CodeSize);
+
+    if (Cost >= (MinOutliningThreshold * TargetTransformInfo::TCC_Basic))
+      return true;
+  }
+  return false;
+}
+
 /// Identify the maximal region of cold blocks which includes \p SinkBB.
 ///
 /// Include all blocks post-dominated by \p SinkBB, \p SinkBB itself, and all
@@ -138,8 +160,10 @@ static bool mayExtractBlock(const BasicBlock &BB) {
 ///
 /// Return an empty sequence if the cold region is too small to outline, or if
 /// the cold region has no warm predecessors.
-static BlockSequence
-findMaximalColdRegion(BasicBlock &SinkBB, DominatorTree &DT, PostDomTree &PDT) {
+static BlockSequence findMaximalColdRegion(BasicBlock &SinkBB,
+                                           TargetTransformInfo &TTI,
+                                           DominatorTree &DT,
+                                           PostDomTree &PDT) {
   // The maximal cold region.
   BlockSequence ColdRegion = {};
 
@@ -223,9 +247,7 @@ findMaximalColdRegion(BasicBlock &SinkBB, DominatorTree &DT, PostDomTree &PDT) {
     ++SuccIt;
   }
 
-  // TODO: Consider outlining regions with just 1 block, but more than some
-  // threshold of instructions.
-  if (ColdRegion.size() == 1)
+  if (ColdRegion.size() == 1 && !isProfitableToOutline(*ColdRegion[0], TTI))
     return {};
 
   return ColdRegion;
@@ -234,6 +256,7 @@ findMaximalColdRegion(BasicBlock &SinkBB, DominatorTree &DT, PostDomTree &PDT) {
 /// Get the largest cold region in \p F.
 static BlockSequence getLargestColdRegion(Function &F, ProfileSummaryInfo &PSI,
                                           BlockFrequencyInfo *BFI,
+                                          TargetTransformInfo &TTI,
                                           DominatorTree &DT, PostDomTree &PDT) {
   // Keep track of the largest cold region.
   BlockSequence LargestColdRegion = {};
@@ -253,7 +276,7 @@ static BlockSequence getLargestColdRegion(Function &F, ProfileSummaryInfo &PSI,
     });
 
     // Find a maximal cold region we can outline.
-    BlockSequence ColdRegion = findMaximalColdRegion(BB, DT, PDT);
+    BlockSequence ColdRegion = findMaximalColdRegion(BB, TTI, DT, PDT);
     if (ColdRegion.empty()) {
       LLVM_DEBUG(dbgs() << "  Skipping (block not profitable to extract)\n");
       continue;
@@ -288,7 +311,7 @@ public:
 private:
   bool shouldOutlineFrom(const Function &F) const;
   Function *extractColdRegion(const BlockSequence &Region, DominatorTree &DT,
-                              BlockFrequencyInfo *BFI,
+                              BlockFrequencyInfo *BFI, TargetTransformInfo &TTI,
                               OptimizationRemarkEmitter &ORE, unsigned Count);
   SmallPtrSet<const Function *, 2> OutlinedFunctions;
   ProfileSummaryInfo *PSI;
@@ -348,6 +371,7 @@ bool HotColdSplitting::shouldOutlineFrom(const Function &F) const {
 Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
                                               DominatorTree &DT,
                                               BlockFrequencyInfo *BFI,
+                                              TargetTransformInfo &TTI,
                                               OptimizationRemarkEmitter &ORE,
                                               unsigned Count) {
   assert(!Region.empty());
@@ -376,7 +400,7 @@ Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
     CallInst *CI = cast<CallInst>(U);
     CallSite CS(CI);
     NumColdRegionsOutlined++;
-    if (GetTTI(*OutF).useColdCCForColdCall(*OutF)) {
+    if (TTI.useColdCCForColdCall(*OutF)) {
       OutF->setCallingConv(CallingConv::Cold);
       CS.setCallingConv(CallingConv::Cold);
     }
@@ -420,14 +444,15 @@ bool HotColdSplitting::run(Module &M) {
     PostDomTree PDT(F);
     PDT.recalculate(F);
     BlockFrequencyInfo *BFI = GetBFI(F);
+    TargetTransformInfo &TTI = GetTTI(F);
 
-    BlockSequence ColdRegion = getLargestColdRegion(F, *PSI, BFI, DT, PDT);
+    BlockSequence ColdRegion = getLargestColdRegion(F, *PSI, BFI, TTI, DT, PDT);
     if (ColdRegion.empty())
       continue;
 
     OptimizationRemarkEmitter &ORE = (*GetORE)(F);
     Function *Outlined =
-        extractColdRegion(ColdRegion, DT, BFI, ORE, /*Count=*/1);
+        extractColdRegion(ColdRegion, DT, BFI, TTI, ORE, /*Count=*/1);
     if (Outlined) {
       OutlinedFunctions.insert(Outlined);
       Changed = true;
