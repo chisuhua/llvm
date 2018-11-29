@@ -141,7 +141,8 @@ namespace {
     }
 
     bool is_kernel_func(Function &F) {
-        if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+        if (F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+            F.getCallingConv() == CallingConv::AMDGPU_KERNEL) {
             return true;
         }
         return false;
