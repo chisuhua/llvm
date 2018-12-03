@@ -41,6 +41,14 @@ namespace {
         FPT_PINT16,
         FPT_PINT32,
         FPT_PINT64,
+        FPT_FP16,
+        FPT_FP32,
+        FPT_FP64,
+        FPT_FP128,
+        FPT_PFP16,
+        FPT_PFP32,
+        FPT_PFP64,
+        FPT_PFP128,
         FPT_UNSP
     };
 
@@ -68,11 +76,19 @@ namespace {
             if (ipt == llvm::Type::getInt16PtrTy(context)) return FPT_PINT16;
             if (ipt == llvm::Type::getInt32PtrTy(context)) return FPT_PINT32;
             if (ipt == llvm::Type::getInt64PtrTy(context)) return FPT_PINT64;
+            if (ipt == llvm::Type::getHalfPtrTy(context))  return FPT_PFP16;
+            if (ipt == llvm::Type::getFloatPtrTy(context)) return FPT_PFP32;
+            if (ipt == llvm::Type::getDoublePtrTy(context)) return FPT_PFP64;
+            if (ipt == llvm::Type::getFP128PtrTy(context)) return FPT_PFP128;
         } else {
             if (ipt->isIntegerTy(8))  return FPT_INT8;
             if (ipt->isIntegerTy(16)) return FPT_INT16;
             if (ipt->isIntegerTy(32)) return FPT_INT32;
             if (ipt->isIntegerTy(64)) return FPT_INT64;
+            if (ipt->isHalfTy())  return FPT_FP16;
+            if (ipt->isFloatTy()) return FPT_FP32;
+            if (ipt->isDoubleTy()) return FPT_FP64;
+            if (ipt->isFP128Ty()) return FPT_FP128;
         }
         return FPT_UNSP;
     }
@@ -82,6 +98,8 @@ namespace {
         uint8_t sz_lst[] = {
             1, 2, 4, 8, /* sizeof(int8), sizeof(int16) ... */
             8, 8, 8, 8, /* sizeof(pointer) */
+            2, 4, 8, 16, /* sizeof(half), sizeof(float) ... */
+            8, 8, 8, 8, /* sizeof(half), sizeof(float) ... */
             0 /* sizeof(unsupported type) */
         };
         if (fpt > FPT_UNSP) return 0;
