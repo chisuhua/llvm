@@ -1,9 +1,8 @@
 //===-- llvm-strings.cpp - Printable String dumping utility ---------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -60,21 +59,21 @@ static void strings(raw_ostream &OS, StringRef FileName, StringRef Contents) {
     if (L.size() < static_cast<size_t>(MinLength))
       return;
     if (PrintFileName)
-      OS << FileName << ":";
+      OS << FileName << ": ";
     switch (Radix) {
     case none:
       break;
     case octal:
-      OS << format("%8o", Offset);
+      OS << format("%7o ", Offset);
       break;
     case hexadecimal:
-      OS << format("%8x", Offset);
+      OS << format("%7x ", Offset);
       break;
     case decimal:
-      OS << format("%8u", Offset);
+      OS << format("%7u ", Offset);
       break;
     }
-    OS << " " << L << '\n';
+    OS << L << '\n';
   };
 
   const char *B = Contents.begin();

@@ -1,9 +1,8 @@
 //==- llvm/CodeGen/SelectionDAGAddressAnalysis.cpp - DAG Address Analysis --==//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -107,14 +106,14 @@ BaseIndexOffset BaseIndexOffset::match(const LSBaseSDNode *N,
       if (auto *C = dyn_cast<ConstantSDNode>(Base->getOperand(1)))
         if (DAG.MaskedValueIsZero(Base->getOperand(0), C->getAPIntValue())) {
           Offset += C->getSExtValue();
-          Base = Base->getOperand(0);
+          Base = DAG.getTargetLoweringInfo().unwrapAddress(Base->getOperand(0));
           continue;
         }
       break;
     case ISD::ADD:
       if (auto *C = dyn_cast<ConstantSDNode>(Base->getOperand(1))) {
         Offset += C->getSExtValue();
-        Base = Base->getOperand(0);
+        Base = DAG.getTargetLoweringInfo().unwrapAddress(Base->getOperand(0));
         continue;
       }
       break;
@@ -130,7 +129,7 @@ BaseIndexOffset BaseIndexOffset::match(const LSBaseSDNode *N,
             Offset -= Off;
           else
             Offset += Off;
-          Base = LSBase->getBasePtr();
+          Base = DAG.getTargetLoweringInfo().unwrapAddress(LSBase->getBasePtr());
           continue;
         }
       break;

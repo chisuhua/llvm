@@ -1,9 +1,8 @@
 //===- DWARFUnit.cpp ------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -66,9 +65,11 @@ void DWARFUnitVector::addUnitsImpl(
   DWARFDataExtractor Data(Obj, Section, LE, 0);
   // Lazy initialization of Parser, now that we have all section info.
   if (!Parser) {
-    Parser = [=, &Context, &Obj, &Section, &SOS, &LS](
-                 uint32_t Offset, DWARFSectionKind SectionKind,
-                 const DWARFSection *CurSection) -> std::unique_ptr<DWARFUnit> {
+    Parser = [=, &Context, &Obj, &Section, &SOS,
+              &LS](uint32_t Offset, DWARFSectionKind SectionKind,
+                   const DWARFSection *CurSection,
+                   const DWARFUnitIndex::Entry *IndexEntry)
+        -> std::unique_ptr<DWARFUnit> {
       const DWARFSection &InfoSection = CurSection ? *CurSection : Section;
       DWARFDataExtractor Data(Obj, InfoSection, LE, 0);
       if (!Data.isValidOffset(Offset))
@@ -77,7 +78,8 @@ void DWARFUnitVector::addUnitsImpl(
       if (IsDWO)
         Index = &getDWARFUnitIndex(Context, SectionKind);
       DWARFUnitHeader Header;
-      if (!Header.extract(Context, Data, &Offset, SectionKind, Index))
+      if (!Header.extract(Context, Data, &Offset, SectionKind, Index,
+                          IndexEntry))
         return nullptr;
       std::unique_ptr<DWARFUnit> U;
       if (Header.isTypeUnit())
@@ -106,7 +108,7 @@ void DWARFUnitVector::addUnitsImpl(
       ++I;
       continue;
     }
-    auto U = Parser(Offset, SectionKind, &Section);
+    auto U = Parser(Offset, SectionKind, &Section, nullptr);
     // If parsing failed, we're done with this section.
     if (!U)
       break;
@@ -156,7 +158,7 @@ DWARFUnitVector::getUnitForIndexEntry(const DWARFUnitIndex::Entry &E) {
   if (!Parser)
     return nullptr;
 
-  auto U = Parser(Offset, DW_SECT_INFO, nullptr);
+  auto U = Parser(Offset, DW_SECT_INFO, nullptr, &E);
   if (!U)
     U = nullptr;
 
@@ -233,9 +235,12 @@ bool DWARFUnitHeader::extract(DWARFContext &Context,
                               const DWARFDataExtractor &debug_info,
                               uint32_t *offset_ptr,
                               DWARFSectionKind SectionKind,
-                              const DWARFUnitIndex *Index) {
+                              const DWARFUnitIndex *Index,
+                              const DWARFUnitIndex::Entry *Entry) {
   Offset = *offset_ptr;
-  IndexEntry = Index ? Index->getFromOffset(*offset_ptr) : nullptr;
+  IndexEntry = Entry;
+  if (!IndexEntry && Index)
+    IndexEntry = Index->getFromOffset(*offset_ptr);
   Length = debug_info.getU32(offset_ptr);
   // FIXME: Support DWARF64.
   unsigned SizeOfLength = 4;
@@ -560,42 +565,18 @@ DWARFUnit::findRnglistFromIndex(uint32_t Index) {
                              "missing or invalid range list table");
 }
 
-void DWARFUnit::collectAddressRanges(DWARFAddressRangesVector &CURanges) {
+Expected<DWARFAddressRangesVector> DWARFUnit::collectAddressRanges() {
   DWARFDie UnitDie = getUnitDIE();
   if (!UnitDie)
-    return;
+    return createStringError(errc::invalid_argument, "No unit DIE");
+
   // First, check if unit DIE describes address ranges for the whole unit.
   auto CUDIERangesOrError = UnitDie.getAddressRanges();
-  if (CUDIERangesOrError) {
-    if (!CUDIERangesOrError.get().empty()) {
-      CURanges.insert(CURanges.end(), CUDIERangesOrError.get().begin(),
-                      CUDIERangesOrError.get().end());
-      return;
-    }
-  } else
-    WithColor::error() << "decoding address ranges: "
-                       << toString(CUDIERangesOrError.takeError()) << '\n';
-
-  // This function is usually called if there in no .debug_aranges section
-  // in order to produce a compile unit level set of address ranges that
-  // is accurate. If the DIEs weren't parsed, then we don't want all dies for
-  // all compile units to stay loaded when they weren't needed. So we can end
-  // up parsing the DWARF and then throwing them all away to keep memory usage
-  // down.
-  const bool ClearDIEs = extractDIEsIfNeeded(false) > 1;
-  getUnitDIE().collectChildrenAddressRanges(CURanges);
-
-  // Collect address ranges from DIEs in .dwo if necessary.
-  bool DWOCreated = parseDWO();
-  if (DWO)
-    DWO->collectAddressRanges(CURanges);
-  if (DWOCreated)
-    DWO.reset();
-
-  // Keep memory down by clearing DIEs if this generate function
-  // caused them to be parsed.
-  if (ClearDIEs)
-    clearDIEs(true);
+  if (!CUDIERangesOrError)
+    return createStringError(errc::invalid_argument,
+                             "decoding address ranges: %s",
+                             toString(CUDIERangesOrError.takeError()).c_str());
+  return *CUDIERangesOrError;
 }
 
 void DWARFUnit::updateAddressDieMap(DWARFDie Die) {

@@ -1,9 +1,8 @@
 //===-- AMDGPUSearchableTables.td - ------------------------*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -72,6 +71,8 @@ def : SourceOfDivergence<int_amdgcn_buffer_atomic_xor>;
 def : SourceOfDivergence<int_amdgcn_buffer_atomic_cmpswap>;
 def : SourceOfDivergence<int_amdgcn_ps_live>;
 def : SourceOfDivergence<int_amdgcn_ds_swizzle>;
+def : SourceOfDivergence<int_amdgcn_ds_ordered_add>;
+def : SourceOfDivergence<int_amdgcn_ds_ordered_swap>;
 
 foreach intr = AMDGPUImageDimAtomicIntrinsics in
 def : SourceOfDivergence<intr>;

@@ -1,9 +1,8 @@
 //===-- CodeGen/AsmPrinter/WasmException.cpp - Wasm Exception Impl --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -13,8 +12,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "WasmException.h"
+#include "llvm/IR/Mangler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
 using namespace llvm;
+
+void WasmException::endModule() {
+  // This is the symbol used in 'throw' and 'if_except' instruction to denote
+  // this is a C++ exception. This symbol has to be emitted somewhere once in
+  // the module.  Check if the symbol has already been created, i.e., we have at
+  // least one 'throw' or 'if_except' instruction in the module, and emit the
+  // symbol only if so.
+  SmallString<60> NameStr;
+  Mangler::getNameWithPrefix(NameStr, "__cpp_exception", Asm->getDataLayout());
+  if (Asm->OutContext.lookupSymbol(NameStr)) {
+    MCSymbol *ExceptionSym = Asm->GetExternalSymbolSymbol("__cpp_exception");
+    Asm->OutStreamer->EmitLabel(ExceptionSym);
+  }
+}
 
 void WasmException::markFunctionEnd() {
   // Get rid of any dead landing pads.

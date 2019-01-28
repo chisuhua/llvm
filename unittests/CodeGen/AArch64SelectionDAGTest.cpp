@@ -1,9 +1,8 @@
 //===- llvm/unittest/CodeGen/AArch64SelectionDAGTest.cpp -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -88,9 +87,8 @@ TEST_F(AArch64SelectionDAGTest, computeKnownBits_ZERO_EXTEND_VECTOR_INREG) {
   auto OutVecVT = EVT::getVectorVT(Context, Int16VT, 2);
   auto InVec = DAG->getConstant(0, Loc, InVecVT);
   auto Op = DAG->getNode(ISD::ZERO_EXTEND_VECTOR_INREG, Loc, OutVecVT, InVec);
-  auto DemandedElts = APInt(4, 15);
-  KnownBits Known;
-  DAG->computeKnownBits(Op, Known, DemandedElts);
+  auto DemandedElts = APInt(2, 3);
+  KnownBits Known = DAG->computeKnownBits(Op, DemandedElts);
   EXPECT_TRUE(Known.isZero());
 }
 
@@ -105,8 +103,7 @@ TEST_F(AArch64SelectionDAGTest, computeKnownBits_EXTRACT_SUBVECTOR) {
   auto ZeroIdx = DAG->getConstant(0, Loc, IdxVT);
   auto Op = DAG->getNode(ISD::EXTRACT_SUBVECTOR, Loc, VecVT, Vec, ZeroIdx);
   auto DemandedElts = APInt(3, 7);
-  KnownBits Known;
-  DAG->computeKnownBits(Op, Known, DemandedElts);
+  KnownBits Known = DAG->computeKnownBits(Op, DemandedElts);
   EXPECT_TRUE(Known.isZero());
 }
 
@@ -120,7 +117,7 @@ TEST_F(AArch64SelectionDAGTest, ComputeNumSignBits_SIGN_EXTEND_VECTOR_INREG) {
   auto OutVecVT = EVT::getVectorVT(Context, Int16VT, 2);
   auto InVec = DAG->getConstant(1, Loc, InVecVT);
   auto Op = DAG->getNode(ISD::SIGN_EXTEND_VECTOR_INREG, Loc, OutVecVT, InVec);
-  auto DemandedElts = APInt(4, 15);
+  auto DemandedElts = APInt(2, 3);
   EXPECT_EQ(DAG->ComputeNumSignBits(Op, DemandedElts), 15u);
 }
 

@@ -1,9 +1,8 @@
 //===-- AMDGPUPromoteAlloca.cpp - Promote Allocas -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -328,6 +327,10 @@ static bool canVectorizeInst(Instruction *Inst, User *User) {
     // Currently only handle the case where the Pointer Operand is a GEP.
     // Also we could not vectorize volatile or atomic loads.
     LoadInst *LI = cast<LoadInst>(Inst);
+    if (isa<AllocaInst>(User) &&
+        LI->getPointerOperandType() == User->getType() &&
+        isa<VectorType>(LI->getType()))
+      return true;
     return isa<GetElementPtrInst>(LI->getPointerOperand()) && LI->isSimple();
   }
   case Instruction::BitCast:
@@ -337,6 +340,10 @@ static bool canVectorizeInst(Instruction *Inst, User *User) {
     // since it should be canonical form, the User should be a GEP.
     // Also we could not vectorize volatile or atomic stores.
     StoreInst *SI = cast<StoreInst>(Inst);
+    if (isa<AllocaInst>(User) &&
+        SI->getPointerOperandType() == User->getType() &&
+        isa<VectorType>(SI->getValueOperand()->getType()))
+      return true;
     return (SI->getPointerOperand() == User) && isa<GetElementPtrInst>(User) && SI->isSimple();
   }
   default:
@@ -351,7 +358,8 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca) {
     return false;
   }
 
-  ArrayType *AllocaTy = dyn_cast<ArrayType>(Alloca->getAllocatedType());
+  Type *AT = Alloca->getAllocatedType();
+  SequentialType *AllocaTy = dyn_cast<SequentialType>(AT);
 
   LLVM_DEBUG(dbgs() << "Alloca candidate for vectorization\n");
 
@@ -398,7 +406,9 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca) {
     }
   }
 
-  VectorType *VectorTy = arrayTypeToVecType(AllocaTy);
+  VectorType *VectorTy = dyn_cast<VectorType>(AllocaTy);
+  if (!VectorTy)
+    VectorTy = arrayTypeToVecType(cast<ArrayType>(AllocaTy));
 
   LLVM_DEBUG(dbgs() << "  Converting alloca to vector " << *AllocaTy << " -> "
                     << *VectorTy << '\n');
@@ -408,6 +418,9 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca) {
     IRBuilder<> Builder(Inst);
     switch (Inst->getOpcode()) {
     case Instruction::Load: {
+      if (Inst->getType() == AT)
+        break;
+
       Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
       Value *Ptr = cast<LoadInst>(Inst)->getPointerOperand();
       Value *Index = calculateVectorIndex(Ptr, GEPVectorIdx);
@@ -420,9 +433,11 @@ static bool tryPromoteAllocaToVector(AllocaInst *Alloca) {
       break;
     }
     case Instruction::Store: {
-      Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
-
       StoreInst *SI = cast<StoreInst>(Inst);
+      if (SI->getValueOperand()->getType() == AT)
+        break;
+
+      Type *VecPtrTy = VectorTy->getPointerTo(AMDGPUAS::PRIVATE_ADDRESS);
       Value *Ptr = SI->getPointerOperand();
       Value *Index = calculateVectorIndex(Ptr, GEPVectorIdx);
       Value *BitCast = Builder.CreateBitCast(Alloca, VecPtrTy);

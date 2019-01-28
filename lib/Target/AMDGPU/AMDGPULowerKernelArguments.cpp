@@ -1,9 +1,8 @@
 //===-- AMDGPULowerKernelArguments.cpp ------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -122,14 +121,17 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
 
     VectorType *VT = dyn_cast<VectorType>(ArgTy);
     bool IsV3 = VT && VT->getNumElements() == 3;
+    bool DoShiftOpt = Size < 32 && !ArgTy->isAggregateType();
+
     VectorType *V4Ty = nullptr;
 
     int64_t AlignDownOffset = alignDown(EltOffset, 4);
     int64_t OffsetDiff = EltOffset - AlignDownOffset;
-    unsigned AdjustedAlign = MinAlign(KernArgBaseAlign, AlignDownOffset);
+    unsigned AdjustedAlign = MinAlign(DoShiftOpt ? AlignDownOffset : EltOffset,
+                                      KernArgBaseAlign);
 
     Value *ArgPtr;
-    if (Size < 32 && !ArgTy->isAggregateType()) { // FIXME: Handle aggregate types
+    if (DoShiftOpt) { // FIXME: Handle aggregate types
       // Since we don't have sub-dword scalar loads, avoid doing an extload by
       // loading earlier than the argument address, and extracting the relevant
       // bits.
@@ -147,7 +149,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
     } else {
       ArgPtr = Builder.CreateConstInBoundsGEP1_64(
         KernArgSegment,
-        AlignDownOffset,
+        EltOffset,
         Arg.getName() + ".kernarg.offset");
       ArgPtr = Builder.CreateBitCast(ArgPtr, ArgTy->getPointerTo(AS),
                                      ArgPtr->getName() + ".cast");
@@ -198,7 +200,7 @@ bool AMDGPULowerKernelArguments::runOnFunction(Function &F) {
 
     // TODO: Convert noalias arg to !noalias
 
-    if (Size < 32 && !ArgTy->isAggregateType()) {
+    if (DoShiftOpt) {
       Value *ExtractBits = OffsetDiff == 0 ?
         Load : Builder.CreateLShr(Load, OffsetDiff * 8);
 

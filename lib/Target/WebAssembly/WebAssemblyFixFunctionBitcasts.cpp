@@ -1,9 +1,8 @@
 //===-- WebAssemblyFixFunctionBitcasts.cpp - Fix function bitcasts --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -228,6 +227,8 @@ static Function *CreateWrapper(Function *F, FunctionType *Ty) {
 }
 
 bool FixFunctionBitcasts::runOnModule(Module &M) {
+  LLVM_DEBUG(dbgs() << "********** Fix Function Bitcasts **********\n");
+
   Function *Main = nullptr;
   CallInst *CallMain = nullptr;
   SmallVector<std::pair<Use *, Function *>, 0> Uses;

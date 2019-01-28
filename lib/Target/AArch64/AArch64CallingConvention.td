@@ -1,9 +1,8 @@
 //=- AArch64CallingConv.td - Calling Conventions for AArch64 -*- tablegen -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -123,7 +122,7 @@ def RetCC_AArch64_AAPCS : CallingConv<[
 
 // Vararg functions on windows pass floats in integer registers
 def CC_AArch64_Win64_VarArg : CallingConv<[
-  CCIfType<[f16, f32],    CCPromoteToType<f64>>,
+  CCIfType<[f16, f32], CCPromoteToType<f64>>,
   CCIfType<[f64], CCBitConvertToType<i64>>,
   CCDelegateTo<CC_AArch64_AAPCS>
 ]>;

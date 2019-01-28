@@ -80,9 +80,16 @@ and from the command line.
   -verify``. With this option FileCheck will verify that input does not contain
   warnings not covered by any ``CHECK:`` patterns.
 
+.. option:: --dump-input <mode>
+
+  Dump input to stderr, adding annotations representing currently enabled
+  diagnostics.  Do this either 'always', on 'fail', or 'never'.  Specify 'help'
+  to explain the dump format and quit.
+
 .. option:: --dump-input-on-failure
 
-  When the check fails, dump all of the original input.
+  When the check fails, dump all of the original input.  This option is
+  deprecated in favor of `--dump-input=fail`.
 
 .. option:: --enable-var-scope
 
@@ -104,13 +111,16 @@ and from the command line.
 
 .. option:: -v
 
-  Print directive pattern matches.
+  Print good directive pattern matches.  However, if ``-input-dump=fail`` or
+  ``-input-dump=always``, add those matches as input annotations instead.
 
 .. option:: -vv
 
   Print information helpful in diagnosing internal FileCheck issues, such as
   discarded overlapping ``CHECK-DAG:`` matches, implicit EOF pattern matches,
   and ``CHECK-NOT:`` patterns that do not have matches.  Implies ``-v``.
+  However, if ``-input-dump=fail`` or ``-input-dump=always``, just add that
+  information as input annotations instead.
 
 .. option:: --allow-deprecated-dag-overlap
 
@@ -310,6 +320,29 @@ can be used:
    ; CHECK-NOT: load
    ; CHECK: ret i8
    }
+
+The "CHECK-COUNT:" directive
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you need to match multiple lines with the same pattern over and over again
+you can repeat a plain ``CHECK:`` as many times as needed. If that looks too
+boring you can instead use a counted check "``CHECK-COUNT-<num>:``", where
+``<num>`` is a positive decimal number. It will match the pattern exactly
+``<num>`` times, no more and no less. If you specified a custom check prefix,
+just use "``<PREFIX>-COUNT-<num>:``" for the same effect.
+Here is a simple example:
+
+.. code-block:: text
+
+   Loop at depth 1
+   Loop at depth 1
+   Loop at depth 1
+   Loop at depth 1
+     Loop at depth 2
+       Loop at depth 3
+
+   ; CHECK-COUNT-6: Loop at depth {{[0-9]+}}
+   ; CHECK-NOT:     Loop at depth {{[0-9]+}}
 
 The "CHECK-DAG:" directive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

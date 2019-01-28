@@ -1,9 +1,8 @@
 //===- AArch6464FastISel.cpp - AArch64 FastISel implementation ------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -2016,8 +2015,9 @@ bool AArch64FastISel::selectLoad(const Instruction *I) {
       if (RetVT == MVT::i64 && VT <= MVT::i32) {
         if (WantZExt) {
           // Delete the last emitted instruction from emitLoad (SUBREG_TO_REG).
-          std::prev(FuncInfo.InsertPt)->eraseFromParent();
-          ResultReg = std::prev(FuncInfo.InsertPt)->getOperand(0).getReg();
+          MachineBasicBlock::iterator I(std::prev(FuncInfo.InsertPt));
+          ResultReg = std::prev(I)->getOperand(0).getReg();
+          removeDeadCode(I, std::next(I));
         } else
           ResultReg = fastEmitInst_extractsubreg(MVT::i32, ResultReg,
                                                  /*IsKill=*/true,
@@ -2038,7 +2038,8 @@ bool AArch64FastISel::selectLoad(const Instruction *I) {
           break;
         }
       }
-      MI->eraseFromParent();
+      MachineBasicBlock::iterator I(MI);
+      removeDeadCode(I, std::next(I));
       MI = nullptr;
       if (Reg)
         MI = MRI.getUniqueVRegDef(Reg);
@@ -2256,6 +2257,13 @@ static AArch64CC::CondCode getCompareCC(CmpInst::Predicate Pred) {
 
 /// Try to emit a combined compare-and-branch instruction.
 bool AArch64FastISel::emitCompareAndBranch(const BranchInst *BI) {
+  // Speculation tracking/SLH assumes that optimized TB(N)Z/CB(N)Z instructions
+  // will not be produced, as they are conditional branch instructions that do
+  // not set flags.
+  if (FuncInfo.MF->getFunction().hasFnAttribute(
+          Attribute::SpeculativeLoadHardening))
+    return false;
+
   assert(isa<CmpInst>(BI->getCondition()) && "Expected cmp instruction");
   const CmpInst *CI = cast<CmpInst>(BI->getCondition());
   CmpInst::Predicate Predicate = optimizeCmpPredicate(CI);
@@ -4508,7 +4516,8 @@ bool AArch64FastISel::optimizeIntExtLoad(const Instruction *I, MVT RetVT,
             MI->getOperand(1).getSubReg() == AArch64::sub_32) &&
            "Expected copy instruction");
     Reg = MI->getOperand(1).getReg();
-    MI->eraseFromParent();
+    MachineBasicBlock::iterator I(MI);
+    removeDeadCode(I, std::next(I));
   }
   updateValueMap(I, Reg);
   return true;

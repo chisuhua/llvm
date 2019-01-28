@@ -1,9 +1,8 @@
 //===- CodeGenSchedule.cpp - Scheduling MachineModels ---------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -479,6 +478,35 @@ void CodeGenSchedModels::collectRetireControlUnits() {
   }
 }
 
+void CodeGenSchedModels::collectLoadStoreQueueInfo() {
+  RecVec Queues = Records.getAllDerivedDefinitions("MemoryQueue");
+
+  for (Record *Queue : Queues) {
+    CodeGenProcModel &PM = getProcModel(Queue->getValueAsDef("SchedModel"));
+    if (Queue->isSubClassOf("LoadQueue")) {
+      if (PM.LoadQueue) {
+        PrintError(Queue->getLoc(),
+                   "Expected a single LoadQueue definition");
+        PrintNote(PM.LoadQueue->getLoc(),
+                  "Previous definition of LoadQueue was here");
+      }
+
+      PM.LoadQueue = Queue;
+    }
+
+    if (Queue->isSubClassOf("StoreQueue")) {
+      if (PM.StoreQueue) {
+        PrintError(Queue->getLoc(),
+                   "Expected a single StoreQueue definition");
+        PrintNote(PM.LoadQueue->getLoc(),
+                  "Previous definition of StoreQueue was here");
+      }
+
+      PM.StoreQueue = Queue;
+    }
+  }
+}
+
 /// Collect optional processor information.
 void CodeGenSchedModels::collectOptionalProcessorInfo() {
   // Find register file definitions for each processor.
@@ -486,6 +514,9 @@ void CodeGenSchedModels::collectOptionalProcessorInfo() {
 
   // Collect processor RetireControlUnit descriptors if available.
   collectRetireControlUnits();
+
+  // Collect information about load/store queues.
+  collectLoadStoreQueueInfo();
 
   checkCompleteness();
 }

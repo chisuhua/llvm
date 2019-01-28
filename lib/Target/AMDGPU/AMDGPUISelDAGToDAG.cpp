@@ -1,9 +1,8 @@
 //===-- AMDGPUISelDAGToDAG.cpp - A dag to dag inst selector for AMDGPU ----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //==-----------------------------------------------------------------------===//
 //
@@ -470,7 +469,7 @@ void AMDGPUDAGToDAGISel::Select(SDNode *N) {
 
   if (isa<AtomicSDNode>(N) ||
       (Opc == AMDGPUISD::ATOMIC_INC || Opc == AMDGPUISD::ATOMIC_DEC ||
-       Opc == AMDGPUISD::ATOMIC_LOAD_FADD ||
+       Opc == ISD::ATOMIC_LOAD_FADD ||
        Opc == AMDGPUISD::ATOMIC_LOAD_FMIN ||
        Opc == AMDGPUISD::ATOMIC_LOAD_FMAX))
     N = glueCopyToM0(N);
@@ -1454,9 +1453,13 @@ bool AMDGPUDAGToDAGISel::SelectMOVRELOffset(SDValue Index,
     ConstantSDNode *C1 = cast<ConstantSDNode>(N1);
 
     // (add n0, c0)
-    Base = N0;
-    Offset = CurDAG->getTargetConstant(C1->getZExtValue(), DL, MVT::i32);
-    return true;
+    // Don't peel off the offset (c0) if doing so could possibly lead
+    // the base (n0) to be negative.
+    if (C1->getSExtValue() <= 0 || CurDAG->SignBitIsZero(N0)) {
+      Base = N0;
+      Offset = CurDAG->getTargetConstant(C1->getZExtValue(), DL, MVT::i32);
+      return true;
+    }
   }
 
   if (isa<ConstantSDNode>(Index))

@@ -1,9 +1,8 @@
-//===-- llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h --===========//
+//===-- llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h -----*- C++ -*-//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This file contains some helper functions which try to cleanup artifacts
@@ -49,6 +48,18 @@ public:
       LLVM_DEBUG(dbgs() << ".. Combine MI: " << MI;);
       Builder.buildAnyExtOrTrunc(DstReg, TruncSrc);
       markInstAndDefDead(MI, *MRI.getVRegDef(SrcReg), DeadInsts);
+      return true;
+    }
+
+    // aext([asz]ext x) -> [asz]ext x
+    unsigned ExtSrc;
+    MachineInstr *ExtMI;
+    if (mi_match(SrcReg, MRI,
+                 m_all_of(m_MInstr(ExtMI), m_any_of(m_GAnyExt(m_Reg(ExtSrc)),
+                                                    m_GSExt(m_Reg(ExtSrc)),
+                                                    m_GZExt(m_Reg(ExtSrc)))))) {
+      Builder.buildInstr(ExtMI->getOpcode(), {DstReg}, {ExtSrc});
+      markInstAndDefDead(MI, *ExtMI, DeadInsts);
       return true;
     }
     return tryFoldImplicitDef(MI, DeadInsts);
@@ -97,8 +108,10 @@ public:
     unsigned TruncSrc;
     if (mi_match(SrcReg, MRI, m_GTrunc(m_Reg(TruncSrc)))) {
       LLT DstTy = MRI.getType(DstReg);
-      if (isInstUnsupported({TargetOpcode::G_SHL, {DstTy}}) ||
-          isInstUnsupported({TargetOpcode::G_ASHR, {DstTy}}) ||
+      // Guess on the RHS shift amount type, which should be re-legalized if
+      // applicable.
+      if (isInstUnsupported({TargetOpcode::G_SHL, {DstTy, DstTy}}) ||
+          isInstUnsupported({TargetOpcode::G_ASHR, {DstTy, DstTy}}) ||
           isInstUnsupported({TargetOpcode::G_CONSTANT, {DstTy}}))
         return false;
       LLVM_DEBUG(dbgs() << ".. Combine MI: " << MI;);
@@ -106,9 +119,9 @@ public:
       unsigned ShAmt = DstTy.getSizeInBits() - SrcTy.getSizeInBits();
       auto MIBShAmt = Builder.buildConstant(DstTy, ShAmt);
       auto MIBShl = Builder.buildInstr(
-          TargetOpcode::G_SHL, DstTy,
-          Builder.buildAnyExtOrTrunc(DstTy, TruncSrc), MIBShAmt);
-      Builder.buildInstr(TargetOpcode::G_ASHR, DstReg, MIBShl, MIBShAmt);
+          TargetOpcode::G_SHL, {DstTy},
+          {Builder.buildAnyExtOrTrunc(DstTy, TruncSrc), MIBShAmt});
+      Builder.buildInstr(TargetOpcode::G_ASHR, {DstReg}, {MIBShl, MIBShAmt});
       markInstAndDefDead(MI, *MRI.getVRegDef(SrcReg), DeadInsts);
       return true;
     }
@@ -134,7 +147,7 @@ public:
         if (isInstUnsupported({TargetOpcode::G_IMPLICIT_DEF, {DstTy}}))
           return false;
         LLVM_DEBUG(dbgs() << ".. Combine G_ANYEXT(G_IMPLICIT_DEF): " << MI;);
-        Builder.buildInstr(TargetOpcode::G_IMPLICIT_DEF, DstReg);
+        Builder.buildInstr(TargetOpcode::G_IMPLICIT_DEF, {DstReg}, {});
       } else {
         // G_[SZ]EXT (G_IMPLICIT_DEF) -> G_CONSTANT 0 because the top
         // bits will be 0 for G_ZEXT and 0/1 for the G_SEXT.
@@ -157,8 +170,20 @@ public:
       return false;
 
     unsigned NumDefs = MI.getNumOperands() - 1;
-    MachineInstr *MergeI = getOpcodeDef(TargetOpcode::G_MERGE_VALUES,
-                                        MI.getOperand(NumDefs).getReg(), MRI);
+
+    unsigned MergingOpcode;
+    LLT OpTy = MRI.getType(MI.getOperand(NumDefs).getReg());
+    LLT DestTy = MRI.getType(MI.getOperand(0).getReg());
+    if (OpTy.isVector() && DestTy.isVector())
+      MergingOpcode = TargetOpcode::G_CONCAT_VECTORS;
+    else if (OpTy.isVector() && !DestTy.isVector())
+      MergingOpcode = TargetOpcode::G_BUILD_VECTOR;
+    else
+      MergingOpcode = TargetOpcode::G_MERGE_VALUES;
+
+    MachineInstr *MergeI =
+        getOpcodeDef(MergingOpcode, MI.getOperand(NumDefs).getReg(), MRI);
+
     if (!MergeI)
       return false;
 

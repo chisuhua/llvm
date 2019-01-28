@@ -20,9 +20,22 @@ define %struct.__vv* @t(%struct.Key* %desc, i64 %p) nounwind ssp {
 ; CHECK-NEXT:    movq %rdi, %rbx
 ; CHECK-NEXT:    orq $2097152, %r14 ## imm = 0x200000
 ; CHECK-NEXT:    andl $15728640, %r14d ## imm = 0xF00000
-; CHECK-NEXT:    jmp LBB0_1
 ; CHECK-NEXT:    .p2align 4, 0x90
-; CHECK-NEXT:  LBB0_3: ## %bb.i
+; CHECK-NEXT:  LBB0_1: ## %bb4
+; CHECK-NEXT:    ## =>This Inner Loop Header: Depth=1
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    callq _xxGetOffsetForCode
+; CHECK-NEXT:    movq %rbx, %rdi
+; CHECK-NEXT:    xorl %esi, %esi
+; CHECK-NEXT:    xorl %eax, %eax
+; CHECK-NEXT:    callq _xxCalculateMidType
+; CHECK-NEXT:    cmpl $1, %eax
+; CHECK-NEXT:    jne LBB0_1
+; CHECK-NEXT:  ## %bb.2: ## %bb26
+; CHECK-NEXT:    ## in Loop: Header=BB0_1 Depth=1
+; CHECK-NEXT:    cmpq $1048576, %r14 ## imm = 0x100000
+; CHECK-NEXT:    jne LBB0_1
+; CHECK-NEXT:  ## %bb.3: ## %bb.i
 ; CHECK-NEXT:    ## in Loop: Header=BB0_1 Depth=1
 ; CHECK-NEXT:    movl 0, %eax
 ; CHECK-NEXT:    xorps %xmm0, %xmm0
@@ -36,21 +49,7 @@ define %struct.__vv* @t(%struct.Key* %desc, i64 %p) nounwind ssp {
 ; CHECK-NEXT:    insertps {{.*#+}} xmm0 = xmm0[0],xmm1[0],xmm0[2,3]
 ; CHECK-NEXT:    insertps {{.*#+}} xmm0 = xmm0[0,1],xmm2[0],xmm0[3]
 ; CHECK-NEXT:    movaps %xmm0, 0
-; CHECK-NEXT:  LBB0_1: ## %bb4
-; CHECK-NEXT:    ## =>This Inner Loop Header: Depth=1
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    callq _xxGetOffsetForCode
-; CHECK-NEXT:    xorl %esi, %esi
-; CHECK-NEXT:    xorl %eax, %eax
-; CHECK-NEXT:    movq %rbx, %rdi
-; CHECK-NEXT:    callq _xxCalculateMidType
-; CHECK-NEXT:    cmpl $1, %eax
-; CHECK-NEXT:    jne LBB0_1
-; CHECK-NEXT:  ## %bb.2: ## %bb26
-; CHECK-NEXT:    ## in Loop: Header=BB0_1 Depth=1
-; CHECK-NEXT:    cmpq $1048576, %r14 ## imm = 0x100000
-; CHECK-NEXT:    jne LBB0_1
-; CHECK-NEXT:    jmp LBB0_3
+; CHECK-NEXT:    jmp LBB0_1
 entry:
 	br label %bb4
 

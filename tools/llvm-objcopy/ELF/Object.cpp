@@ -1,9 +1,8 @@
 //===- Object.cpp ---------------------------------------------------------===//
 //
-//                      The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -71,7 +70,46 @@ template <class ELFT> void ELFWriter<ELFT>::writeShdr(const SectionBase &Sec) {
   Shdr.sh_entsize = Sec.EntrySize;
 }
 
-SectionVisitor::~SectionVisitor() {}
+template <class ELFT> void ELFSectionSizer<ELFT>::visit(Section &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(OwnedDataSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(StringTableSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(DynamicRelocationSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(SymbolTableSection &Sec) {
+  Sec.EntrySize = sizeof(Elf_Sym);
+  Sec.Size = Sec.Symbols.size() * Sec.EntrySize;
+  // Align to the largest field in Elf_Sym.
+  Sec.Align = ELFT::Is64Bits ? sizeof(Elf_Xword) : sizeof(Elf_Word);
+}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(RelocationSection &Sec) {
+  Sec.EntrySize = Sec.Type == SHT_REL ? sizeof(Elf_Rel) : sizeof(Elf_Rela);
+  Sec.Size = Sec.Relocations.size() * Sec.EntrySize;
+  // Align to the largest field in Elf_Rel(a).
+  Sec.Align = ELFT::Is64Bits ? sizeof(Elf_Xword) : sizeof(Elf_Word);
+}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(GnuDebugLinkSection &Sec) {}
+
+template <class ELFT> void ELFSectionSizer<ELFT>::visit(GroupSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(SectionIndexSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(CompressedSection &Sec) {}
+
+template <class ELFT>
+void ELFSectionSizer<ELFT>::visit(DecompressedSection &Sec) {}
 
 void BinarySectionWriter::visit(const SectionIndexSection &Sec) {
   error("Cannot write symbol section index table '" + Sec.Name + "' ");
@@ -97,14 +135,16 @@ void SectionWriter::visit(const Section &Sec) {
   if (Sec.Type == SHT_NOBITS)
     return;
   uint8_t *Buf = Out.getBufferStart() + Sec.Offset;
-  std::copy(std::begin(Sec.Contents), std::end(Sec.Contents), Buf);
+  llvm::copy(Sec.Contents, Buf);
 }
 
 void Section::accept(SectionVisitor &Visitor) const { Visitor.visit(*this); }
 
+void Section::accept(MutableSectionVisitor &Visitor) { Visitor.visit(*this); }
+
 void SectionWriter::visit(const OwnedDataSection &Sec) {
   uint8_t *Buf = Out.getBufferStart() + Sec.Offset;
-  std::copy(std::begin(Sec.Data), std::end(Sec.Data), Buf);
+  llvm::copy(Sec.Data, Buf);
 }
 
 static const std::vector<uint8_t> ZlibGnuMagic = {'Z', 'L', 'I', 'B'};
@@ -164,7 +204,15 @@ void DecompressedSection::accept(SectionVisitor &Visitor) const {
   Visitor.visit(*this);
 }
 
+void DecompressedSection::accept(MutableSectionVisitor &Visitor) {
+  Visitor.visit(*this);
+}
+
 void OwnedDataSection::accept(SectionVisitor &Visitor) const {
+  Visitor.visit(*this);
+}
+
+void OwnedDataSection::accept(MutableSectionVisitor &Visitor) {
   Visitor.visit(*this);
 }
 
@@ -246,6 +294,10 @@ void CompressedSection::accept(SectionVisitor &Visitor) const {
   Visitor.visit(*this);
 }
 
+void CompressedSection::accept(MutableSectionVisitor &Visitor) {
+  Visitor.visit(*this);
+}
+
 void StringTableSection::addString(StringRef Name) {
   StrTabBuilder.add(Name);
   Size = StrTabBuilder.getSize();
@@ -265,11 +317,15 @@ void StringTableSection::accept(SectionVisitor &Visitor) const {
   Visitor.visit(*this);
 }
 
+void StringTableSection::accept(MutableSectionVisitor &Visitor) {
+  Visitor.visit(*this);
+}
+
 template <class ELFT>
 void ELFSectionWriter<ELFT>::visit(const SectionIndexSection &Sec) {
   uint8_t *Buf = Out.getBufferStart() + Sec.Offset;
   auto *IndexesBuffer = reinterpret_cast<Elf_Word *>(Buf);
-  std::copy(std::begin(Sec.Indexes), std::end(Sec.Indexes), IndexesBuffer);
+  llvm::copy(Sec.Indexes, IndexesBuffer);
 }
 
 void SectionIndexSection::initialize(SectionTableRef SecTable) {
@@ -285,6 +341,10 @@ void SectionIndexSection::initialize(SectionTableRef SecTable) {
 void SectionIndexSection::finalize() { Link = Symbols->Index; }
 
 void SectionIndexSection::accept(SectionVisitor &Visitor) const {
+  Visitor.visit(*this);
+}
+
+void SectionIndexSection::accept(MutableSectionVisitor &Visitor) {
   Visitor.visit(*this);
 }
 
@@ -470,6 +530,10 @@ void SymbolTableSection::accept(SectionVisitor &Visitor) const {
   Visitor.visit(*this);
 }
 
+void SymbolTableSection::accept(MutableSectionVisitor &Visitor) {
+  Visitor.visit(*this);
+}
+
 template <class SymTabType>
 void RelocSectionWithSymtabBase<SymTabType>::removeSectionReferences(
     const SectionBase *Sec) {
@@ -540,6 +604,10 @@ void RelocationSection::accept(SectionVisitor &Visitor) const {
   Visitor.visit(*this);
 }
 
+void RelocationSection::accept(MutableSectionVisitor &Visitor) {
+  Visitor.visit(*this);
+}
+
 void RelocationSection::removeSymbols(
     function_ref<bool(const Symbol &)> ToRemove) {
   for (const Relocation &Reloc : Relocations)
@@ -554,11 +622,15 @@ void RelocationSection::markSymbols() {
 }
 
 void SectionWriter::visit(const DynamicRelocationSection &Sec) {
-  std::copy(std::begin(Sec.Contents), std::end(Sec.Contents),
+  llvm::copy(Sec.Contents,
             Out.getBufferStart() + Sec.Offset);
 }
 
 void DynamicRelocationSection::accept(SectionVisitor &Visitor) const {
+  Visitor.visit(*this);
+}
+
+void DynamicRelocationSection::accept(MutableSectionVisitor &Visitor) {
   Visitor.visit(*this);
 }
 
@@ -641,10 +713,14 @@ void ELFSectionWriter<ELFT>::visit(const GnuDebugLinkSection &Sec) {
   Elf_Word *CRC =
       reinterpret_cast<Elf_Word *>(Buf + Sec.Size - sizeof(Elf_Word));
   *CRC = Sec.CRC32;
-  std::copy(std::begin(Sec.FileName), std::end(Sec.FileName), File);
+  llvm::copy(Sec.FileName, File);
 }
 
 void GnuDebugLinkSection::accept(SectionVisitor &Visitor) const {
+  Visitor.visit(*this);
+}
+
+void GnuDebugLinkSection::accept(MutableSectionVisitor &Visitor) {
   Visitor.visit(*this);
 }
 
@@ -658,6 +734,10 @@ void ELFSectionWriter<ELFT>::visit(const GroupSection &Sec) {
 }
 
 void GroupSection::accept(SectionVisitor &Visitor) const {
+  Visitor.visit(*this);
+}
+
+void GroupSection::accept(MutableSectionVisitor &Visitor) {
   Visitor.visit(*this);
 }
 
@@ -700,19 +780,19 @@ static bool compareSegmentsByPAddr(const Segment *A, const Segment *B) {
   return A->Index < B->Index;
 }
 
-template <class ELFT> void BinaryELFBuilder<ELFT>::initFileHeader() {
+void BinaryELFBuilder::initFileHeader() {
   Obj->Flags = 0x0;
   Obj->Type = ET_REL;
+  Obj->OSABI = ELFOSABI_NONE;
+  Obj->ABIVersion = 0;
   Obj->Entry = 0x0;
   Obj->Machine = EMachine;
   Obj->Version = 1;
 }
 
-template <class ELFT> void BinaryELFBuilder<ELFT>::initHeaderSegment() {
-  Obj->ElfHdrSegment.Index = 0;
-}
+void BinaryELFBuilder::initHeaderSegment() { Obj->ElfHdrSegment.Index = 0; }
 
-template <class ELFT> StringTableSection *BinaryELFBuilder<ELFT>::addStrTab() {
+StringTableSection *BinaryELFBuilder::addStrTab() {
   auto &StrTab = Obj->addSection<StringTableSection>();
   StrTab.Name = ".strtab";
 
@@ -720,15 +800,11 @@ template <class ELFT> StringTableSection *BinaryELFBuilder<ELFT>::addStrTab() {
   return &StrTab;
 }
 
-template <class ELFT>
-SymbolTableSection *
-BinaryELFBuilder<ELFT>::addSymTab(StringTableSection *StrTab) {
+SymbolTableSection *BinaryELFBuilder::addSymTab(StringTableSection *StrTab) {
   auto &SymTab = Obj->addSection<SymbolTableSection>();
 
   SymTab.Name = ".symtab";
   SymTab.Link = StrTab->Index;
-  // TODO: Factor out dependence on ElfType here.
-  SymTab.EntrySize = sizeof(Elf_Sym);
 
   // The symbol table always needs a null symbol
   SymTab.addSymbol("", 0, 0, nullptr, 0, 0, 0, 0);
@@ -737,8 +813,7 @@ BinaryELFBuilder<ELFT>::addSymTab(StringTableSection *StrTab) {
   return &SymTab;
 }
 
-template <class ELFT>
-void BinaryELFBuilder<ELFT>::addData(SymbolTableSection *SymTab) {
+void BinaryELFBuilder::addData(SymbolTableSection *SymTab) {
   auto Data = ArrayRef<uint8_t>(
       reinterpret_cast<const uint8_t *>(MemBuf->getBufferStart()),
       MemBuf->getBufferSize());
@@ -761,13 +836,13 @@ void BinaryELFBuilder<ELFT>::addData(SymbolTableSection *SymTab) {
                     /*Value=*/DataSection.Size, STV_DEFAULT, SHN_ABS, 0);
 }
 
-template <class ELFT> void BinaryELFBuilder<ELFT>::initSections() {
+void BinaryELFBuilder::initSections() {
   for (auto &Section : Obj->sections()) {
     Section.initialize(Obj->sections());
   }
 }
 
-template <class ELFT> std::unique_ptr<Object> BinaryELFBuilder<ELFT>::build() {
+std::unique_ptr<Object> BinaryELFBuilder::build() {
   initFileHeader();
   initHeaderSegment();
   StringTableSection *StrTab = addStrTab();
@@ -1086,6 +1161,8 @@ template <class ELFT> void ELFBuilder<ELFT>::readSectionHeaders() {
 template <class ELFT> void ELFBuilder<ELFT>::build() {
   const auto &Ehdr = *ElfFile.getHeader();
 
+  Obj.OSABI = Ehdr.e_ident[EI_OSABI];
+  Obj.ABIVersion = Ehdr.e_ident[EI_ABIVERSION];
   Obj.Type = Ehdr.e_type;
   Obj.Machine = Ehdr.e_machine;
   Obj.Version = Ehdr.e_version;
@@ -1118,14 +1195,7 @@ Writer::~Writer() {}
 Reader::~Reader() {}
 
 std::unique_ptr<Object> BinaryReader::create() const {
-  if (MInfo.Is64Bit)
-    return MInfo.IsLittleEndian
-               ? BinaryELFBuilder<ELF64LE>(MInfo.EMachine, MemBuf).build()
-               : BinaryELFBuilder<ELF64BE>(MInfo.EMachine, MemBuf).build();
-  else
-    return MInfo.IsLittleEndian
-               ? BinaryELFBuilder<ELF32LE>(MInfo.EMachine, MemBuf).build()
-               : BinaryELFBuilder<ELF32BE>(MInfo.EMachine, MemBuf).build();
+  return BinaryELFBuilder(MInfo.EMachine, MemBuf).build();
 }
 
 std::unique_ptr<Object> ELFReader::create() const {
@@ -1162,8 +1232,8 @@ template <class ELFT> void ELFWriter<ELFT>::writeEhdr() {
   Ehdr.e_ident[EI_DATA] =
       ELFT::TargetEndianness == support::big ? ELFDATA2MSB : ELFDATA2LSB;
   Ehdr.e_ident[EI_VERSION] = EV_CURRENT;
-  Ehdr.e_ident[EI_OSABI] = ELFOSABI_NONE;
-  Ehdr.e_ident[EI_ABIVERSION] = 0;
+  Ehdr.e_ident[EI_OSABI] = Obj.OSABI;
+  Ehdr.e_ident[EI_ABIVERSION] = Obj.ABIVersion;
 
   Ehdr.e_type = Obj.Type;
   Ehdr.e_machine = Obj.Machine;
@@ -1418,17 +1488,16 @@ template <class ELFT> size_t ELFWriter<ELFT>::totalSize() const {
          NullSectionSize;
 }
 
-template <class ELFT> void ELFWriter<ELFT>::write() {
+template <class ELFT> Error ELFWriter<ELFT>::write() {
   writeEhdr();
   writePhdrs();
   writeSectionData();
   if (WriteSectionHeaders)
     writeShdrs();
-  if (auto E = Buf.commit())
-    reportError(Buf.getName(), errorToErrorCode(std::move(E)));
+  return Buf.commit();
 }
 
-template <class ELFT> void ELFWriter<ELFT>::finalize() {
+template <class ELFT> Error ELFWriter<ELFT>::finalize() {
   // It could happen that SectionNames has been removed and yet the user wants
   // a section header table output. We need to throw an error if a user tries
   // to do that.
@@ -1479,10 +1548,16 @@ template <class ELFT> void ELFWriter<ELFT>::finalize() {
     }
 
   initEhdrSegment();
+
   // Before we can prepare for layout the indexes need to be finalized.
+  // Also, the output arch may not be the same as the input arch, so fix up
+  // size-related fields before doing layout calculations.
   uint64_t Index = 0;
-  for (auto &Sec : Obj.sections())
+  auto SecSizer = llvm::make_unique<ELFSectionSizer<ELFT>>();
+  for (auto &Sec : Obj.sections()) {
     Sec.Index = Index++;
+    Sec.accept(*SecSizer);
+  }
 
   // The symbol table does not update all other sections on update. For
   // instance, symbol names are not added as new symbols are added. This means
@@ -1506,21 +1581,22 @@ template <class ELFT> void ELFWriter<ELFT>::finalize() {
     Section.finalize();
   }
 
-  Buf.allocate(totalSize());
+  if (Error E = Buf.allocate(totalSize()))
+    return E;
   SecWriter = llvm::make_unique<ELFSectionWriter<ELFT>>(Buf);
+  return Error::success();
 }
 
-void BinaryWriter::write() {
+Error BinaryWriter::write() {
   for (auto &Section : Obj.sections()) {
     if ((Section.Flags & SHF_ALLOC) == 0)
       continue;
     Section.accept(*SecWriter);
   }
-  if (auto E = Buf.commit())
-    reportError(Buf.getName(), errorToErrorCode(std::move(E)));
+  return Buf.commit();
 }
 
-void BinaryWriter::finalize() {
+Error BinaryWriter::finalize() {
   // TODO: Create a filter range to construct OrderedSegments from so that this
   // code can be deduped with assignOffsets above. This should also solve the
   // todo below for LayoutSections.
@@ -1540,10 +1616,10 @@ void BinaryWriter::finalize() {
   // loading and physical addresses are intended for ROM loading.
   // However, if no segment has a physical address, we'll fallback to using
   // virtual addresses for all.
-  if (std::all_of(std::begin(OrderedSegments), std::end(OrderedSegments),
-                  [](const Segment *Segment) { return Segment->PAddr == 0; }))
-    for (const auto &Segment : OrderedSegments)
-      Segment->PAddr = Segment->VAddr;
+  if (all_of(OrderedSegments,
+             [](const Segment *Seg) { return Seg->PAddr == 0; }))
+    for (Segment *Seg : OrderedSegments)
+      Seg->PAddr = Seg->VAddr;
 
   std::stable_sort(std::begin(OrderedSegments), std::end(OrderedSegments),
                    compareSegmentsByPAddr);
@@ -1558,8 +1634,8 @@ void BinaryWriter::finalize() {
   uint64_t Offset = 0;
 
   // Modify the first segment so that there is no gap at the start. This allows
-  // our layout algorithm to proceed as expected while not out writing out the
-  // gap at the start.
+  // our layout algorithm to proceed as expected while not writing out the gap
+  // at the start.
   if (!OrderedSegments.empty()) {
     auto Seg = OrderedSegments[0];
     auto Sec = Seg->firstSection();
@@ -1599,14 +1675,11 @@ void BinaryWriter::finalize() {
       TotalSize = std::max(TotalSize, Section->Offset + Section->Size);
   }
 
-  Buf.allocate(TotalSize);
+  if (Error E = Buf.allocate(TotalSize))
+    return E;
   SecWriter = llvm::make_unique<BinarySectionWriter>(Buf);
+  return Error::success();
 }
-
-template class BinaryELFBuilder<ELF64LE>;
-template class BinaryELFBuilder<ELF64BE>;
-template class BinaryELFBuilder<ELF32LE>;
-template class BinaryELFBuilder<ELF32BE>;
 
 template class ELFBuilder<ELF64LE>;
 template class ELFBuilder<ELF64BE>;

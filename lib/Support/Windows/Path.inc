@@ -1,9 +1,8 @@
 //===- llvm/Support/Windows/Path.inc - Windows Path Impl --------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -416,7 +415,7 @@ static std::error_code rename_internal(HANDLE FromHandle, const Twine &To,
       *reinterpret_cast<FILE_RENAME_INFO *>(RenameInfoBuf.data());
   RenameInfo.ReplaceIfExists = ReplaceIfExists;
   RenameInfo.RootDirectory = 0;
-  RenameInfo.FileNameLength = ToWide.size();
+  RenameInfo.FileNameLength = ToWide.size() * sizeof(wchar_t);
   std::copy(ToWide.begin(), ToWide.end(), &RenameInfo.FileName[0]);
 
   SetLastError(ERROR_SUCCESS);
@@ -1251,6 +1250,17 @@ static void expandTildeExpr(SmallVectorImpl<char> &Path) {
   // Overwrite the first character and insert the rest.
   Path[0] = HomeDir[0];
   Path.insert(Path.begin() + 1, HomeDir.begin() + 1, HomeDir.end());
+}
+
+void expand_tilde(const Twine &path, SmallVectorImpl<char> &dest) {
+  dest.clear();
+  if (path.isTriviallyEmpty())
+    return;
+
+  path.toVector(dest);
+  expandTildeExpr(dest);
+
+  return;
 }
 
 std::error_code real_path(const Twine &path, SmallVectorImpl<char> &dest,

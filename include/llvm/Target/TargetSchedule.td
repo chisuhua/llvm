@@ -1,9 +1,8 @@
 //===- TargetSchedule.td - Target Independent Scheduling ---*- tablegen -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -373,6 +372,10 @@ class SchedPredicate<code pred> : SchedPredicateBase {
   SchedMachineModel SchedModel = ?;
   code Predicate = pred;
 }
+
+// Define a predicate to be typically used as the default case in a
+// SchedVariant.  It the SchedVariant does not use any other predicate based on
+// MCSchedPredicate, this is the default scheduling case used by llvm-mca.
 def NoSchedPred : MCSchedPredicate<TruePred>;
 
 // Associate a predicate with a list of SchedReadWrites. By default,
@@ -557,3 +560,13 @@ class RetireControlUnit<int bufferSize, int retirePerCycle> {
   int MaxRetirePerCycle = retirePerCycle;
   SchedMachineModel SchedModel = ?;
 }
+
+// Base class for Load/StoreQueue.  It is used to identify processor resources
+// which describe load/store queues in the LS unit.
+class MemoryQueue<ProcResource PR> {
+  ProcResource QueueDescriptor = PR;
+  SchedMachineModel SchedModel = ?;
+}
+
+class LoadQueue<ProcResource LDQueue> : MemoryQueue<LDQueue>;
+class StoreQueue<ProcResource STQueue> : MemoryQueue<STQueue>;

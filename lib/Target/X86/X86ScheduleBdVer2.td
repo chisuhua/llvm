@@ -1,9 +1,8 @@
 //=- X86ScheduleBdVer2.td - X86 BdVer2 (Piledriver) Scheduling * tablegen -*-=//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -130,17 +129,21 @@ def PdFPU : ProcResGroup<[PdFPU0, PdFPU1, PdFPU2, PdFPU3]> {
 // Load-Store Units
 //
 
-// FIXME: does this even make sense?
-
-def PdLoad  : ProcResGroup<[PdAGLU01]> {
+let Super = PdAGLU01 in
+def PdLoad  : ProcResource<2> {
   // For Piledriver, the load queue is 40 entries deep.
   let BufferSize = 40;
 }
 
-def PdStore : ProcResGroup<[PdAGLU01]> {
+def PdLoadQueue : LoadQueue<PdLoad>;
+
+let Super = PdAGLU01 in
+def PdStore : ProcResource<1> {
   // For Piledriver, the store queue is 24 entries deep.
   let BufferSize = 24;
 }
+
+def PdStoreQueue : StoreQueue<PdStore>;
 
 //===----------------------------------------------------------------------===//
 // Integer Execution Units
@@ -246,6 +249,8 @@ def : ReadAdvance<ReadAfterLd, 4>;
 def : ReadAdvance<ReadAfterVecLd, 5>;
 def : ReadAdvance<ReadAfterVecXLd, 5>;
 def : ReadAdvance<ReadAfterVecYLd, 5>;
+
+def : ReadAdvance<ReadInt2Fpu, 0>;
 
 // A folded store needs a cycle on the PdStore for the store data.
 def : WriteRes<WriteRMW, [PdStore]>;

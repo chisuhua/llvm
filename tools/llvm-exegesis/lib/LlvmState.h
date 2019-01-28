@@ -1,9 +1,8 @@
 //===-- LlvmState.h ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -40,7 +39,8 @@ public:
   LLVMState(const std::string &CpuName);
 
   LLVMState(const std::string &Triple,
-            const std::string &CpuName); // For tests.
+            const std::string &CpuName,
+            const std::string &Features = ""); // For tests.
 
   const llvm::TargetMachine &getTargetMachine() const { return *TargetMachine; }
   std::unique_ptr<llvm::LLVMTargetMachine> createTargetMachine() const;

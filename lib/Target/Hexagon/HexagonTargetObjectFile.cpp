@@ -1,9 +1,8 @@
 //===-- HexagonTargetObjectFile.cpp ---------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -199,11 +198,10 @@ MCSection *HexagonTargetObjectFile::getExplicitSectionGlobal(
 /// section.
 bool HexagonTargetObjectFile::isGlobalInSmallSection(const GlobalObject *GO,
       const TargetMachine &TM) const {
-  if (!isSmallDataEnabled(TM)) {
-    LLVM_DEBUG(dbgs() << "Small data is not available.\n");
-    return false;
-  }
-
+  bool HaveSData = isSmallDataEnabled(TM);
+  if (!HaveSData)
+    LLVM_DEBUG(dbgs() << "Small-data allocation is disabled, but symbols "
+                         "may have explicit section assignments...\n");
   // Only global variables, not functions.
   LLVM_DEBUG(dbgs() << "Checking if value is in small-data, -G"
                     << SmallDataThreshold << ": \"" << GO->getName() << "\": ");
@@ -221,6 +219,12 @@ bool HexagonTargetObjectFile::isGlobalInSmallSection(const GlobalObject *GO,
     LLVM_DEBUG(dbgs() << (IsSmall ? "yes" : "no")
                       << ", has section: " << GVar->getSection() << '\n');
     return IsSmall;
+  }
+
+  // If sdata is disabled, stop the checks here.
+  if (!HaveSData) {
+    LLVM_DEBUG(dbgs() << "no, small-data allocation is disabled\n");
+    return false;
   }
 
   if (GVar->isConstant()) {

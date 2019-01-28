@@ -1,9 +1,8 @@
 //===--- ScheduleDAGSDNodes.cpp - Implement the ScheduleDAGSDNodes class --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -722,7 +721,7 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
   MachineBasicBlock *BB = Emitter.getBlock();
   MachineBasicBlock::iterator InsertPos = Emitter.getInsertPos();
   for (auto DV : DAG->GetDbgValues(N)) {
-    if (DV->isInvalidated())
+    if (DV->isEmitted())
       continue;
     unsigned DVOrder = DV->getOrder();
     if (!Order || DVOrder == Order) {
@@ -731,7 +730,6 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
         Orders.push_back({DVOrder, DbgMI});
         BB->insert(InsertPos, DbgMI);
       }
-      DV->setIsInvalidated();
     }
   }
 }
@@ -822,8 +820,12 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     SDDbgInfo::DbgIterator PDE = DAG->ByvalParmDbgEnd();
     for (; PDI != PDE; ++PDI) {
       MachineInstr *DbgMI= Emitter.EmitDbgValue(*PDI, VRBaseMap);
-      if (DbgMI)
+      if (DbgMI) {
         BB->insert(InsertPos, DbgMI);
+        // We re-emit the dbg_value closer to its use, too, after instructions
+        // are emitted to the BB.
+        (*PDI)->clearIsEmitted();
+      }
     }
   }
 
@@ -889,7 +891,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
       for (; DI != DE; ++DI) {
         if ((*DI)->getOrder() < LastOrder || (*DI)->getOrder() >= Order)
           break;
-        if ((*DI)->isInvalidated())
+        if ((*DI)->isEmitted())
           continue;
 
         MachineInstr *DbgMI = Emitter.EmitDbgValue(*DI, VRBaseMap);
@@ -911,7 +913,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
     // some of them before one or more conditional branches?
     SmallVector<MachineInstr*, 8> DbgMIs;
     for (; DI != DE; ++DI) {
-      if ((*DI)->isInvalidated())
+      if ((*DI)->isEmitted())
         continue;
       assert((*DI)->getOrder() >= LastOrder &&
              "emitting DBG_VALUE out of order");

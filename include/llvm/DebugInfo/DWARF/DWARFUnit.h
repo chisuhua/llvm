@@ -1,9 +1,8 @@
 //===- DWARFUnit.h ----------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -72,7 +71,8 @@ public:
   /// Parse a unit header from \p debug_info starting at \p offset_ptr.
   bool extract(DWARFContext &Context, const DWARFDataExtractor &debug_info,
                uint32_t *offset_ptr, DWARFSectionKind Kind = DW_SECT_INFO,
-               const DWARFUnitIndex *Index = nullptr);
+               const DWARFUnitIndex *Index = nullptr,
+               const DWARFUnitIndex::Entry *Entry = nullptr);
   uint32_t getOffset() const { return Offset; }
   const dwarf::FormParams &getFormParams() const { return FormParams; }
   uint16_t getVersion() const { return FormParams.Version; }
@@ -108,7 +108,8 @@ const DWARFUnitIndex &getDWARFUnitIndex(DWARFContext &Context,
 /// .debug_info and .debug_types, or from .debug_info.dwo and .debug_types.dwo.
 class DWARFUnitVector final : public SmallVector<std::unique_ptr<DWARFUnit>, 1> {
   std::function<std::unique_ptr<DWARFUnit>(uint32_t, DWARFSectionKind,
-                                           const DWARFSection *)>
+                                           const DWARFSection *,
+                                           const DWARFUnitIndex::Entry *)>
       Parser;
   int NumInfoUnits = -1;
 
@@ -408,7 +409,7 @@ public:
     return None;
   }
 
-  void collectAddressRanges(DWARFAddressRangesVector &CURanges);
+  Expected<DWARFAddressRangesVector> collectAddressRanges();
 
   /// Returns subprogram DIE with address range encompassing the provided
   /// address. The pointer is alive as long as parsed compile unit DIEs are not

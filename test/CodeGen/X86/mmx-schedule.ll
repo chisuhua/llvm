@@ -787,7 +787,7 @@ define i32 @test_movd(x86_mmx %a0, i32 %a1, i32 *%a2) {
 ; BDVER2-NEXT:    paddd %mm2, %mm0 # sched: [2:0.50]
 ; BDVER2-NEXT:    movd %mm2, %ecx # sched: [10:1.00]
 ; BDVER2-NEXT:    movd %mm0, %eax # sched: [10:1.00]
-; BDVER2-NEXT:    movl %ecx, (%rsi) # sched: [1:0.50]
+; BDVER2-NEXT:    movl %ecx, (%rsi) # sched: [1:1.00]
 ; BDVER2-NEXT:    retq # sched: [5:1.00]
 ;
 ; BTVER2-LABEL: test_movd:
@@ -3887,8 +3887,8 @@ define i64 @test_pinsrw(x86_mmx %a0, i32 %a1, i16* %a2) optsize {
 ;
 ; BTVER2-LABEL: test_pinsrw:
 ; BTVER2:       # %bb.0:
-; BTVER2-NEXT:    pinsrw $0, %edi, %mm0 # sched: [7:0.50]
 ; BTVER2-NEXT:    movswl (%rsi), %eax # sched: [4:1.00]
+; BTVER2-NEXT:    pinsrw $0, %edi, %mm0 # sched: [7:0.50]
 ; BTVER2-NEXT:    pinsrw $1, %eax, %mm0 # sched: [7:0.50]
 ; BTVER2-NEXT:    movq %mm0, %rax # sched: [4:1.00]
 ; BTVER2-NEXT:    retq # sched: [4:1.00]
