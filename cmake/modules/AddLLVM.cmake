@@ -687,6 +687,40 @@ macro(add_llvm_library name)
     set_target_properties(${name} PROPERTIES FOLDER "Libraries")
   endif()
 endmacro(add_llvm_library name)
+macro(add_llvm_loadable_module name)
+  llvm_add_library(${name} MODULE ${ARGN})
+  if(NOT TARGET ${name})
+    # Add empty "phony" target
+    add_custom_target(${name})
+  else()
+    if( EXCLUDE_FROM_ALL )
+      set_target_properties( ${name} PROPERTIES EXCLUDE_FROM_ALL ON)
+    else()
+      if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+        if(WIN32 OR CYGWIN)
+          # DLL platform
+          set(dlldir "bin")
+        else()
+          set(dlldir "lib${LLVM_LIBDIR_SUFFIX}")
+        endif()
+
+        if(${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
+            NOT LLVM_DISTRIBUTION_COMPONENTS)
+          set(export_to_llvmexports EXPORT LLVMExports)
+          set_property(GLOBAL PROPERTY LLVM_HAS_EXPORTS True)
+        endif()
+
+        install(TARGETS ${name}
+                ${export_to_llvmexports}
+                LIBRARY DESTINATION ${dlldir}
+                ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX})
+      endif()
+      set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS ${name})
+    endif()
+  endif()
+
+  set_target_properties(${name} PROPERTIES FOLDER "Loadable modules")
+endmacro(add_llvm_loadable_module name)
 
 macro(add_llvm_executable name)
   cmake_parse_arguments(ARG
