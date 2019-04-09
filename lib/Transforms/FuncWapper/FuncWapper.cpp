@@ -70,7 +70,7 @@ namespace {
         if (!ipt) {
             return FPT_UNSP;
         }
-    
+
         if (ipt->isPointerTy()) {
             if (ipt == llvm::Type::getInt8PtrTy(context))  return FPT_PINT8;
             if (ipt == llvm::Type::getInt16PtrTy(context)) return FPT_PINT16;
@@ -105,7 +105,7 @@ namespace {
         if (fpt > FPT_UNSP) return 0;
 
         return sz_lst[fpt];
-    }  
+    }
 
     int get_func_input_param_list(Function &F, std::vector<func_input_param_info_t> &param_lst)
     {
@@ -113,7 +113,7 @@ namespace {
         llvm::LLVMContext &context = module->getContext();
         FunctionType *ft = F.getFunctionType();
         uint8_t fun_in_param_num = ft->getNumParams();
-       
+
         if (fun_in_param_num < 1) {
             return -1;
         }
@@ -134,7 +134,7 @@ namespace {
             }
             param_lst.push_back(param);
         }
-        
+
         return 0;
     }
 
@@ -168,19 +168,23 @@ namespace {
 
     bool runOnFunction(Function &F) {//override {
         llvm::Module *module = F.getParent();
+        llvm::StringRef func_name = F.getName();
+        std::string orig_func_name = func_name;
+        std::string rkf_name = orig_func_name.substr(0, orig_func_name.rfind("_kernel"));
         llvm::LLVMContext &context = module->getContext();
         IRBuilder<> builder(context);
-      
-        /* create wapper function, with function name "runKernel" and the 
+
+        /* create wapper function, with function name "runKernel" and the
          * the definition of it is below:
-         * void runKernel(uint8_t *kernel_addr, uint8_t *kernel_args); 
+         * void runKernel(uint8_t *kernel_addr, uint8_t *kernel_args);
          */
         /* wapper function name */
-        char rkf_name[] = "runKernel";
-  
+        // char rkf_name[] = "runKernel";
+        // char rkf_name[] = orig_func_name.c_str();
+
         if (!is_kernel_func(F)) {
             return false;
-        } 
+        }
         /* wapper function input param type */
         llvm::Type *rkf_param_tp[] = {
             builder.getInt8Ty()->getPointerTo(),
@@ -189,23 +193,23 @@ namespace {
 
         /* wapper functon return type */
         llvm::Type *rkf_ret_tp = builder.getVoidTy();
-  
+
         llvm::FunctionType *rkf_def = llvm::FunctionType::get(rkf_ret_tp, rkf_param_tp, false);
         llvm::Function *rkf_fn = llvm::Function::Create(rkf_def, llvm::Function::ExternalLinkage,
-                                                        rkf_name, module);
+                                                         rkf_name, module);
         llvm::Function::arg_iterator rkf_arg_it = rkf_fn->arg_begin();
         llvm::Value *rkf_arg0 = rkf_arg_it++;
         rkf_arg0->setName("kernel_addr");
         llvm::Value *rkf_arg1 = rkf_arg_it++;
         rkf_arg1->setName("kernel_args");
-        
+
         llvm::BasicBlock *rkf_blk = llvm::BasicBlock::Create(context, "entry", rkf_fn);
         llvm::IRBuilder<> rkf_bld(rkf_blk);
-  
+
         /* get kernel function input param list */
         std::vector<func_input_param_info_t> fn_in_params;
         get_func_input_param_list(F, fn_in_params);
-  
+
         /* prepare input params before calling kernel function */
         std::vector<llvm::Value *> k_args;
         for (auto it = fn_in_params.begin(); it != fn_in_params.end(); it++) {
@@ -216,8 +220,8 @@ namespace {
                 llvm::Value *k_arg_p = rkf_bld.CreateIntToPtr(buf_d, it->type);
                 k_args.push_back(k_arg_p);
             } else {
-                /* 
-                 * CUDA/Opencl kernel don't support reference by value, so 
+                /*
+                 * CUDA/Opencl kernel don't support reference by value, so
                  * shouldn't get here.
                  */
                 llvm::Value *buf_p = rkf_bld.CreateGEP(builder.getInt8Ty() ,rkf_arg1, rkf_bld.getInt32(it->offset));
@@ -226,19 +230,24 @@ namespace {
                 k_args.push_back(k_arg_v);
             }
         }
-       
-        printf("try to create function call here!\n"); 
-        /* call kernel function here */ 
+
+        printf("try to create function call here!\n");
+        /* call kernel function here */
         ArrayRef<llvm::Value *> k_arg_arr_ref(k_args);
         rkf_bld.CreateCall(&F, k_arg_arr_ref);
-  
+
         /* end of calling kernel */
         llvm::ReturnInst::Create(context, rkf_blk);
-        
+
         return false;
     }
     bool runOnModule(Module &M) override {
         errs() << "entry module pass : FuncWapper\n";
+        /*
+        for (auto &F : M) {
+            runOnFunction(F);
+        }
+        */
 
         for (auto &F : M) {
             runOnFunction(F);
