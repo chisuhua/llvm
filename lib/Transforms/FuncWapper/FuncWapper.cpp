@@ -109,8 +109,8 @@ namespace {
 
     int get_func_input_param_list(Function &F, std::vector<func_input_param_info_t> &param_lst)
     {
-        llvm::Module *module = F.getParent();
-        llvm::LLVMContext &context = module->getContext();
+        llvm::Module *M = F.getParent();
+        llvm::LLVMContext &context = M->getContext();
         FunctionType *ft = F.getFunctionType();
         uint8_t fun_in_param_num = ft->getNumParams();
 
@@ -167,19 +167,23 @@ namespace {
     }
 
     bool runOnFunction(Function &F) {//override {
-        llvm::Module *module = F.getParent();
+        llvm::Module *M = F.getParent();
+
+        // Get Kernel Function Name and save the name to orig_func_name
+        // and change the Kernel name to "FunctionName_kernel"
         llvm::StringRef func_name = F.getName();
+
         std::string orig_func_name = func_name;
         std::string rkf_name = orig_func_name.substr(0, orig_func_name.rfind("_kernel"));
-        llvm::LLVMContext &context = module->getContext();
+
+        llvm::LLVMContext &context = M->getContext();
         IRBuilder<> builder(context);
 
-        /* create wapper function, with function name "runKernel" and the
+        /* create wapper function, with function name "Orignal Kernel Name" and the
          * the definition of it is below:
-         * void runKernel(uint8_t *kernel_addr, uint8_t *kernel_args);
+         * void Orignal_Kernel_name(uint8_t *kernel_private_memory, uint8_t *kernel_args);
          */
         /* wapper function name */
-        // char rkf_name[] = "runKernel";
         // char rkf_name[] = orig_func_name.c_str();
 
         if (!is_kernel_func(F)) {
@@ -187,24 +191,35 @@ namespace {
         }
         /* wapper function input param type */
         llvm::Type *rkf_param_tp[] = {
-            builder.getInt8Ty()->getPointerTo(),
+            builder.getInt32Ty()->getPointerTo(),
             builder.getInt8Ty()->getPointerTo()
         };
 
-        /* wapper functon return type */
+        /* Wrapper functon return type */
         llvm::Type *rkf_ret_tp = builder.getVoidTy();
 
+        // rkf_def is FunctionType,  rkf_fn is Function
         llvm::FunctionType *rkf_def = llvm::FunctionType::get(rkf_ret_tp, rkf_param_tp, false);
         llvm::Function *rkf_fn = llvm::Function::Create(rkf_def, llvm::Function::ExternalLinkage,
-                                                         rkf_name, module);
+                                                         rkf_name, M);
         llvm::Function::arg_iterator rkf_arg_it = rkf_fn->arg_begin();
         llvm::Value *rkf_arg0 = rkf_arg_it++;
-        rkf_arg0->setName("kernel_addr");
+        rkf_arg0->setName("kernel_private_memory");
         llvm::Value *rkf_arg1 = rkf_arg_it++;
         rkf_arg1->setName("kernel_args");
 
+        // create rkf_fn's body
         llvm::BasicBlock *rkf_blk = llvm::BasicBlock::Create(context, "entry", rkf_fn);
         llvm::IRBuilder<> rkf_bld(rkf_blk);
+
+
+        Function *init_global_memory = M->getFunction("init_global_memory");
+        /*
+        Function *init_global_memory = cast<Function>(M->GetFunction("init_global_memory", builder.getVoidTy(),
+                              builder.getInt32Ty()->getPointerTo()));
+                              */
+
+        rkf_bld.CreateCall(init_global_memory, rkf_arg0);
 
         /* get kernel function input param list */
         std::vector<func_input_param_info_t> fn_in_params;
@@ -231,7 +246,7 @@ namespace {
             }
         }
 
-        printf("try to create function call here!\n");
+        printf("try to create function call to orignal kernel function here!\n");
         /* call kernel function here */
         ArrayRef<llvm::Value *> k_arg_arr_ref(k_args);
         rkf_bld.CreateCall(&F, k_arg_arr_ref);
