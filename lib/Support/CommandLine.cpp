@@ -2138,7 +2138,7 @@ public:
 #ifdef PACKAGE_VENDOR
     OS << PACKAGE_VENDOR << " ";
 #else
-    OS << "LLVM (http://llvm.org/):\n  ";
+    OS << "MLCC-0.5-5 (http://github.com/chisuhua/mlcc):\n Source ID:0.5-5--b043e634f3c05e4ee7cb910255e9bcfc37f38bf3-1e8e49a1bf5bc576f7092f8a4facff7915aedcfe\n  ";
 #endif
     OS << PACKAGE_NAME << " version " << PACKAGE_VERSION;
 #ifdef LLVM_VERSION_INFO
