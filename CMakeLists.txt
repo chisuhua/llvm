@@ -185,7 +185,7 @@ option(LLVM_INSTALL_BINUTILS_SYMLINKS
 
 option(LLVM_INSTALL_UTILS "Include utility binaries in the 'install' target." OFF)
 
-option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
+option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." ON)
 
 # Unfortunatly Clang is too eager to search directories for module maps, which can cause the
 # installed version of the maps to be found when building LLVM from source. Therefore we turn off
@@ -204,7 +204,7 @@ option(LLVM_APPEND_VC_REV
 
 set(PACKAGE_NAME LLVM)
 set(PACKAGE_STRING "${PACKAGE_NAME} ${PACKAGE_VERSION}")
-set(PACKAGE_BUGREPORT "https://bugs.llvm.org/")
+set(PACKAGE_BUGREPORT "https://github.com/chisuhua/llvm/issue")
 
 set(BUG_REPORT_URL "${PACKAGE_BUGREPORT}" CACHE STRING
   "Default URL where bug reports are to be submitted.")
