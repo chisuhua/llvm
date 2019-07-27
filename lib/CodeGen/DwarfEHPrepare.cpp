@@ -45,7 +45,7 @@ namespace {
 
   class DwarfEHPrepare : public FunctionPass {
     // RewindFunction - _Unwind_Resume or the target equivalent.
-    Constant *RewindFunction = nullptr;
+    FunctionCallee RewindFunction = nullptr;
 
     DominatorTree *DT = nullptr;
     const TargetLowering *TLI = nullptr;
@@ -145,7 +145,7 @@ size_t DwarfEHPrepare::pruneUnreachableResumes(
   size_t ResumeIndex = 0;
   for (auto *RI : Resumes) {
     for (auto *LP : CleanupLPads) {
-      if (isPotentiallyReachable(LP, RI, DT)) {
+      if (isPotentiallyReachable(LP, RI, nullptr, DT)) {
         ResumeReachable.set(ResumeIndex);
         break;
       }

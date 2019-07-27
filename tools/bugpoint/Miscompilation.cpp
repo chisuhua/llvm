@@ -591,9 +591,6 @@ ExtractBlocks(BugDriver &BD,
   if (Linker::linkModules(*ProgClone, std::move(Extracted)))
     exit(1);
 
-  // Set the new program and delete the old one.
-  BD.setNewProgram(std::move(ProgClone));
-
   // Update the list of miscompiled functions.
   MiscompiledFunctions.clear();
 
@@ -602,6 +599,9 @@ ExtractBlocks(BugDriver &BD,
     assert(NewF && "Function not found??");
     MiscompiledFunctions.push_back(NewF);
   }
+
+  // Set the new program and delete the old one.
+  BD.setNewProgram(std::move(ProgClone));
 
   return true;
 }
@@ -705,8 +705,8 @@ static Expected<bool> TestOptimizer(BugDriver &BD, std::unique_ptr<Module> Test,
   if (!Optimized) {
     errs() << " Error running this sequence of passes"
            << " on the input program!\n";
-    BD.setNewProgram(std::move(Test));
     BD.EmitProgressBitcode(*Test, "pass-error", false);
+    BD.setNewProgram(std::move(Test));
     if (Error E = BD.debugOptimizerCrash())
       return std::move(E);
     return false;
@@ -826,13 +826,14 @@ CleanupAndPrepareModules(BugDriver &BD, std::unique_ptr<Module> Test,
 
   // Add the resolver to the Safe module.
   // Prototype: void *getPointerToNamedFunction(const char* Name)
-  Constant *resolverFunc = Safe->getOrInsertFunction(
+  FunctionCallee resolverFunc = Safe->getOrInsertFunction(
       "getPointerToNamedFunction", Type::getInt8PtrTy(Safe->getContext()),
       Type::getInt8PtrTy(Safe->getContext()));
 
   // Use the function we just added to get addresses of functions we need.
   for (Module::iterator F = Safe->begin(), E = Safe->end(); F != E; ++F) {
-    if (F->isDeclaration() && !F->use_empty() && &*F != resolverFunc &&
+    if (F->isDeclaration() && !F->use_empty() &&
+        &*F != resolverFunc.getCallee() &&
         !F->isIntrinsic() /* ignore intrinsics */) {
       Function *TestFn = Test->getFunction(F->getName());
 
@@ -878,7 +879,8 @@ CleanupAndPrepareModules(BugDriver &BD, std::unique_ptr<Module> Test,
               BasicBlock::Create(F->getContext(), "lookupfp", FuncWrapper);
 
           // Check to see if we already looked up the value.
-          Value *CachedVal = new LoadInst(Cache, "fpcache", EntryBB);
+          Value *CachedVal =
+              new LoadInst(F->getType(), Cache, "fpcache", EntryBB);
           Value *IsNull = new ICmpInst(*EntryBB, ICmpInst::ICMP_EQ, CachedVal,
                                        NullPtr, "isNull");
           BranchInst::Create(LookupBB, DoCallBB, IsNull, EntryBB);
@@ -910,11 +912,11 @@ CleanupAndPrepareModules(BugDriver &BD, std::unique_ptr<Module> Test,
 
           // Pass on the arguments to the real function, return its result
           if (F->getReturnType()->isVoidTy()) {
-            CallInst::Create(FuncPtr, Args, "", DoCallBB);
+            CallInst::Create(FuncTy, FuncPtr, Args, "", DoCallBB);
             ReturnInst::Create(F->getContext(), DoCallBB);
           } else {
             CallInst *Call =
-                CallInst::Create(FuncPtr, Args, "retval", DoCallBB);
+                CallInst::Create(FuncTy, FuncPtr, Args, "retval", DoCallBB);
             ReturnInst::Create(F->getContext(), Call, DoCallBB);
           }
 

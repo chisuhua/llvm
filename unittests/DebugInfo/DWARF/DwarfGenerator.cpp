@@ -183,11 +183,11 @@ DWARFDebugLine::Prologue dwarfgen::LineTable::createBasicPrologue() const {
   P.LineRange = 14;
   P.OpcodeBase = 13;
   P.StandardOpcodeLengths = {0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1};
-  P.IncludeDirectories.push_back(DWARFFormValue(DW_FORM_string));
-  P.IncludeDirectories.back().setPValue("a dir");
+  P.IncludeDirectories.push_back(
+      DWARFFormValue::createFromPValue(DW_FORM_string, "a dir"));
   P.FileNames.push_back(DWARFDebugLine::FileNameEntry());
-  P.FileNames.back().Name.setPValue("a file");
-  P.FileNames.back().Name.setForm(DW_FORM_string);
+  P.FileNames.back().Name =
+      DWARFFormValue::createFromPValue(DW_FORM_string, "a file");
   return P;
 }
 
@@ -262,7 +262,7 @@ MCSymbol *dwarfgen::LineTable::writeDefaultPrologue(AsmPrinter &Asm) const {
   MCSymbol *UnitStart = Asm.createTempSymbol("line_unit_start");
   MCSymbol *UnitEnd = Asm.createTempSymbol("line_unit_end");
   if (Format == DwarfFormat::DWARF64) {
-    Asm.emitInt32(0xffffffff);
+    Asm.emitInt32((int)dwarf::DW_LENGTH_DWARF64);
     Asm.EmitLabelDifference(UnitEnd, UnitStart, 8);
   } else {
     Asm.EmitLabelDifference(UnitEnd, UnitStart, 4);
@@ -288,7 +288,7 @@ MCSymbol *dwarfgen::LineTable::writeDefaultPrologue(AsmPrinter &Asm) const {
 
 void dwarfgen::LineTable::writePrologue(AsmPrinter &Asm) const {
   if (Format == DwarfFormat::DWARF64) {
-    Asm.emitInt32(0xffffffff);
+    Asm.emitInt32((int)dwarf::DW_LENGTH_DWARF64);
     Asm.emitInt64(Prologue->TotalLength);
   } else {
     Asm.emitInt32(Prologue->TotalLength);

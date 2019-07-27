@@ -221,7 +221,6 @@ defm : JWriteResIntPair<WriteIDiv64, [JALU1, JDiv], 41, [1, 41], 2>;
 defm : JWriteResIntPair<WriteCRC32,  [JALU01], 3, [4], 3>;
 
 defm : JWriteResIntPair<WriteCMOV,  [JALU01], 1>; // Conditional move.
-defm : JWriteResIntPair<WriteCMOV2, [JALU01], 1>; // Conditional (CF + ZF flag) move.
 defm : X86WriteRes<WriteFCMOV, [JFPU0, JFPA], 3, [1,1], 1>; // x87 conditional move.
 def  : WriteRes<WriteSETCC, [JALU01]>; // Setcc.
 def  : WriteRes<WriteSETCCStore, [JALU01,JSAGU]>;
@@ -430,12 +429,13 @@ defm : JWriteResFpuPair<WriteCvtPD2I,      [JFPU1, JSTC], 3, [1,1], 1>;
 defm : JWriteResYMMPair<WriteCvtPD2IY,     [JFPU1, JSTC, JFPX], 6, [2,2,4], 3>;
 defm : X86WriteResPairUnsupported<WriteCvtPD2IZ>;
 
-// FIXME: f+3 ST, LD+STC latency
-defm : JWriteResFpuPair<WriteCvtI2SS,      [JFPU1, JSTC], 9, [1,1], 2>;
+defm : X86WriteRes<WriteCvtI2SS,           [JFPU1, JSTC], 4, [1,1], 2>;
+defm : X86WriteRes<WriteCvtI2SSLd,         [JLAGU, JFPU1, JSTC], 9, [1,1,1], 1>;
 defm : JWriteResFpuPair<WriteCvtI2PS,      [JFPU1, JSTC], 3, [1,1], 1>;
 defm : JWriteResYMMPair<WriteCvtI2PSY,     [JFPU1, JSTC], 3, [2,2], 2>;
 defm : X86WriteResPairUnsupported<WriteCvtI2PSZ>;
-defm : JWriteResFpuPair<WriteCvtI2SD,      [JFPU1, JSTC], 9, [1,1], 2>;
+defm : X86WriteRes<WriteCvtI2SD,           [JFPU1, JSTC], 4, [1,1], 2>;
+defm : X86WriteRes<WriteCvtI2SDLd,         [JLAGU, JFPU1, JSTC], 9, [1,1,1], 1>;
 defm : JWriteResFpuPair<WriteCvtI2PD,      [JFPU1, JSTC], 3, [1,1], 1>;
 defm : JWriteResYMMPair<WriteCvtI2PDY,     [JFPU1, JSTC], 3, [2,2], 2>;
 defm : X86WriteResPairUnsupported<WriteCvtI2PDZ>;

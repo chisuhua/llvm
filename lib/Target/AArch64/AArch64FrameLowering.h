@@ -40,8 +40,11 @@ public:
   int getFrameIndexReference(const MachineFunction &MF, int FI,
                              unsigned &FrameReg) const override;
   int resolveFrameIndexReference(const MachineFunction &MF, int FI,
-                                 unsigned &FrameReg,
-                                 bool PreferFP = false) const;
+                                 unsigned &FrameReg, bool PreferFP,
+                                 bool ForSimm) const;
+  int resolveFrameOffsetReference(const MachineFunction &MF, int ObjectOffset,
+                                  bool isFixed, unsigned &FrameReg,
+                                  bool PreferFP, bool ForSimm) const;
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  const std::vector<CalleeSavedInfo> &CSI,
@@ -78,6 +81,9 @@ public:
   int getFrameIndexReferencePreferSP(const MachineFunction &MF, int FI,
                                      unsigned &FrameReg,
                                      bool IgnoreSPUpdates) const override;
+  int getNonLocalFrameIndexReference(const MachineFunction &MF,
+                               int FI) const override;
+  int getSEHFrameIndexOffset(const MachineFunction &MF, int FI) const;
 
 private:
   bool shouldCombineCSRLocalStackBump(MachineFunction &MF,

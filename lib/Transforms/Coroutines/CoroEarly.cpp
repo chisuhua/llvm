@@ -97,7 +97,7 @@ void Lowerer::lowerCoroDone(IntrinsicInst *II) {
   Builder.SetInsertPoint(II);
   auto *BCI = Builder.CreateBitCast(Operand, FramePtrTy);
   auto *Gep = Builder.CreateConstInBoundsGEP1_32(FrameTy, BCI, 0);
-  auto *Load = Builder.CreateLoad(Gep);
+  auto *Load = Builder.CreateLoad(FrameTy, Gep);
   auto *Cond = Builder.CreateICmpEQ(Load, NullPtr);
 
   II->replaceAllUsesWith(Cond);
@@ -113,7 +113,7 @@ void Lowerer::lowerCoroNoop(IntrinsicInst *II) {
     StructType *FrameTy = StructType::create(C, "NoopCoro.Frame");
     auto *FramePtrTy = FrameTy->getPointerTo();
     auto *FnTy = FunctionType::get(Type::getVoidTy(C), FramePtrTy,
-                                   /*IsVarArgs=*/false);
+                                   /*isVarArg=*/false);
     auto *FnPtrTy = FnTy->getPointerTo();
     FrameTy->setBody({FnPtrTy, FnPtrTy});
 

@@ -15,7 +15,7 @@
 ;===------------------------------------------------------------------------===;
 
 [common]
-subdirectories = AsmParser Disassembler InstPrinter MCTargetDesc TargetInfo Utils
+subdirectories = AsmParser Disassembler MCTargetDesc TargetInfo Utils
 
 [component_0]
 type = TargetGroup
@@ -29,7 +29,12 @@ has_disassembler = 1
 type = Library
 name = AMDGPUCodeGen
 parent = AMDGPU
+;
 ;schi merged, keep HCC2-181213
 ;required_libraries = Analysis AsmPrinter CodeGen Core IPO MC AMDGPUAsmPrinter AMDGPUDesc AMDGPUInfo AMDGPUUtils Scalar SelectionDAG Support Target TransformUtils Vectorize GlobalISel BinaryFormat
-required_libraries = Analysis AsmPrinter CodeGen Core Demangle IPO MC AMDGPUAsmPrinter AMDGPUDesc AMDGPUInfo AMDGPUUtils Linker Scalar SelectionDAG Support Target TransformUtils Vectorize GlobalISel BinaryFormat
+;required_libraries = Analysis AsmPrinter CodeGen Core Demangle IPO MC AMDGPUAsmPrinter AMDGPUDesc AMDGPUInfo AMDGPUUtils Linker Scalar SelectionDAG Support Target TransformUtils Vectorize GlobalISel BinaryFormat
+
+; below is merge from upstream
+required_libraries = Analysis AsmPrinter CodeGen Core IPO MC AMDGPUDesc AMDGPUInfo AMDGPUUtils Scalar SelectionDAG Support Target TransformUtils Vectorize GlobalISel BinaryFormat MIRParser
+
 add_to_library_groups = AMDGPU

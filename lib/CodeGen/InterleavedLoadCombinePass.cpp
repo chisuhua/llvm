@@ -960,6 +960,7 @@ public:
     if (!PtrTy) {
       Result = Polynomial();
       BasePtr = nullptr;
+      return;
     }
     unsigned PointerBits =
         DL.getIndexSizeInBits(PtrTy->getPointerAddressSpace());
@@ -1218,7 +1219,7 @@ bool InterleavedLoadCombineImpl::combine(std::list<VectorInfo> &InterleavedLoad,
                                       "interleaved.wide.ptrcast");
 
   // Create the wide load and update the MemorySSA.
-  auto LI = Builder.CreateAlignedLoad(CI, InsertionPoint->getAlignment(),
+  auto LI = Builder.CreateAlignedLoad(ILTy, CI, InsertionPoint->getAlignment(),
                                       "interleaved.wide.load");
   auto MSSAU = MemorySSAUpdater(&MSSA);
   MemoryUse *MSSALoad = cast<MemoryUse>(MSSAU.createMemoryAccessBefore(

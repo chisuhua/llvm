@@ -355,6 +355,9 @@ def am_indexed7s32  : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S32", []>;
 def am_indexed7s64  : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S64", []>;
 def am_indexed7s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexed7S128", []>;
 
+def am_indexedu6s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedU6S128", []>;
+def am_indexeds9s128 : ComplexPattern<i64, 2, "SelectAddrModeIndexedS9S128", []>;
+
 // uimm5sN predicate - True if the immediate is a multiple of N in the range
 // [0 * N, 32 * N].
 def UImm5s2Operand : UImmScaledMemoryIndexed<5, 2>;
@@ -477,76 +480,40 @@ def BranchTarget14Operand : BranchTarget<14>;
 def BranchTarget26Operand : BranchTarget<26>;
 def PCRelLabel19Operand   : PCRelLabel<19>;
 
-def MovZSymbolG3AsmOperand : AsmOperandClass {
-  let Name = "MovZSymbolG3";
+def MovWSymbolG3AsmOperand : AsmOperandClass {
+  let Name = "MovWSymbolG3";
   let RenderMethod = "addImmOperands";
 }
 
-def movz_symbol_g3 : Operand<i32> {
-  let ParserMatchClass = MovZSymbolG3AsmOperand;
+def movw_symbol_g3 : Operand<i32> {
+  let ParserMatchClass = MovWSymbolG3AsmOperand;
 }
 
-def MovZSymbolG2AsmOperand : AsmOperandClass {
-  let Name = "MovZSymbolG2";
+def MovWSymbolG2AsmOperand : AsmOperandClass {
+  let Name = "MovWSymbolG2";
   let RenderMethod = "addImmOperands";
 }
 
-def movz_symbol_g2 : Operand<i32> {
-  let ParserMatchClass = MovZSymbolG2AsmOperand;
+def movw_symbol_g2 : Operand<i32> {
+  let ParserMatchClass = MovWSymbolG2AsmOperand;
 }
 
-def MovZSymbolG1AsmOperand : AsmOperandClass {
-  let Name = "MovZSymbolG1";
+def MovWSymbolG1AsmOperand : AsmOperandClass {
+  let Name = "MovWSymbolG1";
   let RenderMethod = "addImmOperands";
 }
 
-def movz_symbol_g1 : Operand<i32> {
-  let ParserMatchClass = MovZSymbolG1AsmOperand;
+def movw_symbol_g1 : Operand<i32> {
+  let ParserMatchClass = MovWSymbolG1AsmOperand;
 }
 
-def MovZSymbolG0AsmOperand : AsmOperandClass {
-  let Name = "MovZSymbolG0";
+def MovWSymbolG0AsmOperand : AsmOperandClass {
+  let Name = "MovWSymbolG0";
   let RenderMethod = "addImmOperands";
 }
 
-def movz_symbol_g0 : Operand<i32> {
-  let ParserMatchClass = MovZSymbolG0AsmOperand;
-}
-
-def MovKSymbolG3AsmOperand : AsmOperandClass {
-  let Name = "MovKSymbolG3";
-  let RenderMethod = "addImmOperands";
-}
-
-def movk_symbol_g3 : Operand<i32> {
-  let ParserMatchClass = MovKSymbolG3AsmOperand;
-}
-
-def MovKSymbolG2AsmOperand : AsmOperandClass {
-  let Name = "MovKSymbolG2";
-  let RenderMethod = "addImmOperands";
-}
-
-def movk_symbol_g2 : Operand<i32> {
-  let ParserMatchClass = MovKSymbolG2AsmOperand;
-}
-
-def MovKSymbolG1AsmOperand : AsmOperandClass {
-  let Name = "MovKSymbolG1";
-  let RenderMethod = "addImmOperands";
-}
-
-def movk_symbol_g1 : Operand<i32> {
-  let ParserMatchClass = MovKSymbolG1AsmOperand;
-}
-
-def MovKSymbolG0AsmOperand : AsmOperandClass {
-  let Name = "MovKSymbolG0";
-  let RenderMethod = "addImmOperands";
-}
-
-def movk_symbol_g0 : Operand<i32> {
-  let ParserMatchClass = MovKSymbolG0AsmOperand;
+def movw_symbol_g0 : Operand<i32> {
+  let ParserMatchClass = MovWSymbolG0AsmOperand;
 }
 
 class fixedpoint_i32<ValueType FloatVT>
@@ -2339,7 +2306,7 @@ class AddSubG<bit isSub, string asm_inst, SDPatternOperator OpNode>
 }
 
 class SUBP<bit setsFlags, string asm_instr, SDPatternOperator OpNode>
-      : BaseTwoOperand<0b0000, GPR64, asm_instr, null_frag, GPR64sp, GPR64sp> {
+      : BaseTwoOperand<0b0000, GPR64, asm_instr, OpNode, GPR64sp, GPR64sp> {
   let Inst{31} = 1;
   let Inst{29} = setsFlags;
 }
@@ -4024,7 +3991,7 @@ class BaseMemTag<bits<2> opc1, bits<2> opc2, string asm_insn,
 class MemTagVector<bit Load, string asm_insn, string asm_opnds,
                    dag oops, dag iops>
     : BaseMemTag<{0b1, Load}, 0b00, asm_insn, asm_opnds,
-                 "$Rn = $wback,@earlyclobber $wback", oops, iops> {
+                  "", oops, iops> {
   bits<5> Rt;
 
   let Inst{20-12} = 0b000000000;
@@ -4034,8 +4001,9 @@ class MemTagVector<bit Load, string asm_insn, string asm_opnds,
 }
 
 class MemTagLoad<string asm_insn, string asm_opnds>
-    : BaseMemTag<0b01, 0b00, asm_insn, asm_opnds, "", (outs GPR64:$Rt),
-                 (ins GPR64sp:$Rn, simm9s16:$offset)> {
+    : BaseMemTag<0b01, 0b00, asm_insn, asm_opnds, "$Rt = $wback",
+                 (outs GPR64:$wback),
+                 (ins GPR64:$Rt, GPR64sp:$Rn, simm9s16:$offset)> {
   bits<5> Rt;
   bits<9> offset;
 
@@ -4052,29 +4020,28 @@ class BaseMemTagStore<bits<2> opc1, bits<2> opc2, string asm_insn,
   bits<9> offset;
 
   let Inst{20-12} = offset;
-  let Inst{4-0}   = 0b11111;
-  let Unpredictable{4-0} = 0b11111;
+  let Inst{4-0}   = Rt;
 
   let mayStore = 1;
 }
 
 multiclass MemTagStore<bits<2> opc1, string insn> {
   def Offset :
-    BaseMemTagStore<opc1, 0b10, insn, "\t[$Rn, $offset]", "",
-                    (outs), (ins GPR64sp:$Rn, simm9s16:$offset)>;
+    BaseMemTagStore<opc1, 0b10, insn, "\t$Rt, [$Rn, $offset]", "",
+                    (outs), (ins GPR64sp:$Rt, GPR64sp:$Rn, simm9s16:$offset)>;
   def PreIndex :
-    BaseMemTagStore<opc1, 0b11, insn, "\t[$Rn, $offset]!",
-                    "$Rn = $wback,@earlyclobber $wback",
+    BaseMemTagStore<opc1, 0b11, insn, "\t$Rt, [$Rn, $offset]!",
+                    "$Rn = $wback",
                     (outs GPR64sp:$wback),
-                    (ins GPR64sp:$Rn, simm9s16:$offset)>;
+                    (ins GPR64sp:$Rt, GPR64sp:$Rn, simm9s16:$offset)>;
   def PostIndex :
-    BaseMemTagStore<opc1, 0b01, insn, "\t[$Rn], $offset",
-                    "$Rn = $wback,@earlyclobber $wback",
+    BaseMemTagStore<opc1, 0b01, insn, "\t$Rt, [$Rn], $offset",
+                    "$Rn = $wback",
                     (outs GPR64sp:$wback),
-                    (ins GPR64sp:$Rn, simm9s16:$offset)>;
+                    (ins GPR64sp:$Rt, GPR64sp:$Rn, simm9s16:$offset)>;
 
-  def : InstAlias<insn # "\t[$Rn]",
-                  (!cast<Instruction>(NAME # "Offset") GPR64sp:$Rn, 0)>;
+  def : InstAlias<insn # "\t$Rt, [$Rn]",
+                  (!cast<Instruction>(NAME # "Offset") GPR64sp:$Rt, GPR64sp:$Rn, 0)>;
 }
 
 //---

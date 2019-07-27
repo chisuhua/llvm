@@ -88,29 +88,29 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
         continue;
       }
 
-      if (auto CS = CallSite(I)) {
+      if (auto *Call = dyn_cast<CallBase>(I)) {
         // If this is the function being called then we treat it like a load and
         // ignore it.
-        if (CS.isCallee(&U))
+        if (Call->isCallee(&U))
           continue;
 
-        unsigned DataOpNo = CS.getDataOperandNo(&U);
-        bool IsArgOperand = CS.isArgOperand(&U);
+        unsigned DataOpNo = Call->getDataOperandNo(&U);
+        bool IsArgOperand = Call->isArgOperand(&U);
 
         // Inalloca arguments are clobbered by the call.
-        if (IsArgOperand && CS.isInAllocaArgument(DataOpNo))
+        if (IsArgOperand && Call->isInAllocaArgument(DataOpNo))
           return false;
 
         // If this is a readonly/readnone call site, then we know it is just a
         // load (but one that potentially returns the value itself), so we can
         // ignore it if we know that the value isn't captured.
-        if (CS.onlyReadsMemory() &&
-            (CS.getInstruction()->use_empty() || CS.doesNotCapture(DataOpNo)))
+        if (Call->onlyReadsMemory() &&
+            (Call->use_empty() || Call->doesNotCapture(DataOpNo)))
           continue;
 
         // If this is being passed as a byval argument, the caller is making a
         // copy, so it is only a read of the alloca.
-        if (IsArgOperand && CS.isByValArgument(DataOpNo))
+        if (IsArgOperand && Call->isByValArgument(DataOpNo))
           continue;
       }
 
@@ -212,8 +212,8 @@ static Instruction *simplifyAllocaArraySize(InstCombiner &IC, AllocaInst &AI) {
       Type *IdxTy = IC.getDataLayout().getIntPtrType(AI.getType());
       Value *NullIdx = Constant::getNullValue(IdxTy);
       Value *Idx[2] = {NullIdx, NullIdx};
-      Instruction *GEP =
-          GetElementPtrInst::CreateInBounds(New, Idx, New->getName() + ".sub");
+      Instruction *GEP = GetElementPtrInst::CreateInBounds(
+          NewTy, New, Idx, New->getName() + ".sub");
       IC.InsertNewInstBefore(GEP, *It);
 
       // Now make everything use the getelementptr instead of the original
@@ -298,7 +298,7 @@ void PointerReplacer::replace(Instruction *I) {
   if (auto *LT = dyn_cast<LoadInst>(I)) {
     auto *V = getReplacement(LT->getPointerOperand());
     assert(V && "Operand not replaced");
-    auto *NewI = new LoadInst(V);
+    auto *NewI = new LoadInst(I->getType(), V);
     NewI->takeName(LT);
     IC.InsertNewInstWith(NewI, *LT);
     IC.replaceInstUsesWith(*LT, NewI);
@@ -455,9 +455,6 @@ static LoadInst *combineLoadToNewType(InstCombiner &IC, LoadInst &LI, Type *NewT
 
   Value *Ptr = LI.getPointerOperand();
   unsigned AS = LI.getPointerAddressSpace();
-  SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
-  LI.getAllMetadata(MD);
-
   Value *NewPtr = nullptr;
   if (!(match(Ptr, m_BitCast(m_Value(NewPtr))) &&
         NewPtr->getType()->getPointerElementType() == NewTy &&
@@ -465,50 +462,9 @@ static LoadInst *combineLoadToNewType(InstCombiner &IC, LoadInst &LI, Type *NewT
     NewPtr = IC.Builder.CreateBitCast(Ptr, NewTy->getPointerTo(AS));
 
   LoadInst *NewLoad = IC.Builder.CreateAlignedLoad(
-      NewPtr, LI.getAlignment(), LI.isVolatile(), LI.getName() + Suffix);
+      NewTy, NewPtr, LI.getAlignment(), LI.isVolatile(), LI.getName() + Suffix);
   NewLoad->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
-  MDBuilder MDB(NewLoad->getContext());
-  for (const auto &MDPair : MD) {
-    unsigned ID = MDPair.first;
-    MDNode *N = MDPair.second;
-    // Note, essentially every kind of metadata should be preserved here! This
-    // routine is supposed to clone a load instruction changing *only its type*.
-    // The only metadata it makes sense to drop is metadata which is invalidated
-    // when the pointer type changes. This should essentially never be the case
-    // in LLVM, but we explicitly switch over only known metadata to be
-    // conservatively correct. If you are adding metadata to LLVM which pertains
-    // to loads, you almost certainly want to add it here.
-    switch (ID) {
-    case LLVMContext::MD_dbg:
-    case LLVMContext::MD_tbaa:
-    case LLVMContext::MD_prof:
-    case LLVMContext::MD_fpmath:
-    case LLVMContext::MD_tbaa_struct:
-    case LLVMContext::MD_invariant_load:
-    case LLVMContext::MD_alias_scope:
-    case LLVMContext::MD_noalias:
-    case LLVMContext::MD_nontemporal:
-    case LLVMContext::MD_mem_parallel_loop_access:
-    case LLVMContext::MD_access_group:
-      // All of these directly apply.
-      NewLoad->setMetadata(ID, N);
-      break;
-
-    case LLVMContext::MD_nonnull:
-      copyNonnullMetadata(LI, N, *NewLoad);
-      break;
-    case LLVMContext::MD_align:
-    case LLVMContext::MD_dereferenceable:
-    case LLVMContext::MD_dereferenceable_or_null:
-      // These only directly apply if the new type is also a pointer.
-      if (NewTy->isPointerTy())
-        NewLoad->setMetadata(ID, N);
-      break;
-    case LLVMContext::MD_range:
-      copyRangeMetadata(IC.getDataLayout(), LI, N, *NewLoad);
-      break;
-    }
-  }
+  copyMetadataForLoad(*NewLoad, LI);
   return NewLoad;
 }
 
@@ -630,7 +586,7 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
   // infinite loop).
   if (!Ty->isIntegerTy() && Ty->isSized() &&
       DL.isLegalInteger(DL.getTypeStoreSizeInBits(Ty)) &&
-      DL.getTypeStoreSizeInBits(Ty) == DL.getTypeSizeInBits(Ty) &&
+      DL.typeSizeEqualsStoreSize(Ty) &&
       !DL.isNonIntegralPointerType(Ty) &&
       !isMinMaxWithLoads(
           peekThroughBitcast(LI.getPointerOperand(), /*OneUseOnly=*/true))) {
@@ -724,7 +680,8 @@ static Instruction *unpackLoadToAggregate(InstCombiner &IC, LoadInst &LI) {
       auto *Ptr = IC.Builder.CreateInBoundsGEP(ST, Addr, makeArrayRef(Indices),
                                                Name + ".elt");
       auto EltAlign = MinAlign(Align, SL->getElementOffset(i));
-      auto *L = IC.Builder.CreateAlignedLoad(Ptr, EltAlign, Name + ".unpack");
+      auto *L = IC.Builder.CreateAlignedLoad(ST->getElementType(i), Ptr,
+                                             EltAlign, Name + ".unpack");
       // Propagate AA metadata. It'll still be valid on the narrowed load.
       AAMDNodes AAMD;
       LI.getAAMetadata(AAMD);
@@ -774,8 +731,8 @@ static Instruction *unpackLoadToAggregate(InstCombiner &IC, LoadInst &LI) {
       };
       auto *Ptr = IC.Builder.CreateInBoundsGEP(AT, Addr, makeArrayRef(Indices),
                                                Name + ".elt");
-      auto *L = IC.Builder.CreateAlignedLoad(Ptr, MinAlign(Align, Offset),
-                                             Name + ".unpack");
+      auto *L = IC.Builder.CreateAlignedLoad(
+          AT->getElementType(), Ptr, MinAlign(Align, Offset), Name + ".unpack");
       AAMDNodes AAMD;
       LI.getAAMetadata(AAMD);
       L->setAAMetadata(AAMD);
@@ -1063,12 +1020,16 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
     if (SelectInst *SI = dyn_cast<SelectInst>(Op)) {
       // load (select (Cond, &V1, &V2))  --> select(Cond, load &V1, load &V2).
       unsigned Align = LI.getAlignment();
-      if (isSafeToLoadUnconditionally(SI->getOperand(1), Align, DL, SI) &&
-          isSafeToLoadUnconditionally(SI->getOperand(2), Align, DL, SI)) {
-        LoadInst *V1 = Builder.CreateLoad(SI->getOperand(1),
-                                          SI->getOperand(1)->getName()+".val");
-        LoadInst *V2 = Builder.CreateLoad(SI->getOperand(2),
-                                          SI->getOperand(2)->getName()+".val");
+      if (isSafeToLoadUnconditionally(SI->getOperand(1), LI.getType(), Align,
+                                      DL, SI) &&
+          isSafeToLoadUnconditionally(SI->getOperand(2), LI.getType(), Align,
+                                      DL, SI)) {
+        LoadInst *V1 =
+            Builder.CreateLoad(LI.getType(), SI->getOperand(1),
+                               SI->getOperand(1)->getName() + ".val");
+        LoadInst *V2 =
+            Builder.CreateLoad(LI.getType(), SI->getOperand(2),
+                               SI->getOperand(2)->getName() + ".val");
         assert(LI.isUnordered() && "implied by above");
         V1->setAlignment(Align);
         V1->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
@@ -1434,6 +1395,12 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
       }
     }
   }
+
+  // If we have a store to a location which is known constant, we can conclude
+  // that the store must be storing the constant value (else the memory
+  // wouldn't be constant), and this must be a noop.
+  if (AA->pointsToConstantMemory(Ptr))
+    return eraseInstFromFunction(SI);
 
   // Do really simple DSE, to catch cases where there are several consecutive
   // stores to the same location, separated by a few arithmetic operations. This

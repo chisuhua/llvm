@@ -113,7 +113,7 @@ public:
   unsigned getBaseRegister() const;
 
   // Debug information queries.
-  unsigned getFrameRegister(const MachineFunction &MF) const override;
+  Register getFrameRegister(const MachineFunction &MF) const override;
 
   unsigned getRegPressureLimit(const TargetRegisterClass *RC,
                                MachineFunction &MF) const override;
@@ -121,6 +121,8 @@ public:
   bool trackLivenessAfterRegAlloc(const MachineFunction&) const override {
     return true;
   }
+
+  unsigned getLocalAddressRegister(const MachineFunction &MF) const;
 };
 
 } // end namespace llvm

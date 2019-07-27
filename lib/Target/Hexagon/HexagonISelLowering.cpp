@@ -578,7 +578,8 @@ HexagonTargetLowering::LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const {
   const HexagonRegisterInfo &HRI = *Subtarget.getRegisterInfo();
   unsigned LR = HRI.getRARegister();
 
-  if (Op.getOpcode() != ISD::INLINEASM || HMFI.hasClobberLR())
+  if ((Op.getOpcode() != ISD::INLINEASM &&
+       Op.getOpcode() != ISD::INLINEASM_BR) || HMFI.hasClobberLR())
     return Op;
 
   unsigned NumOps = Op.getNumOperands();
@@ -1291,6 +1292,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BUILD_PAIR,           MVT::i64,   Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG,    MVT::i1,    Expand);
   setOperationAction(ISD::INLINEASM,            MVT::Other, Custom);
+  setOperationAction(ISD::INLINEASM_BR,         MVT::Other, Custom);
   setOperationAction(ISD::PREFETCH,             MVT::Other, Custom);
   setOperationAction(ISD::READCYCLECOUNTER,     MVT::i64,   Custom);
   setOperationAction(ISD::INTRINSIC_VOID,       MVT::Other, Custom);
@@ -1323,7 +1325,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   if (EmitJumpTables)
     setMinimumJumpTableEntries(MinimumJumpTables);
   else
-    setMinimumJumpTableEntries(std::numeric_limits<int>::max());
+    setMinimumJumpTableEntries(std::numeric_limits<unsigned>::max());
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
 
   setOperationAction(ISD::ABS, MVT::i32, Legal);
@@ -1332,8 +1334,8 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
   // Hexagon has A4_addp_c and A4_subp_c that take and generate a carry bit,
   // but they only operate on i64.
   for (MVT VT : MVT::integer_valuetypes()) {
-    setOperationAction(ISD::UADDO,    VT, Expand);
-    setOperationAction(ISD::USUBO,    VT, Expand);
+    setOperationAction(ISD::UADDO,    VT, Custom);
+    setOperationAction(ISD::USUBO,    VT, Custom);
     setOperationAction(ISD::SADDO,    VT, Expand);
     setOperationAction(ISD::SSUBO,    VT, Expand);
     setOperationAction(ISD::ADDCARRY, VT, Expand);
@@ -1813,6 +1815,10 @@ bool HexagonTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     break;
   }
   return false;
+}
+
+bool HexagonTargetLowering::hasBitTest(SDValue X, SDValue Y) const {
+  return X.getValueType().isScalarInteger(); // 'tstbit'
 }
 
 bool HexagonTargetLowering::isTruncateFree(Type *Ty1, Type *Ty2) const {
@@ -2618,7 +2624,6 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
   const SDLoc &dl(Op);
   const DataLayout &DL = DAG.getDataLayout();
   LLVMContext &Ctx = *DAG.getContext();
-  unsigned AS = LN->getAddressSpace();
 
   // If the load aligning is disabled or the load can be broken up into two
   // smaller legal loads, do the default (target-independent) expansion.
@@ -2628,15 +2633,15 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
     DoDefault = true;
 
   if (!AlignLoads) {
-    if (allowsMemoryAccess(Ctx, DL, LN->getMemoryVT(), AS, HaveAlign))
+    if (allowsMemoryAccess(Ctx, DL, LN->getMemoryVT(), *LN->getMemOperand()))
       return Op;
     DoDefault = true;
   }
-  if (!DoDefault && 2*HaveAlign == NeedAlign) {
+  if (!DoDefault && (2 * HaveAlign) == NeedAlign) {
     // The PartTy is the equivalent of "getLoadableTypeOfSize(HaveAlign)".
-    MVT PartTy = HaveAlign <= 8 ? MVT::getIntegerVT(8*HaveAlign)
+    MVT PartTy = HaveAlign <= 8 ? MVT::getIntegerVT(8 * HaveAlign)
                                 : MVT::getVectorVT(MVT::i8, HaveAlign);
-    DoDefault = allowsMemoryAccess(Ctx, DL, PartTy, AS, HaveAlign);
+    DoDefault = allowsMemoryAccess(Ctx, DL, PartTy, *LN->getMemOperand());
   }
   if (DoDefault) {
     std::pair<SDValue, SDValue> P = expandUnalignedLoad(LN, DAG);
@@ -2691,6 +2696,43 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
 }
 
 SDValue
+HexagonTargetLowering::LowerUAddSubO(SDValue Op, SelectionDAG &DAG) const {
+  SDValue X = Op.getOperand(0), Y = Op.getOperand(1);
+  auto *CY = dyn_cast<ConstantSDNode>(Y);
+  if (!CY)
+    return SDValue();
+
+  const SDLoc &dl(Op);
+  SDVTList VTs = Op.getNode()->getVTList();
+  assert(VTs.NumVTs == 2);
+  assert(VTs.VTs[1] == MVT::i1);
+  unsigned Opc = Op.getOpcode();
+
+  if (CY) {
+    uint32_t VY = CY->getZExtValue();
+    assert(VY != 0 && "This should have been folded");
+    // X +/- 1
+    if (VY != 1)
+      return SDValue();
+
+    if (Opc == ISD::UADDO) {
+      SDValue Op = DAG.getNode(ISD::ADD, dl, VTs.VTs[0], {X, Y});
+      SDValue Ov = DAG.getSetCC(dl, MVT::i1, Op, getZero(dl, ty(Op), DAG),
+                                ISD::SETEQ);
+      return DAG.getMergeValues({Op, Ov}, dl);
+    }
+    if (Opc == ISD::USUBO) {
+      SDValue Op = DAG.getNode(ISD::SUB, dl, VTs.VTs[0], {X, Y});
+      SDValue Ov = DAG.getSetCC(dl, MVT::i1, Op,
+                                DAG.getConstant(-1, dl, ty(Op)), ISD::SETEQ);
+      return DAG.getMergeValues({Op, Ov}, dl);
+    }
+  }
+
+  return SDValue();
+}
+
+SDValue
 HexagonTargetLowering::LowerAddSubCarry(SDValue Op, SelectionDAG &DAG) const {
   const SDLoc &dl(Op);
   unsigned Opc = Op.getOpcode();
@@ -2740,7 +2782,7 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   unsigned Opc = Op.getOpcode();
 
   // Handle INLINEASM first.
-  if (Opc == ISD::INLINEASM)
+  if (Opc == ISD::INLINEASM || Opc == ISD::INLINEASM_BR)
     return LowerINLINEASM(Op, DAG);
 
   if (isHvxOperation(Op)) {
@@ -2767,6 +2809,8 @@ HexagonTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
     case ISD::BITCAST:              return LowerBITCAST(Op, DAG);
     case ISD::LOAD:                 return LowerLoad(Op, DAG);
     case ISD::STORE:                return LowerStore(Op, DAG);
+    case ISD::UADDO:
+    case ISD::USUBO:                return LowerUAddSubO(Op, DAG);
     case ISD::ADDCARRY:
     case ISD::SUBCARRY:             return LowerAddSubCarry(Op, DAG);
     case ISD::SRA:
@@ -2922,7 +2966,8 @@ HexagonTargetLowering::getRegForInlineAsmConstraint(
 /// isFPImmLegal - Returns true if the target can instruction select the
 /// specified FP immediate natively. If false, the legalizer will
 /// materialize the FP immediate as a load from a constant pool.
-bool HexagonTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT) const {
+bool HexagonTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
+                                         bool ForCodeSize) const {
   return true;
 }
 
@@ -3046,7 +3091,7 @@ bool HexagonTargetLowering::IsEligibleForTailCallOptimization(
 /// determined using generic target-independent logic.
 EVT HexagonTargetLowering::getOptimalMemOpType(uint64_t Size,
       unsigned DstAlign, unsigned SrcAlign, bool IsMemset, bool ZeroMemset,
-      bool MemcpyStrSrc, MachineFunction &MF) const {
+      bool MemcpyStrSrc, const AttributeList &FuncAttributes) const {
 
   auto Aligned = [](unsigned GivenA, unsigned MinA) -> bool {
     return (GivenA % MinA) == 0;
@@ -3062,8 +3107,9 @@ EVT HexagonTargetLowering::getOptimalMemOpType(uint64_t Size,
   return MVT::Other;
 }
 
-bool HexagonTargetLowering::allowsMisalignedMemoryAccesses(EVT VT,
-      unsigned AS, unsigned Align, bool *Fast) const {
+bool HexagonTargetLowering::allowsMisalignedMemoryAccesses(
+    EVT VT, unsigned AS, unsigned Align, MachineMemOperand::Flags Flags,
+    bool *Fast) const {
   if (Fast)
     *Fast = false;
   return Subtarget.isHVXVectorType(VT.getSimpleVT());
@@ -3116,12 +3162,12 @@ Value *HexagonTargetLowering::emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic loads supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_L2_loadw_locked
                                    : Intrinsic::hexagon_L4_loadd_locked;
+  Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
   PointerType *NewPtrTy
     = Builder.getIntNTy(SZ)->getPointerTo(PT->getAddressSpace());
   Addr = Builder.CreateBitCast(Addr, NewPtrTy);
 
-  Value *Fn = Intrinsic::getDeclaration(M, IntID);
   Value *Call = Builder.CreateCall(Fn, Addr, "larx");
 
   return Builder.CreateBitCast(Call, Ty);
@@ -3140,7 +3186,7 @@ Value *HexagonTargetLowering::emitStoreConditional(IRBuilder<> &Builder,
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic stores supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_S2_storew_locked
                                    : Intrinsic::hexagon_S4_stored_locked;
-  Value *Fn = Intrinsic::getDeclaration(M, IntID);
+  Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
   unsigned AS = Addr->getType()->getPointerAddressSpace();
   Addr = Builder.CreateBitCast(Addr, CastTy->getPointerTo(AS));

@@ -401,18 +401,8 @@ int main(int argc, char **argv) {
   }
   if (!MainFileName.empty())
     Ctx.setMainFileName(MainFileName);
-  if (GenDwarfForAssembly && DwarfVersion >= 5) {
-    // DWARF v5 needs the root file as well as the compilation directory.
-    // If we find a '.file 0' directive that will supersede these values.
-    MD5 Hash;
-    MD5::MD5Result *Cksum =
-        (MD5::MD5Result *)Ctx.allocate(sizeof(MD5::MD5Result), 1);
-    Hash.update(Buffer->getBuffer());
-    Hash.final(*Cksum);
-    Ctx.setMCLineTableRootFile(
-        /*CUID=*/0, Ctx.getCompilationDir(),
-        !MainFileName.empty() ? MainFileName : InputFilename, Cksum, None);
-  }
+  if (GenDwarfForAssembly)
+    Ctx.setGenDwarfRootFile(InputFilename, Buffer->getBuffer());
 
   // Package up features to be passed to target/subtarget
   std::string FeaturesStr;
@@ -516,7 +506,7 @@ int main(int argc, char **argv) {
     break;
   case AC_MDisassemble:
     assert(IP && "Expected assembly output");
-    IP->setUseMarkup(1);
+    IP->setUseMarkup(true);
     disassemble = true;
     break;
   case AC_Disassemble:

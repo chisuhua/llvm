@@ -63,7 +63,7 @@ protected:
 TEST_F(ScalarEvolutionsTest, SCEVUnknownRAUW) {
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Context),
                                               std::vector<Type *>(), false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *BB = BasicBlock::Create(Context, "entry", F);
   ReturnInst::Create(Context, nullptr, BB);
 
@@ -112,7 +112,7 @@ TEST_F(ScalarEvolutionsTest, SCEVUnknownRAUW) {
 TEST_F(ScalarEvolutionsTest, SimplifiedPHI) {
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Context),
                                               std::vector<Type *>(), false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *EntryBB = BasicBlock::Create(Context, "entry", F);
   BasicBlock *LoopBB = BasicBlock::Create(Context, "loop", F);
   BasicBlock *ExitBB = BasicBlock::Create(Context, "exit", F);
@@ -146,7 +146,7 @@ TEST_F(ScalarEvolutionsTest, ExpandPtrTypeSCEV) {
   auto *I32PtrTy = Type::getInt32PtrTy(Context);
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *EntryBB = BasicBlock::Create(Context, "entry", F);
   BasicBlock *LoopBB = BasicBlock::Create(Context, "loop", F);
   BasicBlock *ExitBB = BasicBlock::Create(Context, "exit", F);
@@ -329,7 +329,7 @@ TEST_F(ScalarEvolutionsTest, CommutativeExprOperandOrder) {
 TEST_F(ScalarEvolutionsTest, CompareSCEVComplexity) {
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *EntryBB = BasicBlock::Create(Context, "entry", F);
   BasicBlock *LoopBB = BasicBlock::Create(Context, "bb1", F);
   BranchInst::Create(LoopBB, EntryBB);
@@ -399,7 +399,7 @@ TEST_F(ScalarEvolutionsTest, CompareValueComplexity) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {IntPtrTy, IntPtrTy}, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *EntryBB = BasicBlock::Create(Context, "entry", F);
 
   Value *X = &*F->arg_begin();
@@ -407,9 +407,11 @@ TEST_F(ScalarEvolutionsTest, CompareValueComplexity) {
 
   const int ValueDepth = 10;
   for (int i = 0; i < ValueDepth; i++) {
-    X = new LoadInst(new IntToPtrInst(X, IntPtrPtrTy, "", EntryBB), "",
+    X = new LoadInst(IntPtrTy, new IntToPtrInst(X, IntPtrPtrTy, "", EntryBB),
+                     "",
                      /*isVolatile*/ false, EntryBB);
-    Y = new LoadInst(new IntToPtrInst(Y, IntPtrPtrTy, "", EntryBB), "",
+    Y = new LoadInst(IntPtrTy, new IntToPtrInst(Y, IntPtrPtrTy, "", EntryBB),
+                     "",
                      /*isVolatile*/ false, EntryBB);
   }
 
@@ -435,7 +437,7 @@ TEST_F(ScalarEvolutionsTest, SCEVAddExpr) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), ArgTys, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
 
   Argument *A1 = &*F->arg_begin();
   Argument *A2 = &*(std::next(F->arg_begin()));
@@ -669,7 +671,7 @@ TEST_F(ScalarEvolutionsTest, SCEVZeroExtendExpr) {
   //   ret void
   // }
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Context), {}, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("foo", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
 
   BasicBlock *EntryBB = BasicBlock::Create(Context, "entry", F);
   BasicBlock *CondBB = BasicBlock::Create(Context, "for.cond", F);
@@ -748,7 +750,7 @@ TEST_F(ScalarEvolutionsTest, SCEVZeroExtendExprNonIntegral) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
-  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", NIM);
 
   Argument *Arg = &*F->arg_begin();
 
@@ -771,7 +773,8 @@ TEST_F(ScalarEvolutionsTest, SCEVZeroExtendExprNonIntegral) {
   Phi->addIncoming(Add, L);
 
   Builder.SetInsertPoint(Post);
-  Value *GepBase = Builder.CreateGEP(Arg, ConstantInt::get(T_int64, 1));
+  Value *GepBase =
+      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
@@ -821,7 +824,7 @@ TEST_F(ScalarEvolutionsTest, SCEVExitLimitForgetLoop) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
-  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", NIM);
 
   BasicBlock *Top = BasicBlock::Create(Context, "top", F);
   BasicBlock *LPh = BasicBlock::Create(Context, "L.ph", F);
@@ -919,7 +922,7 @@ TEST_F(ScalarEvolutionsTest, SCEVExitLimitForgetValue) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
-  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", NIM);
 
   Argument *Arg = &*F->arg_begin();
 
@@ -979,7 +982,8 @@ TEST_F(ScalarEvolutionsTest, SCEVAddRecFromPHIwithLargeConstants) {
   // ix.
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
-  Function *F = cast<Function>(M.getOrInsertFunction("addrecphitest", FTy));
+  Function *F =
+      Function::Create(FTy, Function::ExternalLinkage, "addrecphitest", M);
 
   /*
     Create IR:
@@ -1035,7 +1039,8 @@ TEST_F(ScalarEvolutionsTest, SCEVAddRecFromPHIwithLargeConstantAccum) {
   SmallVector<Type *, 1> Types;
   Types.push_back(Int32Ty);
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Context), Types, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("addrecphitest", FTy));
+  Function *F =
+      Function::Create(FTy, Function::ExternalLinkage, "addrecphitest", M);
 
   /*
     Create IR:
@@ -1089,7 +1094,7 @@ TEST_F(ScalarEvolutionsTest, SCEVFoldSumOfTruncs) {
   SmallVector<Type *, 1> Types;
   Types.push_back(ArgTy);
   FunctionType *FTy = FunctionType::get(Type::getVoidTy(Context), Types, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("f", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
   BasicBlock *BB = BasicBlock::Create(Context, "entry", F);
   ReturnInst::Create(Context, nullptr, BB);
 
@@ -1145,7 +1150,7 @@ TEST_F(ScalarEvolutionsTest, SCEVExpanderIsSafeToExpandAt) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
-  Function *F = cast<Function>(NIM.getOrInsertFunction("foo", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", NIM);
 
   BasicBlock *Top = BasicBlock::Create(Context, "top", F);
   BasicBlock *LPh = BasicBlock::Create(Context, "L.ph", F);
@@ -1206,7 +1211,7 @@ TEST_F(ScalarEvolutionsTest, SCEVExpanderNUW) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), { T_int64 }, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("func", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "func", M);
   Argument *Arg = &*F->arg_begin();
   ConstantInt *C = ConstantInt::get(Context, APInt(64, -1));
 
@@ -1258,7 +1263,7 @@ TEST_F(ScalarEvolutionsTest, SCEVExpanderNSW) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), { T_int64 }, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("func", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "func", M);
   Argument *Arg = &*F->arg_begin();
   ConstantInt *C = ConstantInt::get(Context, APInt(64, -1));
 
@@ -1308,7 +1313,7 @@ TEST_F(ScalarEvolutionsTest, SCEVCacheNUW) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), { T_int64 }, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("func", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "func", M);
   Argument *Arg = &*F->arg_begin();
   ConstantInt *C = ConstantInt::get(Context, APInt(64, -1));
 
@@ -1359,7 +1364,7 @@ TEST_F(ScalarEvolutionsTest, SCEVCacheNSW) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), { T_int64 }, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("func", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "func", M);
   Argument *Arg = &*F->arg_begin();
   ConstantInt *C = ConstantInt::get(Context, APInt(64, -1));
 
@@ -1409,7 +1414,7 @@ TEST_F(ScalarEvolutionsTest, SCEVComputeExpressionSize) {
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), { T_int64, T_int64 }, false);
-  Function *F = cast<Function>(M.getOrInsertFunction("func", FTy));
+  Function *F = Function::Create(FTy, Function::ExternalLinkage, "func", M);
   Argument *A = &*F->arg_begin();
   Argument *B = &*std::next(F->arg_begin());
   ConstantInt *C = ConstantInt::get(Context, APInt(64, 1));
@@ -1437,6 +1442,240 @@ TEST_F(ScalarEvolutionsTest, SCEVComputeExpressionSize) {
   EXPECT_EQ(CS->getExpressionSize(), 1u);
   EXPECT_EQ(S1S->getExpressionSize(), 3u);
   EXPECT_EQ(S2S->getExpressionSize(), 5u);
+}
+
+TEST_F(ScalarEvolutionsTest, SCEVExpandInsertCanonicalIV) {
+  LLVMContext C;
+  SMDiagnostic Err;
+
+  // Expand the addrec produced by GetAddRec into a loop without a canonical IV.
+  // SCEVExpander will insert one.
+  auto TestNoCanonicalIV = [&](
+      std::function<const SCEV *(ScalarEvolution & SE, Loop * L)> GetAddRec) {
+    std::unique_ptr<Module> M =
+        parseAssemblyString("define i32 @test(i32 %limit) { "
+                            "entry: "
+                            "  br label %loop "
+                            "loop: "
+                            "  %i = phi i32 [ 1, %entry ], [ %i.inc, %loop ] "
+                            "  %i.inc = add nsw i32 %i, 1 "
+                            "  %cont = icmp slt i32 %i.inc, %limit "
+                            "  br i1 %cont, label %loop, label %exit "
+                            "exit: "
+                            "  ret i32 %i.inc "
+                            "}",
+                            Err, C);
+
+    assert(M && "Could not parse module?");
+    assert(!verifyModule(*M) && "Must have been well formed!");
+
+    runWithSE(*M, "test", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+      auto &I = GetInstByName(F, "i");
+      auto *Loop = LI.getLoopFor(I.getParent());
+      EXPECT_FALSE(Loop->getCanonicalInductionVariable());
+
+      auto *AR = GetAddRec(SE, Loop);
+      unsigned ExpectedCanonicalIVWidth = SE.getTypeSizeInBits(AR->getType());
+
+      SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+      auto *InsertAt = I.getNextNode();
+      Exp.expandCodeFor(AR, nullptr, InsertAt);
+      PHINode *CanonicalIV = Loop->getCanonicalInductionVariable();
+      unsigned CanonicalIVBitWidth =
+          cast<IntegerType>(CanonicalIV->getType())->getBitWidth();
+      EXPECT_EQ(CanonicalIVBitWidth, ExpectedCanonicalIVWidth);
+    });
+  };
+
+  // Expand the addrec produced by GetAddRec into a loop with a canonical IV
+  // which is narrower than addrec type.
+  // SCEVExpander will insert a canonical IV of a wider type to expand the
+  // addrec.
+  auto TestNarrowCanonicalIV = [&](
+      std::function<const SCEV *(ScalarEvolution & SE, Loop * L)> GetAddRec) {
+    std::unique_ptr<Module> M = parseAssemblyString(
+        "define i32 @test(i32 %limit) { "
+        "entry: "
+        "  br label %loop "
+        "loop: "
+        "  %i = phi i32 [ 1, %entry ], [ %i.inc, %loop ] "
+        "  %canonical.iv = phi i8 [ 0, %entry ], [ %canonical.iv.inc, %loop ] "
+        "  %i.inc = add nsw i32 %i, 1 "
+        "  %canonical.iv.inc = add i8 %canonical.iv, 1 "
+        "  %cont = icmp slt i32 %i.inc, %limit "
+        "  br i1 %cont, label %loop, label %exit "
+        "exit: "
+        "  ret i32 %i.inc "
+        "}",
+        Err, C);
+
+    assert(M && "Could not parse module?");
+    assert(!verifyModule(*M) && "Must have been well formed!");
+
+    runWithSE(*M, "test", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+      auto &I = GetInstByName(F, "i");
+
+      auto *LoopHeaderBB = I.getParent();
+      auto *Loop = LI.getLoopFor(LoopHeaderBB);
+      PHINode *CanonicalIV = Loop->getCanonicalInductionVariable();
+      EXPECT_EQ(CanonicalIV, &GetInstByName(F, "canonical.iv"));
+
+      auto *AR = GetAddRec(SE, Loop);
+
+      unsigned ExpectedCanonicalIVWidth = SE.getTypeSizeInBits(AR->getType());
+      unsigned CanonicalIVBitWidth =
+          cast<IntegerType>(CanonicalIV->getType())->getBitWidth();
+      EXPECT_LT(CanonicalIVBitWidth, ExpectedCanonicalIVWidth);
+
+      SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+      auto *InsertAt = I.getNextNode();
+      Exp.expandCodeFor(AR, nullptr, InsertAt);
+
+      // Loop over all of the PHI nodes, looking for the new canonical indvar.
+      PHINode *NewCanonicalIV = nullptr;
+      for (BasicBlock::iterator i = LoopHeaderBB->begin(); isa<PHINode>(i);
+           ++i) {
+        PHINode *PN = cast<PHINode>(i);
+        if (PN == &I || PN == CanonicalIV)
+          continue;
+        // We expect that the only PHI added is the new canonical IV
+        EXPECT_FALSE(NewCanonicalIV);
+        NewCanonicalIV = PN;
+      }
+
+      // Check that NewCanonicalIV is a canonical IV, i.e {0,+,1}
+      BasicBlock *Incoming = nullptr, *Backedge = nullptr;
+      EXPECT_TRUE(Loop->getIncomingAndBackEdge(Incoming, Backedge));
+      auto *Start = NewCanonicalIV->getIncomingValueForBlock(Incoming);
+      EXPECT_TRUE(isa<ConstantInt>(Start));
+      EXPECT_TRUE(dyn_cast<ConstantInt>(Start)->isZero());
+      auto *Next = NewCanonicalIV->getIncomingValueForBlock(Backedge);
+      EXPECT_TRUE(isa<BinaryOperator>(Next));
+      auto *NextBinOp = dyn_cast<BinaryOperator>(Next);
+      EXPECT_EQ(NextBinOp->getOpcode(), Instruction::Add);
+      EXPECT_EQ(NextBinOp->getOperand(0), NewCanonicalIV);
+      auto *Step = NextBinOp->getOperand(1);
+      EXPECT_TRUE(isa<ConstantInt>(Step));
+      EXPECT_TRUE(dyn_cast<ConstantInt>(Step)->isOne());
+
+      unsigned NewCanonicalIVBitWidth =
+          cast<IntegerType>(NewCanonicalIV->getType())->getBitWidth();
+      EXPECT_EQ(NewCanonicalIVBitWidth, ExpectedCanonicalIVWidth);
+    });
+  };
+
+  // Expand the addrec produced by GetAddRec into a loop with a canonical IV
+  // of addrec width.
+  // To expand the addrec SCEVExpander should use the existing canonical IV.
+  auto TestMatchingCanonicalIV = [&](
+      std::function<const SCEV *(ScalarEvolution & SE, Loop * L)> GetAddRec,
+      unsigned ARBitWidth) {
+    auto ARBitWidthTypeStr = "i" + std::to_string(ARBitWidth);
+    std::unique_ptr<Module> M = parseAssemblyString(
+        "define i32 @test(i32 %limit) { "
+        "entry: "
+        "  br label %loop "
+        "loop: "
+        "  %i = phi i32 [ 1, %entry ], [ %i.inc, %loop ] "
+        "  %canonical.iv = phi " + ARBitWidthTypeStr +
+            " [ 0, %entry ], [ %canonical.iv.inc, %loop ] "
+        "  %i.inc = add nsw i32 %i, 1 "
+        "  %canonical.iv.inc = add " + ARBitWidthTypeStr +
+            " %canonical.iv, 1 "
+        "  %cont = icmp slt i32 %i.inc, %limit "
+        "  br i1 %cont, label %loop, label %exit "
+        "exit: "
+        "  ret i32 %i.inc "
+        "}",
+        Err, C);
+
+    assert(M && "Could not parse module?");
+    assert(!verifyModule(*M) && "Must have been well formed!");
+
+    runWithSE(*M, "test", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+      auto &I = GetInstByName(F, "i");
+      auto &CanonicalIV = GetInstByName(F, "canonical.iv");
+
+      auto *LoopHeaderBB = I.getParent();
+      auto *Loop = LI.getLoopFor(LoopHeaderBB);
+      EXPECT_EQ(&CanonicalIV, Loop->getCanonicalInductionVariable());
+      unsigned CanonicalIVBitWidth =
+          cast<IntegerType>(CanonicalIV.getType())->getBitWidth();
+
+      auto *AR = GetAddRec(SE, Loop);
+      EXPECT_EQ(ARBitWidth, SE.getTypeSizeInBits(AR->getType()));
+      EXPECT_EQ(CanonicalIVBitWidth, ARBitWidth);
+
+      SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+      auto *InsertAt = I.getNextNode();
+      Exp.expandCodeFor(AR, nullptr, InsertAt);
+
+      // Loop over all of the PHI nodes, looking if a new canonical indvar was
+      // introduced.
+      PHINode *NewCanonicalIV = nullptr;
+      for (BasicBlock::iterator i = LoopHeaderBB->begin(); isa<PHINode>(i);
+           ++i) {
+        PHINode *PN = cast<PHINode>(i);
+        if (PN == &I || PN == &CanonicalIV)
+          continue;
+        NewCanonicalIV = PN;
+      }
+      EXPECT_FALSE(NewCanonicalIV);
+    });
+  };
+
+  unsigned ARBitWidth = 16;
+  Type *ARType = IntegerType::get(C, ARBitWidth);
+
+  // Expand {5,+,1}
+  auto GetAR2 = [&](ScalarEvolution &SE, Loop *L) -> const SCEV * {
+    return SE.getAddRecExpr(SE.getConstant(APInt(ARBitWidth, 5)),
+                            SE.getOne(ARType), L, SCEV::FlagAnyWrap);
+  };
+  TestNoCanonicalIV(GetAR2);
+  TestNarrowCanonicalIV(GetAR2);
+  TestMatchingCanonicalIV(GetAR2, ARBitWidth);
+}
+
+TEST_F(ScalarEvolutionsTest, SCEVExpanderShlNSW) {
+
+  auto checkOneCase = [this](std::string &&str) {
+    LLVMContext C;
+    SMDiagnostic Err;
+    std::unique_ptr<Module> M = parseAssemblyString(str, Err, C);
+
+    assert(M && "Could not parse module?");
+    assert(!verifyModule(*M) && "Must have been well formed!");
+
+    Function *F = M->getFunction("f");
+    ASSERT_NE(F, nullptr) << "Could not find function 'f'";
+
+    BasicBlock &Entry = F->getEntryBlock();
+    LoadInst *Load = cast<LoadInst>(&Entry.front());
+    BinaryOperator *And = cast<BinaryOperator>(*Load->user_begin());
+
+    ScalarEvolution SE = buildSE(*F);
+    const SCEV *AndSCEV = SE.getSCEV(And);
+    EXPECT_TRUE(isa<SCEVMulExpr>(AndSCEV));
+    EXPECT_TRUE(cast<SCEVMulExpr>(AndSCEV)->hasNoSignedWrap());
+
+    SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+    auto *I = cast<Instruction>(Exp.expandCodeFor(AndSCEV, nullptr, And));
+    EXPECT_EQ(I->getOpcode(), Instruction::Shl);
+    EXPECT_FALSE(I->hasNoSignedWrap());
+  };
+
+  checkOneCase("define void @f(i16* %arrayidx) { "
+               "  %1 = load i16, i16* %arrayidx "
+               "  %2 = and i16 %1, -32768 "
+               "  ret void "
+               "} ");
+
+  checkOneCase("define void @f(i8* %arrayidx) { "
+               "  %1 = load i8, i8* %arrayidx "
+               "  %2 = and i8 %1, -128 "
+               "  ret void "
+               "} ");
 }
 
 }  // end anonymous namespace

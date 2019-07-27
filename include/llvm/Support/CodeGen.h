@@ -18,13 +18,14 @@ namespace llvm {
 
   // Relocation model types.
   namespace Reloc {
-  enum Model { Static, PIC_, DynamicNoPIC, ROPI, RWPI, ROPI_RWPI };
+    // Cannot be named PIC due to collision with -DPIC
+    enum Model { Static, PIC_, DynamicNoPIC, ROPI, RWPI, ROPI_RWPI };
   }
 
   // Code model types.
   namespace CodeModel {
     // Sync changes with CodeGenCWrappers.h.
-  enum Model { Tiny, Small, Kernel, Medium, Large };
+    enum Model { Tiny, Small, Kernel, Medium, Large };
   }
 
   namespace PICLevel {
@@ -49,10 +50,10 @@ namespace llvm {
   // Code generation optimization level.
   namespace CodeGenOpt {
     enum Level {
-      None,        // -O0
-      Less,        // -O1
-      Default,     // -O2, -Os
-      Aggressive   // -O3
+      None = 0,      // -O0
+      Less = 1,      // -O1
+      Default = 2,   // -O2, -Os
+      Aggressive = 3 // -O3
     };
   }
 

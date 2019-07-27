@@ -366,6 +366,7 @@ public:
     return ContainedTys[0];
   }
 
+  inline bool getVectorIsScalable() const;
   inline unsigned getVectorNumElements() const;
   Type *getVectorElementType() const {
     assert(getTypeID() == VectorTyID);
@@ -464,28 +465,6 @@ template <> struct isa_impl<PointerType, Type> {
   static inline bool doit(const Type &Ty) {
     return Ty.getTypeID() == Type::PointerTyID;
   }
-};
-
-//===----------------------------------------------------------------------===//
-// Provide specializations of GraphTraits to be able to treat a type as a
-// graph of sub types.
-
-template <> struct GraphTraits<Type *> {
-  using NodeRef = Type *;
-  using ChildIteratorType = Type::subtype_iterator;
-
-  static NodeRef getEntryNode(Type *T) { return T; }
-  static ChildIteratorType child_begin(NodeRef N) { return N->subtype_begin(); }
-  static ChildIteratorType child_end(NodeRef N) { return N->subtype_end(); }
-};
-
-template <> struct GraphTraits<const Type*> {
-  using NodeRef = const Type *;
-  using ChildIteratorType = Type::subtype_iterator;
-
-  static NodeRef getEntryNode(NodeRef T) { return T; }
-  static ChildIteratorType child_begin(NodeRef N) { return N->subtype_begin(); }
-  static ChildIteratorType child_end(NodeRef N) { return N->subtype_end(); }
 };
 
 // Create wrappers for C Binding types (see CBindingWrapping.h).

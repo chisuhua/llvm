@@ -23,28 +23,8 @@ class WebAssemblyFunctionInfo;
 
 namespace WebAssembly {
 
-bool isArgument(const MachineInstr &MI);
-bool isCopy(const MachineInstr &MI);
-bool isTee(const MachineInstr &MI);
 bool isChild(const MachineInstr &MI, const WebAssemblyFunctionInfo &MFI);
-bool isCallDirect(const MachineInstr &MI);
-bool isCallIndirect(const MachineInstr &MI);
-bool isMarker(const MachineInstr &MI);
-bool isThrow(const MachineInstr &MI);
-bool isRethrow(const MachineInstr &MI);
-bool isCatch(const MachineInstr &MI);
 bool mayThrow(const MachineInstr &MI);
-
-/// Returns the operand number of a callee, assuming the argument is a call
-/// instruction.
-unsigned getCalleeOpNo(const MachineInstr &MI);
-
-/// Returns if the given BB is a single BB terminate pad which starts with a
-/// 'catch' instruction.
-bool isCatchTerminatePad(const MachineBasicBlock &MBB);
-/// Returns if the given BB is a single BB terminate pad which starts with a
-/// 'catch_all' insrtruction.
-bool isCatchAllTerminatePad(const MachineBasicBlock &MBB);
 
 // Exception-related function names
 extern const char *const ClangCallTerminateFn;

@@ -127,7 +127,7 @@ in release mode, i.e.
 
 .. code-block:: bash
 
-    % cmake -DCMAKE_BUILD_TYPE="Release"
+    % cmake -DCMAKE_BUILD_TYPE="Release" -DLLVM_ENABLE_ASSERTIONS=On
 
 If you have `Clang <http://clang.llvm.org/>`_ checked out and built, you
 can run the LLVM and Clang tests simultaneously using:
@@ -165,15 +165,9 @@ or the :doc:`lit man page <CommandGuide/lit>`.
 Debugging Information tests
 ---------------------------
 
-To run debugging information tests simply checkout the tests inside
-clang/test directory.
-
-.. code-block:: bash
-
-    % cd clang/test
-    % svn co http://llvm.org/svn/llvm-project/debuginfo-tests/trunk debuginfo-tests
-
-These tests are already set up to run as part of clang regression tests.
+To run debugging information tests simply add the ``debuginfo-tests``
+project to your ``LLVM_ENABLE_PROJECTS`` define on the cmake
+command-line.
 
 Regression test structure
 =========================
@@ -517,7 +511,7 @@ RUN lines:
    The suffix for the host platforms shared library files. This includes the
    period as the first character.
 
-   Example: ``.so`` (Linux), ``.dylib`` (OS X), ``.dll`` (Windows)
+   Example: ``.so`` (Linux), ``.dylib`` (macOS), ``.dll`` (Windows)
 
 ``%exeext``
    The suffix for the host platforms executable files. This includes the

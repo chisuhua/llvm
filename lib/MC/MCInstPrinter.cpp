@@ -21,10 +21,14 @@ using namespace llvm;
 
 void llvm::dumpBytes(ArrayRef<uint8_t> bytes, raw_ostream &OS) {
   static const char hex_rep[] = "0123456789abcdef";
+  bool First = true;
   for (char i: bytes) {
+    if (First)
+      First = false;
+    else
+      OS << ' ';
     OS << hex_rep[(i & 0xF0) >> 4];
     OS << hex_rep[i & 0xF];
-    OS << ' ';
   }
 }
 
@@ -59,12 +63,6 @@ StringRef MCInstPrinter::markup(StringRef s) const {
     return s;
   else
     return "";
-}
-StringRef MCInstPrinter::markup(StringRef a, StringRef b) const {
-  if (getUseMarkup())
-    return a;
-  else
-    return b;
 }
 
 // For asm-style hex (e.g. 0ffh) the first digit always has to be a number.

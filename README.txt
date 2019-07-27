@@ -15,8 +15,3 @@ documentation setup.
 
 If you are writing a package for LLVM, see docs/Packaging.rst for our
 suggestions.
-
-
- This is development branch HCC2-181213 .
- Throw this first marker commit away when making future development branches
-

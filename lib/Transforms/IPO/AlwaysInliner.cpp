@@ -31,8 +31,17 @@ using namespace llvm;
 
 #define DEBUG_TYPE "inline"
 
-PreservedAnalyses AlwaysInlinerPass::run(Module &M, ModuleAnalysisManager &) {
-  InlineFunctionInfo IFI;
+PreservedAnalyses AlwaysInlinerPass::run(Module &M,
+                                         ModuleAnalysisManager &MAM) {
+  // Add inline assumptions during code generation.
+  FunctionAnalysisManager &FAM =
+      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  std::function<AssumptionCache &(Function &)> GetAssumptionCache =
+      [&](Function &F) -> AssumptionCache & {
+    return FAM.getResult<AssumptionAnalysis>(F);
+  };
+  InlineFunctionInfo IFI(/*cg=*/nullptr, &GetAssumptionCache);
+
   SmallSetVector<CallSite, 16> Calls;
   bool Changed = false;
   SmallVector<Function *, 16> InlinedFunctions;
@@ -145,11 +154,20 @@ InlineCost AlwaysInlinerLegacyPass::getInlineCost(CallSite CS) {
   Function *Callee = CS.getCalledFunction();
 
   // Only inline direct calls to functions with always-inline attributes
-  // that are viable for inlining. FIXME: We shouldn't even get here for
-  // declarations.
-  if (Callee && !Callee->isDeclaration() &&
-      CS.hasFnAttr(Attribute::AlwaysInline) && isInlineViable(*Callee))
-    return InlineCost::getAlways("always inliner");
+  // that are viable for inlining.
+  if (!Callee)
+    return InlineCost::getNever("indirect call");
 
-  return InlineCost::getNever("always inliner");
+  // FIXME: We shouldn't even get here for declarations.
+  if (Callee->isDeclaration())
+    return InlineCost::getNever("no definition");
+
+  if (!CS.hasFnAttr(Attribute::AlwaysInline))
+    return InlineCost::getNever("no alwaysinline attribute");
+
+  auto IsViable = isInlineViable(*Callee);
+  if (!IsViable)
+    return InlineCost::getNever(IsViable.message);
+
+  return InlineCost::getAlways("always inliner");
 }

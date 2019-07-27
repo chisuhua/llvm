@@ -97,7 +97,7 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
       return true;
 
     if (Config.StripDebug || Config.StripAll || Config.StripAllGNU ||
-        Config.DiscardAll || Config.StripUnneeded) {
+        Config.DiscardMode == DiscardType::All || Config.StripUnneeded) {
       if (isDebugSection(Sec) &&
           (Sec.Header.Characteristics & IMAGE_SCN_MEM_DISCARDABLE) != 0)
         return true;
@@ -125,7 +125,7 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
       Sec.Relocs.clear();
 
   // If we need to do per-symbol removals, initialize the Referenced field.
-  if (Config.StripUnneeded || Config.DiscardAll ||
+  if (Config.StripUnneeded || Config.DiscardMode == DiscardType::All ||
       !Config.SymbolsToRemove.empty())
     if (Error E = Obj.markSymbols())
       return E;
@@ -143,7 +143,7 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
         reportError(Config.OutputFilename,
                     createStringError(llvm::errc::invalid_argument,
                                       "not stripping symbol '%s' because it is "
-                                      "named in a relocation.",
+                                      "named in a relocation",
                                       Sym.Name.str().c_str()));
       return true;
     }
@@ -151,15 +151,19 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
     if (!Sym.Referenced) {
       // With --strip-unneeded, GNU objcopy removes all unreferenced local
       // symbols, and any unreferenced undefined external.
-      if (Config.StripUnneeded &&
-          (Sym.Sym.StorageClass == IMAGE_SYM_CLASS_STATIC ||
-           Sym.Sym.SectionNumber == 0))
-        return true;
+      // With --strip-unneeded-symbol we strip only specific unreferenced
+      // local symbol instead of removing all of such.
+      if (Sym.Sym.StorageClass == IMAGE_SYM_CLASS_STATIC ||
+          Sym.Sym.SectionNumber == 0)
+        if (Config.StripUnneeded ||
+            is_contained(Config.UnneededSymbolsToRemove, Sym.Name))
+          return true;
 
       // GNU objcopy keeps referenced local symbols and external symbols
       // if --discard-all is set, similar to what --strip-unneeded does,
       // but undefined local symbols are kept when --discard-all is set.
-      if (Config.DiscardAll && Sym.Sym.StorageClass == IMAGE_SYM_CLASS_STATIC &&
+      if (Config.DiscardMode == DiscardType::All &&
+          Sym.Sym.StorageClass == IMAGE_SYM_CLASS_STATIC &&
           Sym.Sym.SectionNumber != 0)
         return true;
     }
@@ -170,37 +174,41 @@ static Error handleArgs(const CopyConfig &Config, Object &Obj) {
   if (!Config.AddGnuDebugLink.empty())
     addGnuDebugLink(Obj, Config.AddGnuDebugLink);
 
-  if (!Config.BuildIdLinkDir.empty() || Config.BuildIdLinkInput ||
-      Config.BuildIdLinkOutput || !Config.SplitDWO.empty() ||
-      !Config.SymbolsPrefix.empty() || !Config.AddSection.empty() ||
+  if (Config.AllowBrokenLinks || !Config.BuildIdLinkDir.empty() ||
+      Config.BuildIdLinkInput || Config.BuildIdLinkOutput ||
+      !Config.SplitDWO.empty() || !Config.SymbolsPrefix.empty() ||
+      !Config.AllocSectionsPrefix.empty() || !Config.AddSection.empty() ||
       !Config.DumpSection.empty() || !Config.KeepSection.empty() ||
       !Config.SymbolsToGlobalize.empty() || !Config.SymbolsToKeep.empty() ||
       !Config.SymbolsToLocalize.empty() || !Config.SymbolsToWeaken.empty() ||
       !Config.SymbolsToKeepGlobal.empty() || !Config.SectionsToRename.empty() ||
-      !Config.SymbolsToRename.empty() || Config.ExtractDWO ||
-      Config.KeepFileSymbols || Config.LocalizeHidden || Config.PreserveDates ||
-      Config.StripDWO || Config.StripNonAlloc || Config.StripSections ||
-      Config.Weaken || Config.DecompressDebugSections) {
+      !Config.SetSectionFlags.empty() || !Config.SymbolsToRename.empty() ||
+      Config.ExtractDWO || Config.KeepFileSymbols || Config.LocalizeHidden ||
+      Config.PreserveDates || Config.StripDWO || Config.StripNonAlloc ||
+      Config.StripSections || Config.Weaken || Config.DecompressDebugSections ||
+      Config.DiscardMode == DiscardType::Locals ||
+      !Config.SymbolsToAdd.empty() || Config.EntryExpr) {
     return createStringError(llvm::errc::invalid_argument,
-                             "Option not supported by llvm-objcopy for COFF");
+                             "option not supported by llvm-objcopy for COFF");
   }
 
   return Error::success();
 }
 
-void executeObjcopyOnBinary(const CopyConfig &Config,
-                            COFFObjectFile &In, Buffer &Out) {
+Error executeObjcopyOnBinary(const CopyConfig &Config, COFFObjectFile &In,
+                             Buffer &Out) {
   COFFReader Reader(In);
   Expected<std::unique_ptr<Object>> ObjOrErr = Reader.create();
   if (!ObjOrErr)
-    reportError(Config.InputFilename, ObjOrErr.takeError());
+    return createFileError(Config.InputFilename, ObjOrErr.takeError());
   Object *Obj = ObjOrErr->get();
   assert(Obj && "Unable to deserialize COFF object");
   if (Error E = handleArgs(Config, *Obj))
-    reportError(Config.InputFilename, std::move(E));
+    return createFileError(Config.InputFilename, std::move(E));
   COFFWriter Writer(*Obj, Out);
   if (Error E = Writer.write())
-    reportError(Config.OutputFilename, std::move(E));
+    return createFileError(Config.OutputFilename, std::move(E));
+  return Error::success();
 }
 
 } // end namespace coff
