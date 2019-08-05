@@ -126,7 +126,11 @@ int main(int argc, const char *argv[]) {
         // appropriate location
         // XXX assumes loadable segments are ordered by virtual address
         int offset = eheader.e_entry - pheader[segment].p_vaddr;
-        uint32_t instruction = 0xf6000000 | (offset / 4);
+        uint32_t offset_10_1 = (( offset >> 1 ) & 0x3ff) << 21;
+        uint32_t offset_11 = (( offset >> 11 ) & 0xf) << 20;
+        uint32_t offset_19_12 = (( offset >> 12 ) & 0xff) << 12;
+        // uint32_t instruction = 0x0000006f | (offset / 4);
+        uint32_t instruction = 0x0000006f | offset_10_1 | offset_11 | offset_19_12;
         fprintf(outputFile, "%02x%02x%02x%02x\n",
           instruction & 0xff,
           (instruction >> 8) & 0xff,
