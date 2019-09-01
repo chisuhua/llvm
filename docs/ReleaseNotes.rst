@@ -50,8 +50,19 @@ Non-comprehensive list of changes in this release
 
    Makes programs 10x faster by doing Special New Thing.
 
+* The Loop Idiom Recognition (``-loop-idiom``) pass has learned to recognize
+  ``bcmp`` pattern, and convert it into a call to ``bcmp`` (or ``memcmp``)
+  function.
+
 Changes to the LLVM IR
 ----------------------
+
+* Unnamed function arguments now get printed with their automatically
+  generated name (e.g. "i32 %0") in definitions. This may require front-ends
+  to update their tests; if so there is a script utils/add_argument_names.py
+  that correctly converted 80-90% of Clang tests. Some manual work will almost
+  certainly still be needed.
+
 
 Changes to building LLVM
 ------------------------
@@ -78,6 +89,15 @@ Changes to the X86 Target
 
  During this release ...
 
+* Less than 128 bit vector types, v2i32, v4i16, v2i16, v8i8, v4i8, and v2i8, are
+  now stored in the lower bits of an xmm register and the upper bits are
+  undefined. Previously the elements were spread apart with undefined bits in
+  between them.
+* v32i8 and v64i8 vectors with AVX512F enabled, but AVX512BW disabled will now
+  be passed in ZMM registers for calls and returns. Previously they were passed
+  in two YMM registers. Old behavior can be enabled by passing
+  -x86-enable-old-knl-abi
+
 Changes to the AMDGPU Target
 -----------------------------
 
@@ -85,6 +105,10 @@ Changes to the AVR Target
 -----------------------------
 
  During this release ...
+
+* Deprecated the mpx feature flag for the Intel MPX instructions. There were no
+  intrinsics for this feature. This change only this effects the results
+  returned by getHostCPUFeatures on CPUs that implement the MPX instructions.
 
 Changes to the WebAssembly Target
 ---------------------------------

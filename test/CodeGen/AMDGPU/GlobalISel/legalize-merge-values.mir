@@ -702,10 +702,10 @@ body: |
     ; CHECK: [[SUB1:%[0-9]+]]:_(s32) = G_SUB [[C20]], [[TRUNC10]]
     ; CHECK: [[ICMP:%[0-9]+]]:_(s1) = G_ICMP intpred(ult), [[TRUNC10]](s32), [[C20]]
     ; CHECK: [[ICMP1:%[0-9]+]]:_(s1) = G_ICMP intpred(eq), [[TRUNC10]](s32), [[C]]
-    ; CHECK: [[SHL15:%[0-9]+]]:_(s136) = G_SHL [[UV1]], [[TRUNC10]](s32)
-    ; CHECK: [[SHL16:%[0-9]+]]:_(s136) = G_SHL [[UV1]], [[TRUNC10]](s32)
+    ; CHECK: [[SHL15:%[0-9]+]]:_(s136) = G_SHL [[UV]], [[TRUNC10]](s32)
     ; CHECK: [[LSHR:%[0-9]+]]:_(s136) = G_LSHR [[UV]], [[SUB1]](s32)
-    ; CHECK: [[OR15:%[0-9]+]]:_(s136) = G_OR [[SHL16]], [[LSHR]]
+    ; CHECK: [[SHL16:%[0-9]+]]:_(s136) = G_SHL [[UV1]], [[TRUNC10]](s32)
+    ; CHECK: [[OR15:%[0-9]+]]:_(s136) = G_OR [[LSHR]], [[SHL16]]
     ; CHECK: [[C21:%[0-9]+]]:_(s136) = G_CONSTANT i136 0
     ; CHECK: [[SHL17:%[0-9]+]]:_(s136) = G_SHL [[UV]], [[SUB]](s32)
     ; CHECK: [[SELECT:%[0-9]+]]:_(s136) = G_SELECT [[ICMP]](s1), [[SHL15]], [[C21]]
@@ -784,4 +784,20 @@ body: |
     %3:_(s17) = G_CONSTANT i17 3
     %4:_(s68) = G_MERGE_VALUES %0, %1, %2, %3
     S_NOP 0, implicit %4
+...
+---
+name: test_merge_p3_s16_s16
+body: |
+  bb.0:
+    ; CHECK-LABEL: name: test_merge_p3_s16_s16
+    ; CHECK: [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
+    ; CHECK: [[TRUNC:%[0-9]+]]:_(s16) = G_TRUNC [[C]](s32)
+    ; CHECK: [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
+    ; CHECK: [[TRUNC1:%[0-9]+]]:_(s16) = G_TRUNC [[C1]](s32)
+    ; CHECK: [[MV:%[0-9]+]]:_(p3) = G_MERGE_VALUES [[TRUNC]](s16), [[TRUNC1]](s16)
+    ; CHECK: $vgpr0 = COPY [[MV]](p3)
+    %0:_(s16) = G_CONSTANT i16 0
+    %1:_(s16) = G_CONSTANT i16 1
+    %2:_(p3) = G_MERGE_VALUES %0, %1
+    $vgpr0 = COPY %2
 ...

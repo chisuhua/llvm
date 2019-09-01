@@ -132,6 +132,25 @@ std::error_code FileCollector::copyFiles(bool StopOnError) {
         return EC;
     }
 
+    // Get the status of the original file/directory.
+    sys::fs::file_status Stat;
+    if (std::error_code EC = sys::fs::status(entry.VPath, Stat)) {
+      if (StopOnError)
+        return EC;
+      continue;
+    }
+
+    if (Stat.type() == sys::fs::file_type::directory_file) {
+      // Construct a directory when it's just a directory entry.
+      if (std::error_code EC =
+              sys::fs::create_directories(entry.RPath,
+                                          /*IgnoreExisting=*/true)) {
+        if (StopOnError)
+          return EC;
+      }
+      continue;
+    }
+
     // Copy file over.
     if (std::error_code EC = sys::fs::copy_file(entry.VPath, entry.RPath)) {
       if (StopOnError)
@@ -147,12 +166,6 @@ std::error_code FileCollector::copyFiles(bool StopOnError) {
     }
 
     // Copy over modification time.
-    sys::fs::file_status Stat;
-    if (std::error_code EC = sys::fs::status(entry.VPath, Stat)) {
-      if (StopOnError)
-        return EC;
-      continue;
-    }
     copyAccessAndModificationTime(entry.RPath, Stat);
   }
   return {};
@@ -166,11 +179,90 @@ std::error_code FileCollector::writeMapping(StringRef mapping_file) {
   VFSWriter.setUseExternalNames(false);
 
   std::error_code EC;
-  raw_fd_ostream os(mapping_file, EC, sys::fs::F_Text);
+  raw_fd_ostream os(mapping_file, EC, sys::fs::OF_Text);
   if (EC)
     return EC;
 
   VFSWriter.write(os);
 
   return {};
+}
+
+namespace {
+
+class FileCollectorFileSystem : public vfs::FileSystem {
+public:
+  explicit FileCollectorFileSystem(IntrusiveRefCntPtr<vfs::FileSystem> FS,
+                                   std::shared_ptr<FileCollector> Collector)
+      : FS(std::move(FS)), Collector(std::move(Collector)) {}
+
+  llvm::ErrorOr<llvm::vfs::Status> status(const Twine &Path) override {
+    auto Result = FS->status(Path);
+    if (Result && Result->exists())
+      Collector->addFile(Path);
+    return Result;
+  }
+
+  llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
+  openFileForRead(const Twine &Path) override {
+    auto Result = FS->openFileForRead(Path);
+    if (Result && *Result)
+      Collector->addFile(Path);
+    return Result;
+  }
+
+  llvm::vfs::directory_iterator dir_begin(const llvm::Twine &Dir,
+                                          std::error_code &EC) override {
+    auto It = FS->dir_begin(Dir, EC);
+    if (EC)
+      return It;
+    // Collect everything that's listed in case the user needs it.
+    Collector->addFile(Dir);
+    for (; !EC && It != llvm::vfs::directory_iterator(); It.increment(EC)) {
+      if (It->type() == sys::fs::file_type::regular_file ||
+          It->type() == sys::fs::file_type::directory_file ||
+          It->type() == sys::fs::file_type::symlink_file) {
+        Collector->addFile(It->path());
+      }
+    }
+    if (EC)
+      return It;
+    // Return a new iterator.
+    return FS->dir_begin(Dir, EC);
+  }
+
+  std::error_code getRealPath(const Twine &Path,
+                              SmallVectorImpl<char> &Output) const override {
+    auto EC = FS->getRealPath(Path, Output);
+    if (!EC) {
+      Collector->addFile(Path);
+      if (Output.size() > 0)
+        Collector->addFile(Output);
+    }
+    return EC;
+  }
+
+  std::error_code isLocal(const Twine &Path, bool &Result) override {
+    return FS->isLocal(Path, Result);
+  }
+
+  llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override {
+    return FS->getCurrentWorkingDirectory();
+  }
+
+  std::error_code setCurrentWorkingDirectory(const llvm::Twine &Path) override {
+    return FS->setCurrentWorkingDirectory(Path);
+  }
+
+private:
+  IntrusiveRefCntPtr<vfs::FileSystem> FS;
+  std::shared_ptr<FileCollector> Collector;
+};
+
+} // end anonymous namespace
+
+IntrusiveRefCntPtr<vfs::FileSystem>
+FileCollector::createCollectorVFS(IntrusiveRefCntPtr<vfs::FileSystem> BaseFS,
+                                  std::shared_ptr<FileCollector> Collector) {
+  return new FileCollectorFileSystem(std::move(BaseFS), std::move(Collector));
 }

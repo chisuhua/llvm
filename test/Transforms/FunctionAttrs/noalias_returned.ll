@@ -1,4 +1,4 @@
-; RUN: opt -S -attributor -attributor-disable=false < %s | FileCheck %s
+; RUN: opt -S -attributor -attributor-disable=false -attributor-max-iterations-verify -attributor-max-iterations=5 < %s | FileCheck %s
 
 ; TEST 1 - negative.
 
@@ -60,8 +60,8 @@ define i8* @bar() nounwind uwtable {
   ret i8* %1
 }
 
-; CHECK: define noalias i8* @foo1(i32)
-define i8* @foo1(i32) nounwind uwtable {
+; CHECK: define noalias i8* @foo1(i32 %0)
+define i8* @foo1(i32 %0) nounwind uwtable {
   %2 = icmp eq i32 %0, 0
   br i1 %2, label %5, label %3
 
@@ -79,13 +79,13 @@ declare i8* @baz(...) nounwind uwtable
 ; TEST 5
 
 ; Returning global pointer. Should not be noalias.
-; CHECK: define nonnull dereferenceable(8) i8** @getter()
+; CHECK: define nonnull align 8 dereferenceable(8) i8** @getter()
 define i8** @getter() {
   ret i8** @G
 }
 
 ; Returning global pointer. Should not be noalias.
-; CHECK: define nonnull dereferenceable(8) i8** @calle1()
+; CHECK: define nonnull align 8 dereferenceable(8) i8** @calle1()
 define i8** @calle1(){
   %1 = call i8** @getter()
   ret i8** %1
@@ -125,8 +125,8 @@ return:
 
 ; TEST 8
 
-; CHECK: define noalias i8* @test8(i32*)
-define i8* @test8(i32*) nounwind uwtable {
+; CHECK: define noalias i8* @test8(i32* %0)
+define i8* @test8(i32* %0) nounwind uwtable {
   %2 = tail call noalias i8* @malloc(i64 4)
   %3 = icmp ne i32* %0, null
   br i1 %3, label %4, label %5
@@ -137,4 +137,46 @@ define i8* @test8(i32*) nounwind uwtable {
 
 5:                                                ; preds = %1, %4
   ret i8* %2
+}
+
+; TEST 9
+; Simple Argument Test
+define internal void @test9(i8* %a, i8* %b) {
+; CHECK: define internal void @test9(i8* noalias %a, i8* %b)
+  ret void
+}
+define void @test9_helper(i8* %a, i8* %b) {
+  tail call void @test9(i8* noalias %a, i8* %b)
+  tail call void @test9(i8* noalias %b, i8* noalias %a)
+  ret void
+}
+
+
+; TEST 10
+; Simple CallSite Test
+
+declare void @test10_helper_1(i8* %a)
+define void @test10_helper_2(i8* noalias %a) {
+  ret void
+}
+define void @test10(i8* noalias %a) {
+; CHECK: define void @test10(i8* noalias %a)
+; FIXME: missing noalias
+; CHECK-NEXT:   tail call void @test10_helper_1(i8* %a)
+  tail call void @test10_helper_1(i8* %a)
+
+; CHECK-NEXT:   tail call void @test10_helper_2(i8* noalias %a)
+  tail call void @test10_helper_2(i8* %a)
+  ret void
+}
+
+; TEST 11
+; CallSite Test
+
+declare void @test11_helper(i8* %a, i8 *%b)
+define void @test11(i8* noalias %a) {
+; CHECK: define void @test11(i8* noalias %a)
+; CHECK-NEXT:   tail call void @test11_helper(i8* %a, i8* %a)
+  tail call void @test11_helper(i8* %a, i8* %a)
+  ret void
 }

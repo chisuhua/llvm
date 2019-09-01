@@ -54,8 +54,6 @@ LLVM_YAML_STRONG_TYPEDEF(uint64_t, ELF_SHF)
 LLVM_YAML_STRONG_TYPEDEF(uint16_t, ELF_SHN)
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, ELF_STB)
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, ELF_STT)
-LLVM_YAML_STRONG_TYPEDEF(uint8_t, ELF_STV)
-LLVM_YAML_STRONG_TYPEDEF(uint8_t, ELF_STO)
 
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, MIPS_AFL_REG)
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, MIPS_ABI_FP)
@@ -107,7 +105,7 @@ struct Symbol {
   ELF_STB Binding;
   llvm::yaml::Hex64 Value;
   llvm::yaml::Hex64 Size;
-  uint8_t Other;
+  Optional<uint8_t> Other;
 };
 
 struct SectionOrType {
@@ -128,6 +126,7 @@ struct Section {
     NoBits,
     Verdef,
     Verneed,
+    SymtabShndxSection,
     Symver,
     MipsABIFlags
   };
@@ -274,6 +273,16 @@ struct RelocationSection : Section {
   }
 };
 
+struct SymtabShndxSection : Section {
+  std::vector<uint32_t> Entries;
+
+  SymtabShndxSection() : Section(SectionKind::SymtabShndxSection) {}
+
+  static bool classof(const Section *S) {
+    return S->Kind == SectionKind::SymtabShndxSection;
+  }
+};
+
 // Represents .MIPS.abiflags section
 struct MipsABIFlags : Section {
   llvm::yaml::Hex16 Version;
@@ -383,16 +392,6 @@ template <> struct ScalarEnumerationTraits<ELFYAML::ELF_STB> {
 template <>
 struct ScalarEnumerationTraits<ELFYAML::ELF_STT> {
   static void enumeration(IO &IO, ELFYAML::ELF_STT &Value);
-};
-
-template <>
-struct ScalarEnumerationTraits<ELFYAML::ELF_STV> {
-  static void enumeration(IO &IO, ELFYAML::ELF_STV &Value);
-};
-
-template <>
-struct ScalarBitSetTraits<ELFYAML::ELF_STO> {
-  static void bitset(IO &IO, ELFYAML::ELF_STO &Value);
 };
 
 template <>

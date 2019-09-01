@@ -51,7 +51,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPULowerIntrinsics.cpp
   AMDGPULowerKernelArguments.cpp
   AMDGPULowerKernelAttributes.cpp
-  #  AMDGPULowerKernelCalls.cpp
   AMDGPUMachineCFGStructurizer.cpp
   AMDGPUMachineFunction.cpp
   AMDGPUMachineModuleInfo.cpp
@@ -72,8 +71,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUInline.cpp
   AMDGPUPerfHintAnalysis.cpp
   AMDILCFGStructurizer.cpp
-  # AMDGPUOCL12Adapter.cpp
-  # AMDGPUPrintfRuntimeBinding.cpp
+  AMDGPUPrintfRuntimeBinding.cpp
   GCNHazardRecognizer.cpp
   GCNIterativeScheduler.cpp
   GCNMinRegStrategy.cpp
@@ -131,17 +129,3 @@ add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
-
-install(
-    FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/AMDGPU.h
-    DESTINATION include/llvm/Target/AMDGPU
-    COMPONENT llvm-headers
-)
-
-# TODO schi merge llvm 1.0 remove it
-#install(
-#    FILES ${CMAKE_CURRENT_SOURCE_DIR}/Disassembler/CodeObjectDisassembler.h
-#    DESTINATION include/llvm/Target/AMDGPU/Disassembler
-#    COMPONENT llvm-headers
-#)

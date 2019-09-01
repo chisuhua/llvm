@@ -149,7 +149,7 @@ int llvm::dlltoolDriverMain(llvm::ArrayRef<const char *> ArgsArr) {
     Def->OutputFile = Arg->getValue();
 
   if (Def->OutputFile.empty()) {
-    llvm::errs() << "no output file specified\n";
+    llvm::errs() << "no DLL name specified\n";
     return 1;
   }
 
@@ -171,6 +171,7 @@ int llvm::dlltoolDriverMain(llvm::ArrayRef<const char *> ArgsArr) {
       // By making sure E.SymbolName != E.Name for decorated symbols,
       // writeImportLibrary writes these symbols with the type
       // IMPORT_NAME_UNDECORATE.
+      E.ExtName = E.ExtName.substr(0, E.ExtName.find('@', 1));
     }
   }
 

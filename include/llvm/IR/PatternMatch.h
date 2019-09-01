@@ -1003,6 +1003,12 @@ struct is_idiv_op {
   }
 };
 
+struct is_irem_op {
+  bool isOpType(unsigned Opcode) {
+    return Opcode == Instruction::SRem || Opcode == Instruction::URem;
+  }
+};
+
 /// Matches shift operations.
 template <typename LHS, typename RHS>
 inline BinOpPred_match<LHS, RHS, is_shift_op> m_Shift(const LHS &L,
@@ -1036,6 +1042,13 @@ template <typename LHS, typename RHS>
 inline BinOpPred_match<LHS, RHS, is_idiv_op> m_IDiv(const LHS &L,
                                                     const RHS &R) {
   return BinOpPred_match<LHS, RHS, is_idiv_op>(L, R);
+}
+
+/// Matches integer remainder operations.
+template <typename LHS, typename RHS>
+inline BinOpPred_match<LHS, RHS, is_irem_op> m_IRem(const LHS &L,
+                                                    const RHS &R) {
+  return BinOpPred_match<LHS, RHS, is_irem_op>(L, R);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1245,6 +1258,12 @@ inline CastClass_match<OpTy, Instruction::Trunc> m_Trunc(const OpTy &Op) {
   return CastClass_match<OpTy, Instruction::Trunc>(Op);
 }
 
+template <typename OpTy>
+inline match_combine_or<CastClass_match<OpTy, Instruction::Trunc>, OpTy>
+m_TruncOrSelf(const OpTy &Op) {
+  return m_CombineOr(m_Trunc(Op), Op);
+}
+
 /// Matches SExt.
 template <typename OpTy>
 inline CastClass_match<OpTy, Instruction::SExt> m_SExt(const OpTy &Op) {
@@ -1255,6 +1274,12 @@ inline CastClass_match<OpTy, Instruction::SExt> m_SExt(const OpTy &Op) {
 template <typename OpTy>
 inline CastClass_match<OpTy, Instruction::ZExt> m_ZExt(const OpTy &Op) {
   return CastClass_match<OpTy, Instruction::ZExt>(Op);
+}
+
+template <typename OpTy>
+inline match_combine_or<CastClass_match<OpTy, Instruction::ZExt>, OpTy>
+m_ZExtOrSelf(const OpTy &Op) {
+  return m_CombineOr(m_ZExt(Op), Op);
 }
 
 template <typename OpTy>

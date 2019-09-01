@@ -28,19 +28,24 @@ class MCSymbol;
 //    will have a label definition representing their offset within the csect.
 // 2) Uninitialized: The Type will be XTY_CM, it will contain a single symbol,
 //    and may not contain label definitions.
+// 3) An external reference providing a symbol table entry for a symbol
+//    contained in another XCOFF object file. External reference csects are not
+//    implemented yet.
 class MCSectionXCOFF final : public MCSection {
   friend class MCContext;
 
   StringRef Name;
   XCOFF::StorageMappingClass MappingClass;
   XCOFF::SymbolType Type;
+  XCOFF::StorageClass StorageClass;
 
   MCSectionXCOFF(StringRef Section, XCOFF::StorageMappingClass SMC,
-                 XCOFF::SymbolType ST, SectionKind K, MCSymbol *Begin)
+                 XCOFF::SymbolType ST, XCOFF::StorageClass SC, SectionKind K,
+                 MCSymbol *Begin)
       : MCSection(SV_XCOFF, K, Begin), Name(Section), MappingClass(SMC),
-        Type(ST) {
+        Type(ST), StorageClass(SC) {
     assert((ST == XCOFF::XTY_SD || ST == XCOFF::XTY_CM) &&
-           "Unexpected type for csect.");
+           "Invalid or unhandled type for csect.");
   }
 
 public:

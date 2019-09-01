@@ -6,6 +6,12 @@ def h : Flag<["-"], "h">, Alias<help>;
 def version : Flag<["-", "--"], "version">,
               HelpText<"Print the version and exit.">;
 
+def segalign
+    : MultiArg<["-", "--"], "segalign", 2>,
+      HelpText<"Specifies the segment alignment for the specified "
+               "architecture when creating a universal binary file. The "
+               "alignment is a hexadecimal number that is a power of 2.">;
+
 def action_group : OptionGroup<"action group">;
 
 def verify_arch
@@ -33,6 +39,12 @@ def create : Option<["-", "--"], "create", KIND_FLAG>,
              Group<action_group>,
              HelpText<"Create a universal binary output file from the input "
                       "files. Requires -output option">;
+
+def replace
+    : MultiArg<["-", "--"], "replace", 2>,
+      Group<action_group>,
+      HelpText<"Replace the specified arch type with the contents of the "
+               "input_file in a universal binary. Requires -output option">;
 
 def output : Option<["-", "--"], "output", KIND_SEPARATE>,
              HelpText<"Create output file with specified name">;
