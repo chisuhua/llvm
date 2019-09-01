@@ -119,6 +119,7 @@ struct VerifierSupport {
   raw_ostream *OS;
   const Module &M;
   ModuleSlotTracker MST;
+  Triple TT;
   const DataLayout &DL;
   LLVMContext &Context;
 
@@ -130,7 +131,8 @@ struct VerifierSupport {
   bool TreatBrokenDebugInfoAsError = true;
 
   explicit VerifierSupport(raw_ostream *OS, const Module &M)
-      : OS(OS), M(M), MST(&M), DL(M.getDataLayout()), Context(M.getContext()) {}
+      : OS(OS), M(M), MST(&M), TT(M.getTargetTriple()), DL(M.getDataLayout()),
+        Context(M.getContext()) {}
 
 private:
   void Write(const Module *M) {
@@ -416,6 +418,7 @@ private:
   void visitBasicBlock(BasicBlock &BB);
   void visitRangeMetadata(Instruction &I, MDNode *Range, Type *Ty);
   void visitDereferenceableMetadata(Instruction &I, MDNode *MD);
+  void visitProfMetadata(Instruction &I, MDNode *MD);
 
   template <class Ty> bool isValidMetadataArray(const MDTuple &N);
 #define HANDLE_SPECIALIZED_MDNODE_LEAF(CLASS) void visit##CLASS(const CLASS &N);
@@ -670,7 +673,7 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
         Assert(InitArray, "wrong initalizer for intrinsic global variable",
                Init);
         for (Value *Op : InitArray->operands()) {
-          Value *V = Op->stripPointerCastsNoFollowAliases();
+          Value *V = Op->stripPointerCasts();
           Assert(isa<GlobalVariable>(V) || isa<Function>(V) ||
                      isa<GlobalAlias>(V),
                  "invalid llvm.used member", V);
@@ -1306,11 +1309,12 @@ void Verifier::visitDIImportedEntity(const DIImportedEntity &N) {
 }
 
 void Verifier::visitComdat(const Comdat &C) {
-  // The Module is invalid if the GlobalValue has private linkage.  Entities
-  // with private linkage don't have entries in the symbol table.
-  if (const GlobalValue *GV = M.getNamedValue(C.getName()))
-    Assert(!GV->hasPrivateLinkage(), "comdat global value has private linkage",
-           GV);
+  // In COFF the Module is invalid if the GlobalValue has private linkage.
+  // Entities with private linkage don't have entries in the symbol table.
+  if (TT.isOSBinFormatCOFF())
+    if (const GlobalValue *GV = M.getNamedValue(C.getName()))
+      Assert(!GV->hasPrivateLinkage(),
+             "comdat global value has private linkage", GV);
 }
 
 void Verifier::visitModuleIdents(const Module &M) {
@@ -3993,6 +3997,45 @@ void Verifier::visitDereferenceableMetadata(Instruction& I, MDNode* MD) {
          "dereferenceable_or_null metadata value must be an i64!", &I);
 }
 
+void Verifier::visitProfMetadata(Instruction &I, MDNode *MD) {
+  Assert(MD->getNumOperands() >= 2,
+         "!prof annotations should have no less than 2 operands", MD);
+
+  // Check first operand.
+  Assert(MD->getOperand(0) != nullptr, "first operand should not be null", MD);
+  Assert(isa<MDString>(MD->getOperand(0)),
+         "expected string with name of the !prof annotation", MD);
+  MDString *MDS = cast<MDString>(MD->getOperand(0));
+  StringRef ProfName = MDS->getString();
+
+  // Check consistency of !prof branch_weights metadata.
+  if (ProfName.equals("branch_weights")) {
+    unsigned ExpectedNumOperands = 0;
+    if (BranchInst *BI = dyn_cast<BranchInst>(&I))
+      ExpectedNumOperands = BI->getNumSuccessors();
+    else if (SwitchInst *SI = dyn_cast<SwitchInst>(&I))
+      ExpectedNumOperands = SI->getNumSuccessors();
+    else if (isa<CallInst>(&I) || isa<InvokeInst>(&I))
+      ExpectedNumOperands = 1;
+    else if (IndirectBrInst *IBI = dyn_cast<IndirectBrInst>(&I))
+      ExpectedNumOperands = IBI->getNumDestinations();
+    else if (isa<SelectInst>(&I))
+      ExpectedNumOperands = 2;
+    else
+      CheckFailed("!prof branch_weights are not allowed for this instruction",
+                  MD);
+
+    Assert(MD->getNumOperands() == 1 + ExpectedNumOperands,
+           "Wrong number of operands", MD);
+    for (unsigned i = 1; i < MD->getNumOperands(); ++i) {
+      auto &MDO = MD->getOperand(i);
+      Assert(MDO, "second operand should not be null", MD);
+      Assert(mdconst::dyn_extract<ConstantInt>(MDO),
+             "!prof brunch_weights operand is not a const int");
+    }
+  }
+}
+
 /// verifyInstruction - Verify that an instruction is well formed.
 ///
 void Verifier::visitInstruction(Instruction &I) {
@@ -4150,6 +4193,9 @@ void Verifier::visitInstruction(Instruction &I) {
            "alignment is larger that implementation defined limit", &I);
   }
 
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_prof))
+    visitProfMetadata(I, MD);
+
   if (MDNode *N = I.getDebugLoc().getAsMDNode()) {
     AssertDI(isa<DILocation>(N), "invalid !dbg metadata attachment", &I, N);
     visitMDNode(*N);
@@ -4236,6 +4282,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::experimental_constrained_fdiv:
   case Intrinsic::experimental_constrained_frem:
   case Intrinsic::experimental_constrained_fma:
+  case Intrinsic::experimental_constrained_fptosi:
+  case Intrinsic::experimental_constrained_fptoui:
   case Intrinsic::experimental_constrained_fptrunc:
   case Intrinsic::experimental_constrained_fpext:
   case Intrinsic::experimental_constrained_sqrt:
@@ -4727,6 +4775,33 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
     HasRoundingMD = true;
     break;
 
+  case Intrinsic::experimental_constrained_fptosi:
+  case Intrinsic::experimental_constrained_fptoui: { 
+    Assert((NumOperands == 2),
+           "invalid arguments for constrained FP intrinsic", &FPI);
+    HasExceptionMD = true;
+
+    Value *Operand = FPI.getArgOperand(0);
+    uint64_t NumSrcElem = 0;
+    Assert(Operand->getType()->isFPOrFPVectorTy(),
+           "Intrinsic first argument must be floating point", &FPI);
+    if (auto *OperandT = dyn_cast<VectorType>(Operand->getType())) {
+      NumSrcElem = OperandT->getNumElements();
+    }
+
+    Operand = &FPI;
+    Assert((NumSrcElem > 0) == Operand->getType()->isVectorTy(),
+           "Intrinsic first argument and result disagree on vector use", &FPI);
+    Assert(Operand->getType()->isIntOrIntVectorTy(),
+           "Intrinsic result must be an integer", &FPI);
+    if (auto *OperandT = dyn_cast<VectorType>(Operand->getType())) {
+      Assert(NumSrcElem == OperandT->getNumElements(),
+             "Intrinsic first argument and result vector lengths must be equal",
+             &FPI);
+    }
+  }
+    break;
+
   case Intrinsic::experimental_constrained_fptrunc:
   case Intrinsic::experimental_constrained_fpext: {
     if (FPI.getIntrinsicID() == Intrinsic::experimental_constrained_fptrunc) {
@@ -5021,7 +5096,7 @@ struct VerifierLegacyPass : public FunctionPass {
   }
 
   bool doInitialization(Module &M) override {
-    V = llvm::make_unique<Verifier>(
+    V = std::make_unique<Verifier>(
         &dbgs(), /*ShouldTreatBrokenDebugInfoAsError=*/false, M);
     return false;
   }

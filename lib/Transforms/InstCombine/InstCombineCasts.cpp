@@ -681,42 +681,6 @@ static Instruction *shrinkInsertElt(CastInst &Trunc,
   return nullptr;
 }
 
-static Instruction *narrowLoad(TruncInst &Trunc,
-                               InstCombiner::BuilderTy &Builder,
-                               const DataLayout &DL) {
-  // Check the layout to ensure we are not creating an unsupported operation.
-  // TODO: Create a GEP to offset the load?
-  if (!DL.isLittleEndian())
-    return nullptr;
-  unsigned NarrowBitWidth = Trunc.getDestTy()->getPrimitiveSizeInBits();
-  if (!DL.isLegalInteger(NarrowBitWidth))
-    return nullptr;
-
-  // Match a truncated load with no other uses.
-  Value *X;
-  if (!match(Trunc.getOperand(0), m_OneUse(m_Load(m_Value(X)))))
-    return nullptr;
-  LoadInst *WideLoad = cast<LoadInst>(Trunc.getOperand(0));
-  if (!WideLoad->isSimple())
-    return nullptr;
-
-  // Don't narrow this load if we would lose information about the
-  // dereferenceable range.
-  bool CanBeNull;
-  uint64_t DerefBits = X->getPointerDereferenceableBytes(DL, CanBeNull) * 8;
-  if (DerefBits < WideLoad->getType()->getPrimitiveSizeInBits())
-    return nullptr;
-
-  // trunc (load X) --> load (bitcast X)
-  PointerType *PtrTy = PointerType::get(Trunc.getDestTy(),
-                                        WideLoad->getPointerAddressSpace());
-  Value *Bitcast = Builder.CreatePointerCast(X, PtrTy);
-  LoadInst *NarrowLoad = new LoadInst(Trunc.getDestTy(), Bitcast);
-  NarrowLoad->setAlignment(WideLoad->getAlignment());
-  copyMetadataForLoad(*NarrowLoad, *WideLoad);
-  return NarrowLoad;
-}
-
 Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
   if (Instruction *Result = commonCastTransforms(CI))
     return Result;
@@ -875,9 +839,6 @@ Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
 
   if (Instruction *I = foldVecTruncToExtElt(CI, *this))
     return I;
-
-  if (Instruction *NewLoad = narrowLoad(CI, Builder, DL))
-    return NewLoad;
 
   return nullptr;
 }
@@ -2430,26 +2391,29 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     }
   }
 
-  if (ShuffleVectorInst *SVI = dyn_cast<ShuffleVectorInst>(Src)) {
+  if (auto *Shuf = dyn_cast<ShuffleVectorInst>(Src)) {
     // Okay, we have (bitcast (shuffle ..)).  Check to see if this is
     // a bitcast to a vector with the same # elts.
-    if (SVI->hasOneUse() && DestTy->isVectorTy() &&
-        DestTy->getVectorNumElements() == SVI->getType()->getNumElements() &&
-        SVI->getType()->getNumElements() ==
-        SVI->getOperand(0)->getType()->getVectorNumElements()) {
+    Value *ShufOp0 = Shuf->getOperand(0);
+    Value *ShufOp1 = Shuf->getOperand(1);
+    unsigned NumShufElts = Shuf->getType()->getVectorNumElements();
+    unsigned NumSrcVecElts = ShufOp0->getType()->getVectorNumElements();
+    if (Shuf->hasOneUse() && DestTy->isVectorTy() &&
+        DestTy->getVectorNumElements() == NumShufElts &&
+        NumShufElts == NumSrcVecElts) {
       BitCastInst *Tmp;
       // If either of the operands is a cast from CI.getType(), then
       // evaluating the shuffle in the casted destination's type will allow
       // us to eliminate at least one cast.
-      if (((Tmp = dyn_cast<BitCastInst>(SVI->getOperand(0))) &&
+      if (((Tmp = dyn_cast<BitCastInst>(ShufOp0)) &&
            Tmp->getOperand(0)->getType() == DestTy) ||
-          ((Tmp = dyn_cast<BitCastInst>(SVI->getOperand(1))) &&
+          ((Tmp = dyn_cast<BitCastInst>(ShufOp1)) &&
            Tmp->getOperand(0)->getType() == DestTy)) {
-        Value *LHS = Builder.CreateBitCast(SVI->getOperand(0), DestTy);
-        Value *RHS = Builder.CreateBitCast(SVI->getOperand(1), DestTy);
+        Value *LHS = Builder.CreateBitCast(ShufOp0, DestTy);
+        Value *RHS = Builder.CreateBitCast(ShufOp1, DestTy);
         // Return a new shuffle vector.  Use the same element ID's, as we
         // know the vector types match #elts.
-        return new ShuffleVectorInst(LHS, RHS, SVI->getOperand(2));
+        return new ShuffleVectorInst(LHS, RHS, Shuf->getOperand(2));
       }
     }
   }

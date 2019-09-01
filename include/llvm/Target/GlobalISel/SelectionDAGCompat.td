@@ -34,6 +34,10 @@ class GINodeEquiv<Instruction i, SDNode node> {
   // depending on the predicates on the node.
   Instruction IfSignExtend = ?;
   Instruction IfZeroExtend = ?;
+
+  // SelectionDAG has one setcc for all compares. This differentiates
+  // for G_ICMP and G_FCMP.
+  Instruction IfFloatingPoint = ?;
 }
 
 // These are defined in the same order as the G_* instructions.
@@ -122,6 +126,11 @@ def : GINodeEquiv<G_LOAD, ld> {
   let IfSignExtend = G_SEXTLOAD;
   let IfZeroExtend = G_ZEXTLOAD;
 }
+
+def : GINodeEquiv<G_ICMP, setcc> {
+  let IfFloatingPoint = G_FCMP;
+}
+
 // Broadly speaking G_STORE is equivalent to ISD::STORE but there are some
 // complications that tablegen must take care of. For example, predicates such
 // as isTruncStore require that this is not a perfect 1:1 mapping since a
@@ -143,6 +152,8 @@ def : GINodeEquiv<G_ATOMICRMW_MIN, atomic_load_min>;
 def : GINodeEquiv<G_ATOMICRMW_MAX, atomic_load_max>;
 def : GINodeEquiv<G_ATOMICRMW_UMIN, atomic_load_umin>;
 def : GINodeEquiv<G_ATOMICRMW_UMAX, atomic_load_umax>;
+def : GINodeEquiv<G_ATOMICRMW_FADD, atomic_load_fadd>;
+def : GINodeEquiv<G_ATOMICRMW_FSUB, atomic_load_fsub>;
 def : GINodeEquiv<G_FENCE, atomic_fence>;
 
 // Specifies the GlobalISel equivalents for SelectionDAG's ComplexPattern.

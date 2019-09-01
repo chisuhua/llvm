@@ -94,6 +94,9 @@ private:
                               SelectionDAG &DAG, ArrayRef<SDValue> Ops,
                               bool IsIntrinsic = false) const;
 
+  SDValue lowerIntrinsicLoad(MemSDNode *M, bool IsFormat, SelectionDAG &DAG,
+                             ArrayRef<SDValue> Ops) const;
+
   // Call DAG.getMemIntrinsicNode for a load, but first widen a dwordx3 type to
   // dwordx4 if on SI.
   SDValue getMemIntrinsicNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
@@ -331,6 +334,7 @@ public:
   bool isFMAFasterThanFMulAndFAdd(EVT VT) const override;
   SDValue splitUnaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue splitBinaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue splitTernaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
