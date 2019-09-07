@@ -275,6 +275,18 @@ SubtargetFeatures ELFObjectFileBase::getARMFeatures() const {
   return Features;
 }
 
+SubtargetFeatures ELFObjectFileBase::getPPUFeatures() const {
+  SubtargetFeatures Features;
+  unsigned PlatformFlags = getPlatformFlags();
+
+  if (PlatformFlags & ELF::EF_PPU_RVC) {
+    Features.AddFeature("c");
+  }
+
+  return Features;
+}
+
+
 SubtargetFeatures ELFObjectFileBase::getRISCVFeatures() const {
   SubtargetFeatures Features;
   unsigned PlatformFlags = getPlatformFlags();
@@ -292,6 +304,8 @@ SubtargetFeatures ELFObjectFileBase::getFeatures() const {
     return getMIPSFeatures();
   case ELF::EM_ARM:
     return getARMFeatures();
+  case ELF::EM_PPU:
+    return getPPUFeatures();
   case ELF::EM_RISCV:
     return getRISCVFeatures();
   default:

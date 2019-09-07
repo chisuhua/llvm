@@ -1,0 +1,73 @@
+import("//llvm/utils/TableGen/tablegen.gni")
+
+tablegen("PPUGenAsmWriter") {
+  visibility = [ ":MCTargetDesc" ]
+  args = [ "-gen-asm-writer" ]
+  td_file = "../PPU.td"
+}
+
+tablegen("PPUGenInstrInfo") {
+  visibility = [ ":tablegen" ]
+  args = [ "-gen-instr-info" ]
+  td_file = "../PPU.td"
+}
+
+tablegen("PPUGenMCCodeEmitter") {
+  visibility = [ ":MCTargetDesc" ]
+  args = [ "-gen-emitter" ]
+  td_file = "../PPU.td"
+}
+
+tablegen("PPUGenRegisterInfo") {
+  visibility = [ ":tablegen" ]
+  args = [ "-gen-register-info" ]
+  td_file = "../PPU.td"
+}
+
+tablegen("PPUGenSubtargetInfo") {
+  visibility = [ ":tablegen" ]
+  args = [ "-gen-subtarget" ]
+  td_file = "../PPU.td"
+}
+
+# This should contain tablegen targets generating .inc files included
+# by other targets. .inc files only used by .cpp files in this directory
+# should be in deps on the static_library instead.
+group("tablegen") {
+  visibility = [
+    ":MCTargetDesc",
+    "../Utils",
+  ]
+  public_deps = [
+    ":PPUGenInstrInfo",
+    ":PPUGenRegisterInfo",
+    ":PPUGenSubtargetInfo",
+  ]
+}
+
+static_library("MCTargetDesc") {
+  output_name = "LLVMPPUDesc"
+  public_deps = [
+    ":tablegen",
+  ]
+  deps = [
+    ":PPUGenAsmWriter",
+    ":PPUGenMCCodeEmitter",
+    "//llvm/lib/MC",
+    "//llvm/lib/Support",
+    "//llvm/lib/Target/PPU:PPUGenCompressInstEmitter",
+    "//llvm/lib/Target/PPU/Utils",
+  ]
+  include_dirs = [ ".." ]
+  sources = [
+    "PPUAsmBackend.cpp",
+    "PPUELFObjectWriter.cpp",
+    "PPUELFStreamer.cpp",
+    "PPUInstPrinter.cpp",
+    "PPUMCAsmInfo.cpp",
+    "PPUMCCodeEmitter.cpp",
+    "PPUMCExpr.cpp",
+    "PPUMCTargetDesc.cpp",
+    "PPUTargetStreamer.cpp",
+  ]
+}

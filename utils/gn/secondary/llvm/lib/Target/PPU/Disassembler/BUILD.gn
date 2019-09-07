@@ -1,0 +1,22 @@
+import("//llvm/utils/TableGen/tablegen.gni")
+
+tablegen("PPUGenDisassemblerTables") {
+  visibility = [ ":Disassembler" ]
+  args = [ "-gen-disassembler" ]
+  td_file = "../PPU.td"
+}
+
+static_library("Disassembler") {
+  output_name = "LLVMPPUDisassembler"
+  deps = [
+    ":PPUGenDisassemblerTables",
+    "//llvm/lib/MC/MCDisassembler",
+    "//llvm/lib/Support",
+    "//llvm/lib/Target/PPU/MCTargetDesc",
+    "//llvm/lib/Target/PPU/Utils",
+  ]
+  include_dirs = [ ".." ]
+  sources = [
+    "PPUDisassembler.cpp",
+  ]
+}

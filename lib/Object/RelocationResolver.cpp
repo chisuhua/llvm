@@ -385,6 +385,61 @@ static uint64_t resolveRISCV(RelocationRef R, uint64_t S, uint64_t A) {
   }
 }
 
+static bool supportsPPU(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_PPU_NONE:
+  case ELF::R_PPU_32:
+  case ELF::R_PPU_64:
+  case ELF::R_PPU_SET6:
+  case ELF::R_PPU_SUB6:
+  case ELF::R_PPU_ADD8:
+  case ELF::R_PPU_SUB8:
+  case ELF::R_PPU_ADD16:
+  case ELF::R_PPU_SUB16:
+  case ELF::R_PPU_ADD32:
+  case ELF::R_PPU_SUB32:
+  case ELF::R_PPU_ADD64:
+  case ELF::R_PPU_SUB64:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolvePPU(RelocationRef R, uint64_t S, uint64_t A) {
+  int64_t RA = getELFAddend(R);
+  switch (R.getType()) {
+  case ELF::R_PPU_NONE:
+    return A;
+  case ELF::R_PPU_32:
+    return (S + RA) & 0xFFFFFFFF;
+  case ELF::R_PPU_64:
+    return S + RA;
+  case ELF::R_PPU_SET6:
+    return (A + (S + RA)) & 0xFF;
+  case ELF::R_PPU_SUB6:
+    return (A - (S + RA)) & 0xFF;
+  case ELF::R_PPU_ADD8:
+    return (A + (S + RA)) & 0xFF;
+  case ELF::R_PPU_SUB8:
+    return (A - (S + RA)) & 0xFF;
+  case ELF::R_PPU_ADD16:
+    return (A + (S + RA)) & 0xFFFF;
+  case ELF::R_PPU_SUB16:
+    return (A - (S + RA)) & 0xFFFF;
+  case ELF::R_PPU_ADD32:
+    return (A + (S + RA)) & 0xFFFFFFFF;
+  case ELF::R_PPU_SUB32:
+    return (A - (S + RA)) & 0xFFFFFFFF;
+  case ELF::R_PPU_ADD64:
+    return (A + (S + RA));
+  case ELF::R_PPU_SUB64:
+    return (A - (S + RA));
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsCOFFX86(uint64_t Type) {
   switch (Type) {
   case COFF::IMAGE_REL_I386_SECREL:
@@ -498,6 +553,8 @@ getRelocationResolver(const ObjectFile &Obj) {
       case Triple::ppc64le:
       case Triple::ppc64:
         return {supportsPPC64, resolvePPC64};
+      case Triple::ppu:
+        return {supportsPPU, resolvePPU};
       case Triple::systemz:
         return {supportsSystemZ, resolveSystemZ};
       case Triple::sparcv9:
@@ -534,6 +591,8 @@ getRelocationResolver(const ObjectFile &Obj) {
       return {supportsSparc32, resolveSparc32};
     case Triple::hexagon:
       return {supportsHexagon, resolveHexagon};
+    case Triple::ppu:
+      return {supportsPPU, resolvePPU};
     case Triple::riscv32:
       return {supportsRISCV, resolveRISCV};
     default:

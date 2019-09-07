@@ -1,0 +1,24 @@
+import("//llvm/utils/TableGen/tablegen.gni")
+
+tablegen("PPUGenAsmMatcher") {
+  visibility = [ ":AsmParser" ]
+  args = [ "-gen-asm-matcher" ]
+  td_file = "../PPU.td"
+}
+
+static_library("AsmParser") {
+  output_name = "LLVMPPUAsmParser"
+  deps = [
+    ":PPUGenAsmMatcher",
+    "//llvm/lib/MC",
+    "//llvm/lib/MC/MCParser",
+    "//llvm/lib/Support",
+    "//llvm/lib/Target/PPU:PPUGenCompressInstEmitter",
+    "//llvm/lib/Target/PPU/MCTargetDesc",
+    "//llvm/lib/Target/PPU/Utils",
+  ]
+  include_dirs = [ ".." ]
+  sources = [
+    "PPUAsmParser.cpp",
+  ]
+}

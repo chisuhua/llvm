@@ -86,6 +86,8 @@ public:
 
   SubtargetFeatures getRISCVFeatures() const;
 
+  SubtargetFeatures getPPUFeatures() const;
+
   void setARMSubArch(Triple &TheTriple) const override;
 
   virtual uint16_t getEType() const = 0;
@@ -1073,6 +1075,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "ELF32-ppc";
     case ELF::EM_RISCV:
       return "ELF32-riscv";
+    case ELF::EM_PPU:
+      return "ELF32-ppu";
     case ELF::EM_SPARC:
     case ELF::EM_SPARC32PLUS:
       return "ELF32-sparc";

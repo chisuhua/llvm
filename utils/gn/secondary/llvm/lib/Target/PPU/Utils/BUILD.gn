@@ -1,0 +1,29 @@
+import("//llvm/utils/TableGen/tablegen.gni")
+
+# Generates PPUGenSystemOperands.inc
+tablegen("PPUGenSystemOperands") {
+  visibility = [ ":Utils" ]
+  args = [ "-gen-searchable-tables" ]
+  td_file = "../PPU.td"
+}
+
+static_library("Utils") {
+  output_name = "LLVMPPUUtils"
+  public_deps = [
+    ":PPUGenSystemOperands",
+  ]
+  deps = [
+    "//llvm/lib/MC",
+    "//llvm/lib/Support",
+
+    # MCTargetDesc depends on Utils, so we can't depend on the full
+    # MCTargetDesc target here: it would form a cycle.
+    "//llvm/lib/Target/PPU/MCTargetDesc:tablegen",
+  ]
+
+  include_dirs = [ ".." ]
+  sources = [
+    "PPUBaseInfo.cpp",
+    "PPUMatInt.cpp",
+  ]
+}

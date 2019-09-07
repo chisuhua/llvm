@@ -63,6 +63,7 @@ public:
     ppc,            // PPC: powerpc
     ppc64,          // PPC64: powerpc64, ppu
     ppc64le,        // PPC64LE: powerpc64le
+    ppu,            // PPU: parallel processing unit
     r600,           // R600: AMD GPUs HD2XXX - HD6XXX
     amdgcn,         // AMDGCN: AMD GCN GPUs
     riscv32,        // RISC-V (32-bit): riscv32
@@ -723,6 +724,11 @@ public:
   /// Tests whether the target is 64-bit PowerPC (little and big endian).
   bool isPPC64() const {
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
+  }
+
+  /// Tests whether the target is PPU
+  bool isPPU() const {
+    return getArch() == Triple::ppu;
   }
 
   /// Tests whether the target is RISC-V (32- and 64-bit).

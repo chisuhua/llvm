@@ -1,0 +1,11 @@
+add_llvm_library(LLVMPPUDesc
+  PPUAsmBackend.cpp
+  PPUELFObjectWriter.cpp
+  PPUInstPrinter.cpp
+  PPUMCAsmInfo.cpp
+  PPUMCCodeEmitter.cpp
+  PPUMCExpr.cpp
+  PPUMCTargetDesc.cpp
+  PPUTargetStreamer.cpp
+  PPUELFStreamer.cpp
+)
