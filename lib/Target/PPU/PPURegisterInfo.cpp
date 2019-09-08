@@ -68,6 +68,7 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   markSuperRegs(Reserved, PPU::X4); // tp
   if (TFI->hasFP(MF))
     markSuperRegs(Reserved, PPU::X8); // fp
+  markSuperRegs(Reserved, PPU::VCFG); // vcfg CSR
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
 }

@@ -58,6 +58,14 @@ void PPUFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MFI.setStackSize(FrameSize);
 }
 
+// TODO schi copied from rvv
+bool PPUFrameLowering::shouldEnableVectorUnit(MachineFunction &MF) const {
+  auto &Subtarget = MF.getSubtarget<PPUSubtarget>();
+  if (!Subtarget.hasStdExtV())
+    return false;
+  return true;
+}
+
 void PPUFrameLowering::adjustReg(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MBBI,
                                    const DebugLoc &DL, Register DestReg,
@@ -121,6 +129,16 @@ void PPUFrameLowering::emitPrologue(MachineFunction &MF,
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc DL;
+
+ if (shouldEnableVectorUnit(MF)) {
+    // For now, always enable all registers with 's' width
+    // TODO compute a configuration earlier & store it in MachineFunctionInfo
+    //      (and not enable at all if not needed)
+    // TODO set vsew, assuming vconfig isn't changed to set it too
+    BuildMI(MBB, MBBI, DL, STI.getInstrInfo()->get(PPU::VCONFIG))
+        // 0b11_00_000 = 0x60
+        .addImm(0x60);
+  }
 
   // Determine the correct frame layout
   determineFrameLayout(MF);
@@ -260,6 +278,12 @@ void PPUFrameLowering::emitEpilogue(MachineFunction &MF,
 
   // Deallocate stack
   adjustReg(MBB, MBBI, DL, SPReg, SPReg, StackSize, MachineInstr::FrameDestroy);
+
+  if (shouldEnableVectorUnit(MF)) {
+    BuildMI(MBB, MBBI, DL, STI.getInstrInfo()->get(PPU::VCONFIG))
+        // vdisable = vconfig 0x01
+        .addImm(0x01);
+  }
 
   // After restoring $sp, we need to adjust CFA to $(sp + 0)
   // Emit ".cfi_def_cfa_offset 0"

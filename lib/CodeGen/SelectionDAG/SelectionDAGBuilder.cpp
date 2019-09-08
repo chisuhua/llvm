@@ -1545,6 +1545,17 @@ SDValue SelectionDAGBuilder::getValueImpl(const Value *V) {
         Op = DAG.getConstantFP(0, getCurSDLoc(), EltVT);
       else
         Op = DAG.getConstant(0, getCurSDLoc(), EltVT);
+
+      if (VT.isScalableVector()) {
+        auto INum = DAG.getConstant(Intrinsic::experimental_vector_splatvector,
+                                   getCurSDLoc(), MVT::i32);
+
+        auto Splat = DAG.getNode(ISD::INTRINSIC_WO_CHAIN, getCurSDLoc(), VT,
+                                INum, Op);
+
+        return Splat;
+      }
+
       Ops.assign(NumElements, Op);
     }
 

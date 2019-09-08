@@ -16,11 +16,13 @@ tablegen(LLVM PPUGenSystemOperands.inc -gen-searchable-tables)
 
 add_public_tablegen_target(PPUCommonTableGen)
 
+# TODO schi PPUOptimizeVSETVLUses.cpp is copied from rvv
 add_llvm_target(PPUCodeGen
   PPUAsmPrinter.cpp
   PPUCallLowering.cpp
   PPUExpandPseudoInsts.cpp
   PPUFrameLowering.cpp
+  PPUOptimizeVSETVLUses.cpp
   PPUInstrInfo.cpp
   PPUInstructionSelector.cpp
   PPUISelDAGToDAG.cpp

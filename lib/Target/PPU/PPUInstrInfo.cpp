@@ -91,6 +91,65 @@ void PPUInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  // GPR -> VL via VSETVL
+  if (PPU::GPRRegClass.contains(SrcReg) &&
+      PPU::VLRRegClass.contains(DstReg)) {
+    BuildMI(MBB, MBBI, DL, get(PPU::VSETVL), DstReg)
+        .addDef(PPU::X0)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
+  // VL -> GPR via CSR read
+  if (PPU::VLRRegClass.contains(SrcReg) &&
+      PPU::GPRRegClass.contains(DstReg)) {
+    BuildMI(MBB, MBBI, DL, get(PPU::PseudoCSRR_VL), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
+
+  // VR -> VR copies
+  if (PPU::VRRegClass.contains(SrcReg) &&
+      PPU::VRRegClass.contains(DstReg)) {
+    
+    auto Scavenger = RegScavenger();
+    Scavenger.enterBasicBlockEnd(MBB);
+    unsigned SavedVL = Scavenger.scavengeRegisterBackwards(
+      PPU::GPRRegClass, MBBI, false, 0);
+
+    //Save current VL
+    MachineInstr &MI = *BuildMI(MBB, MBBI, DL, get(PPU::CSRRS), SavedVL)
+        .addImm(0xCC0)
+        .addReg(PPU::X0);
+
+    Scavenger.setRegUsed(SavedVL);
+
+    //Save MAXVL in GPR
+    unsigned MaxVL = Scavenger.scavengeRegisterBackwards(
+      PPU::GPRRegClass, MachineBasicBlock::iterator(MI), false, 0);
+
+
+    BuildMI(MBB, MBBI, DL, get(PPU::CSRRS), MaxVL)
+        .addImm(0xCC1) //Couldn't find the actual CSR number - placeholder
+        .addReg(PPU::X0);
+
+    //Set VL to MAXVL
+    BuildMI(MBB, MBBI, DL, get(PPU::VSETVL), PPU::VL)
+        .addDef(PPU::X0)
+        .addReg(MaxVL, getKillRegState(true));
+
+    //Copy Vector
+    BuildMI(MBB, MBBI, DL, get(PPU::VADDI), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addImm(0)
+        .addReg(PPU::VL);
+
+    BuildMI(MBB, MBBI, DL, get(PPU::VSETVL), PPU::VL)
+        .addDef(PPU::X0)
+        .addReg(SavedVL, getKillRegState(true));
+
+    return;
+  }
+
   // FPR->FPR copies
   unsigned Opc;
   if (PPU::FPR32RegClass.contains(DstReg, SrcReg))

@@ -378,6 +378,28 @@ public:
     return IsConstantImm && IsInRange && VK == PPUMCExpr::VK_PPU_None;
   }
 
+  // TODO schi copy from rvv
+  bool isSImm3() const {
+    if (!isImm())
+      return false;
+    PPUMCExpr::VariantKind VK;
+    int64_t Imm;
+    bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
+    return IsConstantImm && isInt<3>(Imm) &&
+           VK == PPUMCExpr::VK_PPU_None;
+  }
+
+  bool isSImm8() const {
+    if (!isImm())
+      return false;
+    PPUMCExpr::VariantKind VK;
+    int64_t Imm;
+    bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
+    return IsConstantImm && isInt<8>(Imm) &&
+           VK == PPUMCExpr::VK_PPU_None;
+  }
+
+
   bool isUImmLog2XLen() const {
     int64_t Imm;
     PPUMCExpr::VariantKind VK = PPUMCExpr::VK_PPU_None;
@@ -460,6 +482,17 @@ public:
     bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
     return IsConstantImm && isShiftedUInt<5, 2>(Imm) &&
            VK == PPUMCExpr::VK_PPU_None;
+  }
+
+
+  // TODO schi copy from rvv
+  bool isUImm8() const {
+    int64_t Imm;
+    PPUMCExpr::VariantKind VK;
+    if (!isImm())
+      return false;
+    bool IsConstantImm = evaluateConstantImm(getImm(), Imm, VK);
+    return IsConstantImm && isUInt<8>(Imm) && VK == PPUMCExpr::VK_PPU_None;
   }
 
   bool isUImm8Lsb00() const {

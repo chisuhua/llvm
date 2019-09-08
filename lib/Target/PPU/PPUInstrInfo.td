@@ -124,6 +124,12 @@ def uimm5 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
   let DecoderMethod = "decodeUImmOperand<5>";
 }
 
+// TODO copied from rvv
+def uimm8 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isUInt<8>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<8>;
+  let DecoderMethod = "decodeUImmOperand<8>";
+}
+
 def simm12 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isInt<12>(Imm);}]> {
   let ParserMatchClass = SImmAsmOperand<12>;
   let EncoderMethod = "getImmOpValue";
@@ -1090,3 +1096,5 @@ include "PPUInstrInfoA.td"
 include "PPUInstrInfoF.td"
 include "PPUInstrInfoD.td"
 include "PPUInstrInfoC.td"
+// TODO copied from rvv
+include "PPUInstrInfoV.td"

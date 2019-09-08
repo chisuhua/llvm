@@ -46,6 +46,9 @@ void initializePPUExpandPseudoPass(PassRegistry &);
 InstructionSelector *createPPUInstructionSelector(const PPUTargetMachine &,
                                                     PPUSubtarget &,
                                                     PPURegisterBankInfo &);
+// TODO schi copied from rvv
+FunctionPass *createPPUOptimizeVSETVLUsesPass();
+void initializePPUOptimizeVSETVLUsesPass(PassRegistry &);
 }
 
 #endif

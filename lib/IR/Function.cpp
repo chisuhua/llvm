@@ -875,6 +875,7 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
     return;
   }
   case IIT_SCALABLE_VEC: {
+    // OutputTable.push_back(IITDescriptor::get(IITDescriptor::ScalableVector, 1)); TODO schi scalable vector
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::ScalableVecArgument,
                                              0));
     DecodeIITType(NextElt, Infos, OutputTable);

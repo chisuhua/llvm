@@ -16,6 +16,10 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 
+// TODO copied from rvv
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include <memory>
+
 namespace llvm {
 
 /// PPUMachineFunctionInfo - This class is derived from MachineFunctionInfo
@@ -32,6 +36,8 @@ private:
   int MoveF64FrameIndex = -1;
 
 public:
+  PPUMachineFunctionInfo() = delete;
+
   PPUMachineFunctionInfo(MachineFunction &MF) : MF(MF) {}
 
   int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }

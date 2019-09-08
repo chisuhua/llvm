@@ -1241,13 +1241,15 @@ public:
         EVT PointerTy(getPointerTy(DL, PTy->getAddressSpace()));
         EltTy = PointerTy.getTypeForEVT(Ty->getContext());
       }
+      // TODO rvv use getElementCount()
       return EVT::getVectorVT(Ty->getContext(), EVT::getEVT(EltTy, false),
-                              VTy->getElementCount());
+                              VTy->getNumElements(), VTy->isScalable());
     }
 
     return EVT::getEVT(Ty, AllowUnknown);
   }
 
+  // TODO schi should getMemValueType also need Scalable?
   EVT getMemValueType(const DataLayout &DL, Type *Ty,
                       bool AllowUnknown = false) const {
     // Lower scalar pointers to native pointer types.
@@ -1260,7 +1262,7 @@ public:
         Elm = PointerTy.getTypeForEVT(Ty->getContext());
       }
       return EVT::getVectorVT(Ty->getContext(), EVT::getEVT(Elm, false),
-                       VTy->getNumElements());
+                       VTy->getNumElements(), VTy->isScalable());
     }
 
     return getValueType(DL, Ty, AllowUnknown);

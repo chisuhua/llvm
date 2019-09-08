@@ -233,3 +233,64 @@ def FPR64C : RegisterClass<"PPU", [f64], 64, (add
   (sequence "F%u_64", 10, 15),
   (sequence "F%u_64", 8, 9)
 )>;
+
+// Vector registers
+let RegAltNameIndices = [ABIRegAltName] in {
+  def V0  : PPUReg<0, "v0", ["v0"]>;
+  def V1  : PPUReg<1, "v1", ["v1"]>;
+  def V2  : PPUReg<2, "v2", ["v2"]>;
+  def V3  : PPUReg<3, "v3", ["v3"]>;
+  def V4  : PPUReg<4, "v4", ["v4"]>;
+  def V5  : PPUReg<5, "v5", ["v5"]>;
+  def V6  : PPUReg<6, "v6", ["v6"]>;
+  def V7  : PPUReg<7, "v7", ["v7"]>;
+  def V8  : PPUReg<8, "v8", ["v8"]>;
+  def V9  : PPUReg<9, "v9", ["v9"]>;
+  def V10 : PPUReg<10,"v10", ["v10"]>;
+  def V11 : PPUReg<11,"v11", ["v11"]>;
+  def V12 : PPUReg<12,"v12", ["v12"]>;
+  def V13 : PPUReg<13,"v13", ["v13"]>;
+  def V14 : PPUReg<14,"v14", ["v14"]>;
+  def V15 : PPUReg<15,"v15", ["v15"]>;
+  def V16 : PPUReg<16,"v16", ["v16"]>;
+  def V17 : PPUReg<17,"v17", ["v17"]>;
+  def V18 : PPUReg<18,"v18", ["v18"]>;
+  def V19 : PPUReg<19,"v19", ["v19"]>;
+  def V20 : PPUReg<20,"v20", ["v20"]>;
+  def V21 : PPUReg<21,"v21", ["v21"]>;
+  def V22 : PPUReg<22,"v22", ["v22"]>;
+  def V23 : PPUReg<23,"v23", ["v23"]>;
+  def V24 : PPUReg<24,"v24", ["v24"]>;
+  def V25 : PPUReg<25,"v25", ["v25"]>;
+  def V26 : PPUReg<26,"v26", ["v26"]>;
+  def V27 : PPUReg<27,"v27", ["v27"]>;
+  def V28 : PPUReg<28,"v28", ["v28"]>;
+  def V29 : PPUReg<29,"v29", ["v29"]>;
+  def V30 : PPUReg<30,"v30", ["v30"]>;
+  def V31 : PPUReg<31,"v31", ["v31"]>;
+}
+
+def VR : RegisterClass<"PPU", [nxv1i32], 32, (sequence "V%u", 0, 31)>;
+
+// Active vector length register (vl)
+// There is only one physical register, and it is not explicitly encoded
+// as operand of in any instructions, but for various reasons it is easier
+// to treat the active vector length as an ordinary virtual register
+let RegAltNameIndices = [ABIRegAltName] in
+def VL: PPUReg<0, "vl", ["vl"]>;
+
+def VLR: RegisterClass<"PPU", [XLenVT], 32, (add VL)> {
+  let RegInfos = RegInfoByHwMode<
+    [RV32,              RV64,              DefaultMode],
+    [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
+// VCFG
+def VCFG : PPUReg<0, "vcfg">;
+def VCFGR : RegisterClass<"PPU", [XLenVT], 32, (add VCFG)> {
+  let CopyCost = -1; // Don't allow copying
+  let isAllocatable = 0; // Not allocatable
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}

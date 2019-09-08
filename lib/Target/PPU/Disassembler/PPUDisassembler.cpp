@@ -189,6 +189,34 @@ static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+// TODO schi copied from rvv
+static const unsigned VRDecoderTable[] = {
+  PPU::V0,  PPU::V1,  PPU::V2,  PPU::V3,
+  PPU::V4,  PPU::V5,  PPU::V6,  PPU::V7,
+  PPU::V8,  PPU::V9,  PPU::V10, PPU::V11,
+  PPU::V12, PPU::V13, PPU::V14, PPU::V15,
+  PPU::V16, PPU::V17, PPU::V18, PPU::V19,
+  PPU::V20, PPU::V21, PPU::V22, PPU::V23,
+  PPU::V24, PPU::V25, PPU::V26, PPU::V27,
+  PPU::V28, PPU::V29, PPU::V30, PPU::V31
+};
+
+static DecodeStatus DecodeVRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                          uint64_t Address,
+                                          const void *Decoder) {
+  // FIXME(rkruppe) this should be >= and the same bug exists in the other register decoders
+  if (RegNo > sizeof(VRDecoderTable)) {
+    return MCDisassembler::Fail;
+  }
+
+  // We must define our own mapping from RegNo to register identifier.
+  // Accessing index RegNo in the register class will work in the case that
+  // registers were added in ascending order, but not in general.
+  unsigned Reg = VRDecoderTable[RegNo];
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
 // Add implied SP operand for instructions *SP compressed instructions. The SP
 // operand isn't explicitly encoded in the instruction.
 static void addImplySP(MCInst &Inst, int64_t Address, const void *Decoder) {

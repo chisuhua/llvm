@@ -6,7 +6,7 @@
 namespace llvm {
 namespace PPUSysReg {
 #define GET_SysRegsList_IMPL
-#include "PPUGenSystemOperands.inc"
+#include "PPUGenSystemOperands.inc"  // TODO RISCVGenSearchableTables.inc
 } // namespace PPUSysReg
 
 namespace PPUABI {

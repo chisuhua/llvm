@@ -53,6 +53,7 @@ private:
   void adjustReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                  const DebugLoc &DL, Register DestReg, Register SrcReg,
                  int64_t Val, MachineInstr::MIFlag Flag) const;
+  bool shouldEnableVectorUnit(MachineFunction &MF) const;
 };
 }
 #endif

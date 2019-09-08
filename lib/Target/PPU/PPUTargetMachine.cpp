@@ -86,6 +86,7 @@ public:
   void addPreEmitPass() override;
   void addPreEmitPass2() override;
   void addPreRegAlloc() override;
+  void addMachineSSAOptimization() override;
 };
 }
 
@@ -131,6 +132,11 @@ void PPUPassConfig::addPreEmitPass2() {
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
   addPass(createPPUExpandPseudoPass());
+}
+
+void PPUPassConfig::addMachineSSAOptimization() {
+  TargetPassConfig::addMachineSSAOptimization();
+  addPass(createPPUOptimizeVSETVLUsesPass());
 }
 
 void PPUPassConfig::addPreRegAlloc() {

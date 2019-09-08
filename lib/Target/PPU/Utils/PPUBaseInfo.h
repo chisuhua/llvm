@@ -158,7 +158,7 @@ struct SysReg {
 };
 
 #define GET_SysRegsList_DECL
-#include "PPUGenSystemOperands.inc"
+#include "PPUGenSystemOperands.inc"  // TODO rvv GenSearchableTables.inc
 } // end namespace PPUSysReg
 
 namespace PPUABI {

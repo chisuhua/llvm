@@ -72,6 +72,11 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasStdExtD())
     addRegisterClass(MVT::f64, &PPU::FPR64RegClass);
 
+  // TODO copied from rvv
+  if (STI.hasStdExtV())
+    addRegisterClass(MVT::nxv1i32, &PPU::VRRegClass);
+
+
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
 
@@ -182,6 +187,9 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ConstantPool, XLenVT, Custom);
 
   setOperationAction(ISD::GlobalTLSAddress, XLenVT, Custom);
+
+  // TODO copied from rvv
+  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
 
   // TODO: On M-mode only targets, the cycle[h] CSR may not be present.
   // Unfortunately this can't be determined just from the ISA naming string.
@@ -395,6 +403,9 @@ SDValue PPUTargetLowering::LowerOperation(SDValue Op,
     SDValue FPConv = DAG.getNode(PPUISD::FMV_W_X_RV64, DL, MVT::f32, NewOp0);
     return FPConv;
   }
+  // TODO copied from rvv
+  case ISD::INTRINSIC_WO_CHAIN:
+    return lowerINTRINSIC_WO_CHAIN(Op, DAG);
   }
 }
 
@@ -1009,6 +1020,37 @@ SDValue PPUTargetLowering::PerformDAGCombine(SDNode *N,
   }
 
   return SDValue();
+}
+
+SDValue PPUTargetLowering::lowerINTRINSIC_WO_CHAIN(SDValue Op,
+                                                     SelectionDAG &DAG) const {
+  unsigned IntrinsicID = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  switch (IntrinsicID) {
+  default:
+    return SDValue(); // Don't custom lower most intrinsics
+  case Intrinsic::ppu_setvl:
+    return lowerSETVL(Op, DAG);
+  case Intrinsic::experimental_vector_splatvector:
+    return lowerSPLAT_VECTOR(Op, DAG);
+  }
+}
+
+SDValue PPUTargetLowering::lowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT VT = Op.getValueType();
+  EVT ElemVT = VT.getScalarType();
+  if (ElemVT == MVT::i32) {
+    SDValue SplatVal = Op.getOperand(1);
+    return DAG.getNode(PPUISD::BROADCAST, DL, VT, SplatVal);
+  }
+  return SDValue();
+}
+
+SDValue PPUTargetLowering::lowerSETVL(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  MVT XLenVT = Subtarget.getXLenVT();
+  SDVTList ResultVTs = DAG.getVTList(XLenVT, XLenVT);
+  return DAG.getNode(PPUISD::SETVL, DL, ResultVTs, Op.getOperand(1));
 }
 
 bool PPUTargetLowering::isDesirableToCommuteWithShift(
@@ -2419,6 +2461,10 @@ const char *PPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "PPUISD::FMV_X_ANYEXTW_RV64";
   case PPUISD::READ_CYCLE_WIDE:
     return "PPUISD::READ_CYCLE_WIDE";
+  case PPUISD::SETVL:
+    return "PPUISD::SETVL";
+  case PPUISD::BROADCAST:
+    return "PPUISD::BROADCAST";
   }
   return nullptr;
 }

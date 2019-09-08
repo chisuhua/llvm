@@ -56,6 +56,7 @@ class PPUOpcode<bits<7> val> {
 }
 def OPC_LOAD      : PPUOpcode<0b0000011>;
 def OPC_LOAD_FP   : PPUOpcode<0b0000111>;
+def OPC_OP_V      : PPUOpcode<0b1010111>; // TODO copied from rvv
 def OPC_MISC_MEM  : PPUOpcode<0b0001111>;
 def OPC_OP_IMM    : PPUOpcode<0b0010011>;
 def OPC_AUIPC     : PPUOpcode<0b0010111>;
