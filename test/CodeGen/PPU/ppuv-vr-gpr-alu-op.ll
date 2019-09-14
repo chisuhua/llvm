@@ -4,7 +4,7 @@
 
 declare i32 @llvm.ppu.setvl(i32)
 declare <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
-declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*, i32)
+declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*)
 declare i32 @llvm.ppu.vmpopcnt(<vscale x 1 x i32>, i32)
 declare i32 @llvm.ppu.vmfirst(<vscale x 1 x i32>, i32)
 
@@ -22,7 +22,7 @@ define i32 @foo(i32 %n, i32* %A) {
 ; RV32IV-NEXT:	.cfi_def_cfa_offset 0
 ; RV32IV-NEXT:    ret
 	%vl = call i32 @llvm.ppu.setvl(i32 %n)
-	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A, i32 %vl)
+	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A)
 	%popcnt = call i32 @llvm.ppu.vmpopcnt(<vscale x 1 x i32> %v.A, i32 %vl)
 	%first = call i32 @llvm.ppu.vmfirst(<vscale x 1 x i32> %v.A, i32 %vl)
 	%sum = add i32 %popcnt, %first

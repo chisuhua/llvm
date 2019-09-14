@@ -4,8 +4,8 @@
 
 declare i32 @llvm.ppu.setvl(i32)
 declare <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
-declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*, i32)
-declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>, i32)
+declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*)
+declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>)
 
 ; R[0..n] = A[0..n]
 define void @foo(i32 %n.0, i32* %R.0, i32* %A.0) {
@@ -33,14 +33,14 @@ loop:
 	%A = phi i32* [%A.0, %entry], [%A.rem, %loop]
 	%R = phi i32* [%R.0, %entry], [%R.rem, %loop]
 	%vl = call i32 @llvm.ppu.setvl(i32 %n)
-	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A, i32 %vl)
+	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A)
 
 	%vimm.inserted = insertelement <vscale x 1 x i32> undef, i32 2, i32 0
 	%vimm.splatted = shufflevector <vscale x 1 x i32> %vimm.inserted, <vscale x 1 x i32> undef, <vscale x 1 x i32> zeroinitializer
 
 	%v.R1 = call <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32> %v.A, <vscale x 1 x i32> %vimm.splatted, i32 %vl)
 
-	call void @llvm.ppu.vsw(i32* %R, <vscale x 1 x i32> %v.R1, i32 %vl)
+	call void @llvm.ppu.vsw(i32* %R, <vscale x 1 x i32> %v.R1)
 	%n.rem = sub i32 %n, %vl
 	%A.rem = getelementptr i32, i32* %A, i32 %vl
 	%R.rem = getelementptr i32, i32* %R, i32 %vl
