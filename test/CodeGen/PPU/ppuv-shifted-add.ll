@@ -4,8 +4,8 @@
 
 declare i32 @llvm.ppu.setvl(i32)
 declare <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
-declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*)
-declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>)
+declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*, i32)
+declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>, i32)
 
 ; A[0..n]
 ; Add pairs of elements together
@@ -43,13 +43,13 @@ loop:
 	%n.minusOne = sub i32 %n, 1
 
 	%vl = call i32 @llvm.ppu.setvl(i32 %n.minusOne)
-	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A)
+	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A, i32 %vl)
 
 	%A.shift = getelementptr i32, i32* %A, i32 1
-	%v.A_shift = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A.shift)
+	%v.A_shift = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A.shift, i32 %vl)
 
 	%v.sum = call <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32> %v.A, <vscale x 1 x i32> %v.A_shift, i32 %vl)
-	call void @llvm.ppu.vsw(i32* %A, <vscale x 1 x i32> %v.sum)
+	call void @llvm.ppu.vsw(i32* %A, <vscale x 1 x i32> %v.sum, i32 %vl)
 
 	%n.rem = sub i32 %n, %vl
 	%A.rem = getelementptr i32, i32* %A, i32 %vl

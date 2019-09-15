@@ -9,8 +9,8 @@ declare <vscale x 1 x i32> @llvm.ppu.vmul(<vscale x 1 x i32>, <vscale x 1 x i32>
 declare <vscale x 1 x i32> @llvm.ppu.vand(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
 declare <vscale x 1 x i32> @llvm.ppu.vor(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
 declare <vscale x 1 x i32> @llvm.ppu.vxor(<vscale x 1 x i32>, <vscale x 1 x i32>, i32)
-declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*)
-declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>)
+declare <vscale x 1 x i32> @llvm.ppu.vlw(i32*, i32)
+declare void @llvm.ppu.vsw(i32*, <vscale x 1 x i32>, i32)
 
 ; R[0..n] = A[0..n] + B[0..n]
 define void @foo(i32 %n.0, i32* %R.0, i32* %A.0, i32* %B.0) {
@@ -47,8 +47,8 @@ loop:
 	%B = phi i32* [%B.0, %entry], [%B.rem, %loop]
 	%R = phi i32* [%R.0, %entry], [%R.rem, %loop]
 	%vl = call i32 @llvm.ppu.setvl(i32 %n)
-	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A)
-	%v.B = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %B)
+	%v.A = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %A, i32 %vl)
+	%v.B = call <vscale x 1 x i32> @llvm.ppu.vlw(i32* %B, i32 %vl)
 
 	%v.R1 = call <vscale x 1 x i32> @llvm.ppu.vadd(<vscale x 1 x i32> %v.A, <vscale x 1 x i32> %v.B, i32 %vl)
 	%v.R2 = call <vscale x 1 x i32> @llvm.ppu.vsub(<vscale x 1 x i32> %v.R1, <vscale x 1 x i32> %v.B, i32 %vl)
@@ -57,7 +57,7 @@ loop:
 	%v.R5 = call <vscale x 1 x i32> @llvm.ppu.vor(<vscale x 1 x i32> %v.R4, <vscale x 1 x i32> %v.B, i32 %vl)
 	%v.R6 = call <vscale x 1 x i32> @llvm.ppu.vxor(<vscale x 1 x i32> %v.R5, <vscale x 1 x i32> %v.B, i32 %vl)
 
-	call void @llvm.ppu.vsw(i32* %R, <vscale x 1 x i32> %v.R6)
+	call void @llvm.ppu.vsw(i32* %R, <vscale x 1 x i32> %v.R6, i32 %vl)
 	%n.rem = sub i32 %n, %vl
 	%A.rem = getelementptr i32, i32* %A, i32 %vl
 	%B.rem = getelementptr i32, i32* %B, i32 %vl
