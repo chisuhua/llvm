@@ -58,6 +58,8 @@ struct PPURegisterInfo : public PPUGenRegisterInfo {
                      unsigned Kind = 0) const override {
     return &PPU::GPRRegClass;
   }
+
+  unsigned getVCC() const;
 };
 }
 

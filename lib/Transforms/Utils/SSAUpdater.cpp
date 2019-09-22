@@ -82,11 +82,12 @@ static bool IsEquivalentPHI(PHINode *PHI,
     return false;
 
   // Scan the phi to see if it matches.
-  for (unsigned i = 0, e = PHINumValues; i != e; ++i)
-    if (ValueMapping[PHI->getIncomingBlock(i)] !=
-        PHI->getIncomingValue(i)) {
+  for (unsigned i = 0, e = PHINumValues; i != e; ++i) {
+    Value *V = ValueMapping[PHI->getIncomingBlock(i)];
+    if (V != PHI->getIncomingValue(i) && !isa<UndefValue>(V)) {
       return false;
     }
+  }
 
   return true;
 }

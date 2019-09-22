@@ -106,3 +106,33 @@ class RVInstVStore<bits<3> funct3, bits<2> funct2, RVVMaskCond m,
   let Inst{8-7} = m.Value;
   let Opcode = opcode.Value;
 }
+
+class SPseudoInst<dag outs, dag ins, list<dag> pattern = [], string opcodestr = "", string argstr = "">
+  : Pseudo<outs, ins, pattern, opcodestr, argstr> {
+  // let SALU = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+}
+
+class VPseudoInst<dag outs, dag ins, list<dag> pattern = [], string opcodestr = "", string argstr = "">
+  : Pseudo<outs, ins, pattern, opcodestr, argstr> {
+  // let VALU = 1;
+  let Uses = [EXEC];
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+}
+
+class CFPseudoInst<dag outs, dag ins, list<dag> pattern = [],
+  bit UseExec = 0, bit DefExec = 0> :
+  SPseudoInst<outs, ins, pattern> {
+
+  let Uses = !if(UseExec, [EXEC], []);
+  // let Defs = !if(DefExec, [EXEC, SCC], [SCC]);
+  let Defs = !if(DefExec, [EXEC], []);
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
+}
+

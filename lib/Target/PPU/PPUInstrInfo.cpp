@@ -525,3 +525,21 @@ bool PPUInstrInfo::isAsCheapAsAMove(const MachineInstr &MI) const {
   }
   return MI.isAsCheapAsAMove();
 }
+
+bool PPUInstrInfo::isBranchOp(unsigned BranchOp) const {
+  switch (BranchOp) {
+  default:
+    return false;
+  case PPU::BEQ:
+  case PPU::BNE:
+  case PPU::BLT:
+  case PPU::BGE:
+  case PPU::BLTU:
+  case PPU::BGEU:
+    return true;
+  case PPU::JAL:
+  case PPU::PseudoBR:
+    return true;
+  }
+}
+

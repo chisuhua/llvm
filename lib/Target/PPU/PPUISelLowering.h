@@ -53,7 +53,11 @@ enum NodeType : unsigned {
   // (returns (Lo, Hi)). It takes a chain operand.
   READ_CYCLE_WIDE,
   SETVL,
-  BROADCAST
+  BROADCAST,
+  // PPUV
+  IF,
+  ELSE,
+  LOOP
 };
 }
 

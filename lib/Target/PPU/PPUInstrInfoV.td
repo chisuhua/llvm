@@ -32,6 +32,24 @@ def SDT_PPUBROADCAST : SDTypeProfile<1, 1, [SDTCisVT<0, nxv1i32>,
 
 def PPUBROADCAST : SDNode<"PPUISD::BROADCAST", SDT_PPUBROADCAST>;
 
+
+def AMDGPUIfOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, OtherVT>] >;
+
+def AMDGPUElseOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, OtherVT>] >;
+
+def AMDGPULoopOp : SDTypeProfile<0, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, OtherVT>] >;
+
+def AMDGPUIfBreakOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, i1>] >;
+
+
+def AMDGPUif : SDNode<"PPUISD::IF", AMDGPUIfOp, [SDNPHasChain]>;
+def AMDGPUelse : SDNode<"PPUISD::ELSE", AMDGPUElseOp, [SDNPHasChain]>;
+def AMDGPUloop : SDNode<"PPUISD::LOOP", AMDGPULoopOp, [SDNPHasChain]>;
+
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
 //===----------------------------------------------------------------------===//
@@ -168,6 +186,21 @@ def VCONFIG : RVInst<(outs), (ins uimm8:$imm8),
 // Pseudo-instructions and codegen patterns
 //===----------------------------------------------------------------------===//
 
+def brtarget   : Operand<OtherVT>;
+/*
+def SoppBrTarget : AsmOperandClass {
+  let Name = "SoppBrTarget";
+  let ParserMethod = "parseSOppBrTarget";
+}
+
+def sopp_brtarget : Operand<OtherVT> {
+  let EncoderMethod = "getSOPPBrEncoding";
+  let DecoderMethod = "decodeSoppBrTarget";
+  let OperandType = "OPERAND_PCREL";
+  let ParserMatchClass = SoppBrTarget;
+}
+*/
+
 let Predicates = [HasStdExtV] in {
 
 let hasSideEffects = 1, mayLoad = 0, mayStore = 0,
@@ -209,4 +242,84 @@ def : Pat<(int_ppu_vsw GPR:$rs1, VR:$rs2, VLR:$vl),
 
 def : Pat<(PPUSETVL GPR:$rs1), (VSETVL GPR:$rs1)>;
 
+
+let isTerminator = 1 in {
+let Uses = [EXEC], Defs = [EXEC],
+    OtherPredicates = [EnableNonUniformMIBranchPseudo] in {
+  def SI_NON_UNIFORM_BRCOND_PSEUDO : CFPseudoInst <
+      (outs),
+      (ins SReg_32:$vcc, brtarget:$target),
+      [(brcond i1:$vcc, bb:$target)]> {
+     // let Size = 12;
+  }
+}
+
+def SI_IF: CFPseudoInst <
+  (outs SReg_1:$dst), (ins SReg_1:$vcc, brtarget:$target),
+  [(set i1:$dst, (AMDGPUif i1:$vcc, bb:$target))], 1, 1> {
+  let Constraints = "";
+  let Size = 12;
+  let hasSideEffects = 1;
+}
+
+def SI_ELSE : CFPseudoInst <
+  (outs SReg_1:$dst),
+  (ins SReg_1:$src, brtarget:$target, i1imm:$execfix), [], 1, 1> {
+  let Size = 12;
+  let hasSideEffects = 1;
+}
+
+def SI_LOOP : CFPseudoInst <
+  (outs), (ins SReg_1:$saved, brtarget:$target),
+  [(AMDGPUloop i1:$saved, bb:$target)], 1, 1> {
+  let Size = 8;
+  let isBranch = 1;
+  let hasSideEffects = 1;
+}
+} // isTerminator
+
+def SI_END_CF : CFPseudoInst <
+  (outs), (ins SReg_1:$saved), [], 1, 1> {
+  let Size = 4;
+  let isAsCheapAsAMove = 1;
+  let isReMaterializable = 1;
+  let hasSideEffects = 1;
+  let mayLoad = 1; // FIXME: Should not need memory flags
+  let mayStore = 1;
+}
+
+def SI_IF_BREAK : CFPseudoInst <
+  (outs SReg_1:$dst), (ins SReg_1:$vcc, SReg_1:$src), []> {
+  let Size = 4;
+  let isAsCheapAsAMove = 1;
+  let isReMaterializable = 1;
+}
+
+// Branch on undef scc. Used to avoid intermediate copy from
+// IMPLICIT_DEF to SCC.
+// FIXME def SI_BR_UNDEF : SPseudoInst <(outs), (ins sopp_brtarget:$simm16)> {
+def SI_BR_UNDEF : SPseudoInst <(outs), (ins brtarget:$simm16)> {
+  let isTerminator = 1;
+  let usesCustomInserter = 1;
+  let isBranch = 1;
+}
+
+// SI pseudo instructions. These are used by the CFG structurizer pass
+// and should be lowered to ISA instructions prior to codegen.
+
+// Dummy terminator instruction to use after control flow instructions
+// replaced with exec mask operations.
+def SI_MASK_BRANCH : VPseudoInst <
+  (outs), (ins brtarget:$target)> {
+  let isBranch = 0;
+  let isTerminator = 1;
+  let isBarrier = 0;
+  let SchedRW = [];
+  let hasNoSchedulingInfo = 1;
+  // let FixedSize = 1;
+  let Size = 0;
+}
+
 } // Predicates = [HasStdExtV]
+
+

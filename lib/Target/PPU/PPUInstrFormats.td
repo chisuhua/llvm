@@ -79,6 +79,7 @@ def OPC_SYSTEM    : PPUOpcode<0b1110011>;
 
 class RVInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format>
+    // : PPUInst<outs, ins, opcodestr # "\t" # argstr, pattern>, PPUPredicateControl {
     : Instruction {
   field bits<32> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
@@ -92,6 +93,7 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 
   let Inst{6-0} = Opcode;
 
+  list<Predicate> OtherPredicates = [];
   let Namespace = "PPU";
 
   dag OutOperandList = outs;

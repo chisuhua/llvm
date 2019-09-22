@@ -2421,50 +2421,35 @@ PPUTargetLowering::LowerReturn(SDValue Chain, CallingConv::ID CallConv,
   return DAG.getNode(PPUISD::RET_FLAG, DL, MVT::Other, RetOps);
 }
 
+#define NODE_NAME_CASE(node) case PPUISD::node: return #node;
+
 const char *PPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch ((PPUISD::NodeType)Opcode) {
-  case PPUISD::FIRST_NUMBER:
-    break;
-  case PPUISD::RET_FLAG:
-    return "PPUISD::RET_FLAG";
-  case PPUISD::URET_FLAG:
-    return "PPUISD::URET_FLAG";
-  case PPUISD::SRET_FLAG:
-    return "PPUISD::SRET_FLAG";
-  case PPUISD::MRET_FLAG:
-    return "PPUISD::MRET_FLAG";
-  case PPUISD::CALL:
-    return "PPUISD::CALL";
-  case PPUISD::SELECT_CC:
-    return "PPUISD::SELECT_CC";
-  case PPUISD::BuildPairF64:
-    return "PPUISD::BuildPairF64";
-  case PPUISD::SplitF64:
-    return "PPUISD::SplitF64";
-  case PPUISD::TAIL:
-    return "PPUISD::TAIL";
-  case PPUISD::SLLW:
-    return "PPUISD::SLLW";
-  case PPUISD::SRAW:
-    return "PPUISD::SRAW";
-  case PPUISD::SRLW:
-    return "PPUISD::SRLW";
-  case PPUISD::DIVW:
-    return "PPUISD::DIVW";
-  case PPUISD::DIVUW:
-    return "PPUISD::DIVUW";
-  case PPUISD::REMUW:
-    return "PPUISD::REMUW";
-  case PPUISD::FMV_W_X_RV64:
-    return "PPUISD::FMV_W_X_RV64";
-  case PPUISD::FMV_X_ANYEXTW_RV64:
-    return "PPUISD::FMV_X_ANYEXTW_RV64";
-  case PPUISD::READ_CYCLE_WIDE:
-    return "PPUISD::READ_CYCLE_WIDE";
-  case PPUISD::SETVL:
-    return "PPUISD::SETVL";
-  case PPUISD::BROADCAST:
-    return "PPUISD::BROADCAST";
+  case PPUISD::FIRST_NUMBER: break;
+  // PPU DAG nodes
+  NODE_NAME_CASE(RET_FLAG)
+  NODE_NAME_CASE(URET_FLAG)
+  NODE_NAME_CASE(SRET_FLAG)
+  NODE_NAME_CASE(MRET_FLAG)
+  NODE_NAME_CASE(CALL)
+  NODE_NAME_CASE(SELECT_CC)
+  NODE_NAME_CASE(BuildPairF64)
+  NODE_NAME_CASE(SplitF64)
+  NODE_NAME_CASE(TAIL)
+  NODE_NAME_CASE(SLLW)
+  NODE_NAME_CASE(SRAW)
+  NODE_NAME_CASE(SRLW)
+  NODE_NAME_CASE(DIVW)
+  NODE_NAME_CASE(DIVUW)
+  NODE_NAME_CASE(REMUW)
+  NODE_NAME_CASE(FMV_W_X_RV64)
+  NODE_NAME_CASE(FMV_X_ANYEXTW_RV64)
+  NODE_NAME_CASE(READ_CYCLE_WIDE)
+  NODE_NAME_CASE(SETVL)
+  NODE_NAME_CASE(BROADCAST)
+  NODE_NAME_CASE(IF)
+  NODE_NAME_CASE(ELSE)
+  NODE_NAME_CASE(LOOP)
   }
   return nullptr;
 }

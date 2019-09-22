@@ -77,6 +77,17 @@ def FeatureRelax
                        "Enable Linker relaxation.">;
 
 //===----------------------------------------------------------------------===//
+// Predicate helper class
+//===----------------------------------------------------------------------===//
+// FIXME use cl option or feature?
+def EnableReconvergeCFG
+    : SubtargetFeature<"r", "EnableReconvergeCFG", "true",
+                       "'R' (ReconvergeCFG)">;
+def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG">,
+                            AssemblerPredicate<"EnableReconvergeCFG">;
+
+
+//===----------------------------------------------------------------------===//
 // Named operands for CSR instructions.
 //===----------------------------------------------------------------------===//
 
@@ -88,6 +99,7 @@ include "PPUSystemOperands.td"
 
 include "PPURegisterInfo.td"
 include "PPUCallingConv.td"
+include "PPUInstructions.td"
 include "PPUInstrInfo.td"
 include "PPURegisterBanks.td"
 

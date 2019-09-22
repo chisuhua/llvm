@@ -28,6 +28,8 @@ add_llvm_target(PPUCodeGen
   PPUISelDAGToDAG.cpp
   PPUISelLowering.cpp
   PPULegalizerInfo.cpp
+  PPULowerReconvergingControlFlow.cpp
+  PPUAnnotateUniformValues.cpp
   PPUMCInstLower.cpp
   PPUMergeBaseOffset.cpp
   PPURegisterBankInfo.cpp
