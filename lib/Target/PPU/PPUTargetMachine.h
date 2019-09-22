@@ -25,10 +25,16 @@ class PPUTargetMachine : public LLVMTargetMachine {
   PPUSubtarget Subtarget;
 
 public:
+  // static bool EnableReconvergeCFG;
+
   PPUTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                      StringRef FS, const TargetOptions &Options,
                      Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
                      CodeGenOpt::Level OL, bool JIT);
+
+  const PPUSubtarget *getSubtargetImpl() const {
+    return &Subtarget;
+  }
 
   const PPUSubtarget *getSubtargetImpl(const Function &) const override {
     return &Subtarget;

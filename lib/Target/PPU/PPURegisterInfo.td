@@ -294,3 +294,81 @@ def VCFGR : RegisterClass<"PPU", [XLenVT], 32, (add VCFG)> {
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
+
+// VCC
+def VCC : PPUReg<0, "vcc">;
+def VCCR : RegisterClass<"PPU", [XLenVT], 32, (add VCC)> {
+  let CopyCost = -1; // Don't allow copying
+  let isAllocatable = 0; // Not allocatable
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
+// VCC
+def EXEC : PPUReg<0, "exec">;
+def EXECR : RegisterClass<"PPU", [XLenVT], 32, (add EXEC)> {
+  let CopyCost = -1; // Don't allow copying
+  let isAllocatable = 0; // Not allocatable
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
+// 32-bit real registers, for MC only.
+// May be used with both 32-bit and 64-bit operands.
+// def SRC_VCCZ : PPUReg<0,"src_vccz">;
+// def SRC_EXECZ : PPUReg<0, "src_execz">;
+// def SRC_SCC : PPUReg<0, "src_scc">;
+
+// 1-bit pseudo register, for codegen only.
+// Should never be emitted.
+def SCC : PPUReg<0, "scc">;
+def SCC_CLASS : RegisterClass<"PPU", [i1], 1, (add SCC)> {
+  let CopyCost = -1;
+  let isAllocatable = 0;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
+
+def SReg_32_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
+  (add GPR, VCC)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+def SReg_32 : RegisterClass<"PPU", [XLenVT, i32, f32, i1, v2i16, v2f16], 32,
+  (add SReg_32_XEXEC, EXEC)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+
+}
+
+def SReg_1_XEXEC : RegisterClass<"PPU", [i1], 32,
+  (add SReg_32_XEXEC)> {
+  let CopyCost = 1;
+  let isAllocatable = 0;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+
+}
+
+def SReg_1 : RegisterClass<"PPU", [i1], 32,
+  (add SReg_1_XEXEC, EXEC)> {
+  let CopyCost = 1;
+  let isAllocatable = 0;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+
+}
+
+

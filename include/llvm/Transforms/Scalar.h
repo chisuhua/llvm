@@ -277,6 +277,15 @@ Pass *createStructurizeCFGPass(bool SkipUniformRegions = false);
 
 //===----------------------------------------------------------------------===//
 //
+// CFG Reconverging
+//
+///
+/// When \p SkipUniformBranches is true the reconverger will not force the
+/// reconverging condition on uniform branches.
+Pass *createReconvergeCFGPass(bool SkipUniformBranches = false);
+
+//===----------------------------------------------------------------------===//
+//
 // TailCallElimination - This pass eliminates call instructions to the current
 // function which occur immediately before return instructions.
 //

@@ -28,13 +28,24 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/Transforms/Scalar.h"
 using namespace llvm;
 
+// Option to use reconverging CFG
+/* FIXME schi we use feature instead of option
+static cl::opt<bool, true> EnableReconvergeCFG(
+  "ppu-EnableReconvergeCFG",
+  cl::desc("Use reconverging CFG instead of structurization"),
+  cl::location(PPUTargetMachine::EnableReconvergeCFG),
+  cl::Hidden);
+*/
 extern "C" void LLVMInitializePPUTarget() {
   RegisterTargetMachine<PPUTargetMachine> X(getThePPUTarget());
   auto PR = PassRegistry::getPassRegistry();
   initializeGlobalISel(*PR);
   initializePPUExpandPseudoPass(*PR);
+  initializePPUAnnotateUniformValuesPass(*PR);
+  initializePPULowerReconvergingControlFlowPass(*PR);
 }
 
 static StringRef computeDataLayout(const Triple &TT) {
@@ -62,6 +73,8 @@ PPUTargetMachine::PPUTargetMachine(const Target &T, const Triple &TT,
   initAsmInfo();
 }
 
+// bool PPUTargetMachine::EnableReconvergeCFG = false;
+
 TargetTransformInfo
 PPUTargetMachine::getTargetTransformInfo(const Function &F) {
   return TargetTransformInfo(PPUTTIImpl(this, F));
@@ -71,12 +84,15 @@ namespace {
 class PPUPassConfig : public TargetPassConfig {
 public:
   PPUPassConfig(PPUTargetMachine &TM, PassManagerBase &PM)
-      : TargetPassConfig(TM, PM) {}
+      : TargetPassConfig(TM, PM) 
+      , EnableReconvergeCFG(TM.getSubtargetImpl()->enableReconvergeCFG())
+  {}
 
   PPUTargetMachine &getPPUTargetMachine() const {
     return getTM<PPUTargetMachine>();
   }
 
+  bool addPreISel() override;
   void addIRPasses() override;
   bool addInstSelector() override;
   bool addIRTranslator() override;
@@ -87,11 +103,26 @@ public:
   void addPreEmitPass2() override;
   void addPreRegAlloc() override;
   void addMachineSSAOptimization() override;
+
+  bool EnableReconvergeCFG {false};
 };
 }
 
 TargetPassConfig *PPUTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new PPUPassConfig(*this, PM);
+}
+
+bool PPUPassConfig::addPreISel() {
+
+  if (EnableReconvergeCFG) 
+    addPass(createReconvergeCFGPass(true)); // true -> SkipUniformBranches
+
+  if (!EnableReconvergeCFG ) {
+    // FIXME addPass(createSIAnnotateControlFlowPass());
+  }
+  addPass(createPPUAnnotateUniformValues());
+
+  return false;
 }
 
 void PPUPassConfig::addIRPasses() {
@@ -140,5 +171,60 @@ void PPUPassConfig::addMachineSSAOptimization() {
 }
 
 void PPUPassConfig::addPreRegAlloc() {
+  if (EnableReconvergeCFG)
+    addPass(createPPULowerReconvergingControlFlowPass());
   addPass(createPPUMergeBaseOffsetOptPass());
 }
+
+// FIXME
+/*
+void GCNPassConfig::addFastRegAlloc() {
+  // FIXME: We have to disable the verifier here because of PHIElimination +
+  // TwoAddressInstructions disabling it.
+  char *PassID = &PHIEliminationID;
+
+  if (!EnableReconvergeCFG)
+    insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
+
+  // This must be run immediately after phi elimination and before
+  // TwoAddressInstructions, otherwise the processing of the tied operand of
+  // SI_ELSE will introduce a copy of the tied operand source after the else.
+  insertPass(PassID, &SILowerControlFlowID, false);
+  PassID = &SILowerControlFlowID;
+
+  // This must be run just after RegisterCoalescing.
+  insertPass(PassID, &SIFixWWMLivenessID, false);
+
+  TargetPassConfig::addFastRegAlloc();
+}
+
+void GCNPassConfig::addOptimizedRegAlloc() {
+  if (OptExecMaskPreRA) {
+    // insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
+    char *PassID = &PHIEliminationID;
+    if (!EnableReconvergeCFG)
+      insertPass(&MachineSchedulerID, &SIOptimizeExecMaskingPreRAID);
+    insertPass(&SIOptimizeExecMaskingPreRAID, &SIFormMemoryClausesID);
+  } else {
+    insertPass(&MachineSchedulerID, &SIFormMemoryClausesID);
+  }
+
+  // This must be run immediately after phi elimination and before
+  // TwoAddressInstructions, otherwise the processing of the tied operand of
+  // SI_ELSE will introduce a copy of the tied operand source after the else.
+  // insertPass(&PHIEliminationID, &SILowerControlFlowID, false);
+  insertPass(PassID, &SILowerControlFlowID, false);
+  PassID = &SILowerControlFlowID;
+
+  // This must be run just after RegisterCoalescing.
+  // insertPass(&RegisterCoalescerID, &SIPreAllocateWWMRegsID, false);
+  insertPass(PassID, &SIFixWWMLivenessID, false);
+
+  if (EnableDCEInRA)
+    insertPass(&RenameIndependentSubregsID, &DeadMachineInstructionElimID);
+
+  TargetPassConfig::addOptimizedRegAlloc();
+}
+
+*/
+

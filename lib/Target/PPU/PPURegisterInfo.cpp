@@ -156,3 +156,9 @@ PPURegisterInfo::getCallPreservedMask(const MachineFunction & MF,
     return CSR_ILP32D_LP64D_RegMask;
   }
 }
+
+unsigned PPURegisterInfo::getVCC() const {
+  return PPU::VCC;
+}
+
+

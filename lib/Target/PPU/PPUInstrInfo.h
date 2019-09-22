@@ -80,6 +80,8 @@ public:
                              int64_t BrOffset) const override;
 
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
+
+  bool isBranchOp(unsigned BranchOpc) const;
 };
 }
 #endif

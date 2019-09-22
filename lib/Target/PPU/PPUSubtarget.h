@@ -44,6 +44,7 @@ class PPUSubtarget : public PPUGenSubtargetInfo {
   bool IsRV32E = false;
   bool EnableLinkerRelax = false;
   bool EnableRVCHintInstrs = false;
+  bool EnableReconvergeCFG = false;
   unsigned XLen = 32;
   MVT XLenVT = MVT::i32;
   PPUABI::ABI TargetABI = PPUABI::ABI_Unknown;
@@ -91,6 +92,7 @@ public:
   bool isRV32E() const { return IsRV32E; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
   bool enableRVCHintInstrs() const { return EnableRVCHintInstrs; }
+  bool enableReconvergeCFG() const { return EnableReconvergeCFG; }
   MVT getXLenVT() const { return XLenVT; }
   unsigned getXLen() const { return XLen; }
   PPUABI::ABI getTargetABI() const { return TargetABI; }
