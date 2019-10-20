@@ -112,4 +112,182 @@ def int_ppu_vmfirst : Intrinsic<[llvm_i32_ty],
                                [llvm_nxv1i32_ty, llvm_i32_ty],
                                [IntrNoMem]>;
 
+class PPUReadPreloadRegisterIntrinsic
+  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
+
+class PPUReadPreloadRegisterIntrinsicNamed<string name>
+  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>, GCCBuiltin<name>;
+
+
+multiclass PPUReadPreloadRegisterIntrinsic_xyz {
+  def _x : PPUReadPreloadRegisterIntrinsic;
+  def _y : PPUReadPreloadRegisterIntrinsic;
+  def _z : PPUReadPreloadRegisterIntrinsic;
+}
+
+multiclass PPUReadPreloadRegisterIntrinsic_xyz_named<string prefix> {
+  def _x : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_x")>;
+  def _y : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_y")>;
+  def _z : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_z")>;
+}
+
+//===----------------------------------------------------------------------===//
+// ABI Special Intrinsics
+//===----------------------------------------------------------------------===//
+
+defm int_ppu_workitem_id : PPUReadPreloadRegisterIntrinsic_xyz;
+defm int_ppu_workgroup_id : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_workgroup_id">;
+
+
+// Fields should mirror atomicrmw
+class PPUAtomicIncIntrin : Intrinsic<[llvm_anyint_ty],
+  [llvm_anyptr_ty,
+  LLVMMatchType<0>,
+  llvm_i32_ty, // ordering
+  llvm_i32_ty, // scope
+  llvm_i1_ty], // isVolatile
+  [IntrArgMemOnly, NoCapture<0>, ImmArg<2>, ImmArg<3>, ImmArg<4>], "",
+  [SDNPMemOperand]
+>;
+
+def int_ppu_atomic_inc : PPUAtomicIncIntrin;
+def int_ppu_atomic_dec : PPUAtomicIncIntrin;
+
+class PPULDSF32Intrin<string clang_builtin> :
+  GCCBuiltin<clang_builtin>,
+  Intrinsic<[llvm_float_ty],
+    [LLVMQualPointerType<llvm_float_ty, 3>,
+    llvm_float_ty,
+    llvm_i32_ty, // ordering
+    llvm_i32_ty, // scope
+    llvm_i1_ty], // isVolatile
+    [IntrArgMemOnly, NoCapture<0>, ImmArg<2>, ImmArg<3>, ImmArg<4>]
+>;
+
+// FIXME: The m0 argument should be moved after the normal arguments
+class PPUDSOrderedIntrinsic : Intrinsic<
+  [llvm_i32_ty],
+  // M0 = {hi16:address, lo16:waveID}. Allow passing M0 as a pointer, so that
+  // the bit packing can be optimized at the IR level.
+  [LLVMQualPointerType<llvm_i32_ty, 2>, // IntToPtr(M0)
+   llvm_i32_ty, // value to add or swap
+   llvm_i32_ty, // ordering
+   llvm_i32_ty, // scope
+   llvm_i1_ty,  // isVolatile
+   llvm_i32_ty, // ordered count index (OA index), also added to the address
+                // gfx10: bits 24-27 indicate the number of active threads/dwords
+   llvm_i1_ty,  // wave release, usually set to 1
+   llvm_i1_ty], // wave done, set to 1 for the last ordered instruction
+  [NoCapture<0>,
+   ImmArg<2>, ImmArg<3>, ImmArg<4>,
+   ImmArg<5>, ImmArg<6>, ImmArg<7>
+  ]
+>;
+
+class PPUDSAppendConsumedIntrinsic : Intrinsic<
+  [llvm_i32_ty],
+  [llvm_anyptr_ty, // LDS or GDS ptr
+   llvm_i1_ty], // isVolatile
+   [IntrConvergent, IntrArgMemOnly, NoCapture<0>, ImmArg<1>],
+   "",
+   [SDNPMemOperand]
+>;
+
+def int_ppu_ds_ordered_add : PPUDSOrderedIntrinsic;
+def int_ppu_ds_ordered_swap : PPUDSOrderedIntrinsic;
+
+// The pointer argument is assumed to be dynamically uniform if a VGPR.
+def int_ppu_ds_append : PPUDSAppendConsumedIntrinsic;
+def int_ppu_ds_consume : PPUDSAppendConsumedIntrinsic;
+
+def int_ppu_ds_fadd : PPULDSF32Intrin<"__builtin_ppu_ds_faddf">;
+def int_ppu_ds_fmin : PPULDSF32Intrin<"__builtin_ppu_ds_fminf">;
+def int_ppu_ds_fmax : PPULDSF32Intrin<"__builtin_ppu_ds_fmaxf">;
+
+def int_ppu_icmp :
+  Intrinsic<[llvm_anyint_ty], [llvm_anyint_ty, LLVMMatchType<1>, llvm_i32_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<2>]>;
+
+def int_ppu_fcmp :
+  Intrinsic<[llvm_anyint_ty], [llvm_anyfloat_ty, LLVMMatchType<1>, llvm_i32_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<2>]>;
+
+def int_ppu_readfirstlane :
+  GCCBuiltin<"__builtin_ppu_readfirstlane">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem, IntrConvergent]>;
+
+// The lane argument must be uniform across the currently active threads of the
+// current wave. Otherwise, the result is undefined.
+def int_ppu_readlane :
+  GCCBuiltin<"__builtin_ppu_readlane">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem, IntrConvergent]>;
+
+// The value to write and lane select arguments must be uniform across the
+// currently active threads of the current wave. Otherwise, the result is
+// undefined.
+def int_ppu_writelane :
+  GCCBuiltin<"__builtin_ppu_writelane">,
+  Intrinsic<[llvm_i32_ty], [
+    llvm_i32_ty,    // uniform value to write: returned by the selected lane
+    llvm_i32_ty,    // uniform lane select
+    llvm_i32_ty     // returned by all lanes other than the selected one
+  ],
+  [IntrNoMem, IntrConvergent]
+>;
+
+
 } // TargetPrefix = "ppu"
+
+// Below is from Intrinsicsnvvm.td
+
+// The following intrinsics were once defined here, but are now auto-upgraded
+// to target-generic LLVM intrinsics.
+//
+//   * llvm.nvvm.brev32  --> llvm.bitreverse.i32
+//   * llvm.nvvm.brev64  --> llvm.bitreverse.i64
+//   * llvm.nvvm.clz.i   --> llvm.ctlz.i32
+//   * llvm.nvvm.clz.ll  --> trunc i64 llvm.ctlz.i64(x) to i32
+//   * llvm.nvvm.popc.i  --> llvm.ctpop.i32
+//   * llvm.nvvm.popc.ll --> trunc i64 llvm.ctpop.i64 to i32
+//   * llvm.nvvm.abs.i   --> select(x >= -x, x, -x)
+//   * llvm.nvvm.abs.ll  --> ibid.
+//   * llvm.nvvm.max.i   --> select(x sge y, x, y)
+//   * llvm.nvvm.max.ll  --> ibid.
+//   * llvm.nvvm.max.ui  --> select(x uge y, x, y)
+//   * llvm.nvvm.max.ull --> ibid.
+//   * llvm.nvvm.max.i   --> select(x sle y, x, y)
+//   * llvm.nvvm.max.ll  --> ibid.
+//   * llvm.nvvm.max.ui  --> select(x ule y, x, y)
+//   * llvm.nvvm.max.ull --> ibid.
+//   * llvm.nvvm.h2f     --> llvm.convert.to.fp16.f32
+
+// def llvm_anyi64ptr_ty     : LLVMAnyPointerType<llvm_i64_ty>;     // (space)i64*
+
+// Helper class for construction of n-element list<LLVMtype> [t,t,...,t]
+// class RepLLVMType<int N, LLVMType T> {
+//   list<LLVMType> ret = !if(N, !listconcat(RepLLVMType<!add(N,-1), T>.ret, [T]), []);
+// }
+
+
+let TargetPrefix = "ppu" in {
+defm int_ppu_nvvm_tid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_tid">;
+
+defm int_ppu_nvvm_ntid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_ntid">;
+
+def int_ppu_nvvm_laneid : PPUReadPreloadRegisterIntrinsic;
+
+defm int_ppu_nvvm_warpid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_warpid">;
+
+defm int_ppu_nvvm_nwarpid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_nwarpid">;
+
+defm int_ppu_nvvm_ctaid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_ctaid">;
+
+defm int_ppu_nvvm_nctaid : PPUReadPreloadRegisterIntrinsic_xyz_named
+                               <"__builtin_ppu_nvvm_nctaid">;
+}

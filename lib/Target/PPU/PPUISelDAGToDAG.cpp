@@ -209,7 +209,7 @@ bool PPUDAGToDAGISel::SelectAddrFI(SDValue Addr, SDValue &Base) {
 bool PPUDAGToDAGISel::isUniformBr(const SDNode *N) const {
   const BasicBlock *BB = FuncInfo->MBB->getBasicBlock();
   const Instruction *Term = BB->getTerminator();
-  return Term->getMetadata("amdgpu.uniform") ||
+  return Term->getMetadata("ppu.uniform") ||
          Term->getMetadata("structurizecfg.uniform");
 }
 
@@ -259,14 +259,25 @@ void PPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
     SelectCode(N);
     return;
   }
-  return;
-  assert("SelectBRCOND UseSCCBr is true");
-/* FIXME
-  unsigned BrOp = UseSCCBr ? PPU::S_CBRANCH_SCC1 : PPU::S_CBRANCH_VCCNZ;
-  unsigned CondReg = UseSCCBr ? (unsigned)PPU::SCC : TRI->getVCC();
-  SDLoc SL(N);
+  // assert("SelectBRCOND UseSCCBr is true");
 
-  if (!UseSCCBr) {
+  // unsigned BrOp = UseSCCBr ? PPU::S_CBRANCH_SCC1 : PPU::S_CBRANCH_VCCNZ;
+  // FIXME schi we should use vector version BEQ
+  unsigned BrOp = UseSCCBr ? PPU::BEQ : PPU::BEQ;
+  // unsigned CondReg = UseSCCBr ? (unsigned)PPU::SCC : TRI->getVCC();
+  SDLoc SL(N);
+  SDValue VCC;
+
+  if (UseSCCBr) {
+    // VCC = CurDAG->getCopyToReg(N->getOperand(0), SL, Cond, Cond, Cond.getValue(1));
+    /*
+    CurDAG->SelectNodeTo(N, BrOp, MVT::Other,
+                       N->getOperand(2), // Basic Block
+                       Cond.getValue(0));
+                       */
+    SelectCode(N);
+  } else {
+    unsigned CondReg = TRI->getVCC();
     // This is the case that we are selecting to S_CBRANCH_VCCNZ.  We have not
     // analyzed what generates the vcc value, so we do not know whether vcc
     // bits for disabled lanes are 0.  Thus we need to mask out bits for
@@ -286,13 +297,13 @@ void PPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
                                          MVT::i1),
                     Cond),
                    0);
-  }
 
-  SDValue VCC = CurDAG->getCopyToReg(N->getOperand(0), SL, CondReg, Cond);
-  CurDAG->SelectNodeTo(N, BrOp, MVT::Other,
+    VCC = CurDAG->getCopyToReg(N->getOperand(0), SL, CondReg, Cond);
+    CurDAG->SelectNodeTo(N, BrOp, MVT::Other,
                        N->getOperand(2), // Basic Block
                        VCC.getValue(0));
-  */
+  }
+
 }
 
 // Merge an ADDI into the offset of a load/store instruction where possible.

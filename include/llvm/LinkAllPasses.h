@@ -158,6 +158,8 @@ namespace {
       (void) llvm::createPostDomOnlyViewerPass();
       (void) llvm::createPostDomViewerPass();
       (void) llvm::createReassociatePass();
+      (void) llvm::createReconvergeCFGPass();
+      (void) llvm::createVscalePropagationPass();
       (void) llvm::createRegionInfoPass();
       (void) llvm::createRegionOnlyPrinterPass();
       (void) llvm::createRegionOnlyViewerPass();

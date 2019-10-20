@@ -92,6 +92,7 @@ public:
     return getTM<PPUTargetMachine>();
   }
 
+  void addCodeGenPrepare() override;
   bool addPreISel() override;
   void addIRPasses() override;
   bool addInstSelector() override;
@@ -111,6 +112,27 @@ public:
 TargetPassConfig *PPUTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new PPUPassConfig(*this, PM);
 }
+
+void PPUPassConfig::addCodeGenPrepare() {
+    /* TODO
+  if (TM->getTargetTriple().getArch() == Triple::ppu)
+    addPass(createPPUAnnotateKernelFeaturesPass());
+
+  if (TM->getTargetTriple().getArch() == Triple::ppu &&
+      EnableLowerKernelArguments)
+    addPass(createPPULowerKernelArgumentsPass());
+
+  addPass(&AMDGPUPerfHintAnalysisID);
+    */
+
+  TargetPassConfig::addCodeGenPrepare();
+
+  /*
+  if (EnableLoadStoreVectorizer)
+    addPass(createLoadStoreVectorizerPass());
+    */
+}
+
 
 bool PPUPassConfig::addPreISel() {
 

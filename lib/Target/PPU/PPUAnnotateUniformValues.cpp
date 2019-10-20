@@ -22,7 +22,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#define DEBUG_TYPE "amdgpu-annotate-uniform"
+#define DEBUG_TYPE "ppu-annotate-uniform"
 
 using namespace llvm;
 

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 include "llvm/Target/Target.td"
+include "PPUFeatures.td"
 
 //===----------------------------------------------------------------------===//
 // PPU subtarget features and instruction predicates.
@@ -99,7 +100,7 @@ include "PPUSystemOperands.td"
 
 include "PPURegisterInfo.td"
 include "PPUCallingConv.td"
-include "PPUInstructions.td"
+// include "PPUInstructions.td"
 include "PPUInstrInfo.td"
 include "PPURegisterBanks.td"
 

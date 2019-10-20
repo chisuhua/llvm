@@ -670,11 +670,11 @@ SDValue PPUTargetLowering::lowerVASTART(SDValue Op, SelectionDAG &DAG) const {
 
 SDValue PPUTargetLowering::lowerFRAMEADDR(SDValue Op,
                                             SelectionDAG &DAG) const {
-  const PPURegisterInfo &RI = *Subtarget.getRegisterInfo();
+  const PPUBaseRegisterInfo* RI = dynamic_cast<const PPUBaseRegisterInfo*>(Subtarget.getRegisterInfo());
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MFI.setFrameAddressIsTaken(true);
-  Register FrameReg = RI.getFrameRegister(MF);
+  Register FrameReg = RI->getFrameRegister(MF);
   int XLenInBytes = Subtarget.getXLen() / 8;
 
   EVT VT = Op.getValueType();

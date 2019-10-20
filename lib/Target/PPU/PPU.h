@@ -59,6 +59,11 @@ FunctionPass *createPPULowerReconvergingControlFlowPass();
 void initializePPULowerReconvergingControlFlowPass(PassRegistry &);
 extern char &PPULowerReconvergingControlFlowID;
 
+void initializePPUPerfHintAnalysisPass(PassRegistry &);
+extern char &PPUPerfHintAnalysisID;
+
+void initializePPUArgumentUsageInfoPass(PassRegistry &);
+
 }
 
 // FIXME schi below copied from AMDGPU.h

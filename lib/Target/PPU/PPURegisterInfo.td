@@ -81,6 +81,13 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def X30 : PPUReg<30,"x30", ["t5"]>, DwarfRegNum<[30]>;
   def X31 : PPUReg<31,"x31", ["t6"]>, DwarfRegNum<[31]>;
   }
+
+// more SGPR registers
+// foreach Index = 32-95 in {
+//   def X#Index : PPUReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;
+// }
+
+
 }
 
 def XLenVT : ValueTypeByHwMode<[RV32, RV64, DefaultMode],
@@ -268,6 +275,11 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def V29 : PPUReg<29,"v29", ["v29"]>;
   def V30 : PPUReg<30,"v30", ["v30"]>;
   def V31 : PPUReg<31,"v31", ["v31"]>;
+
+// foreach Index = 32-255 in {
+//   def V#Index : PPUReg <Index, "v"#Index, ["v"#Index]>;
+// }
+
 }
 
 def VR : RegisterClass<"PPU", [nxv1i32], 32, (sequence "V%u", 0, 31)>;
@@ -315,6 +327,14 @@ def EXECR : RegisterClass<"PPU", [XLenVT], 32, (add EXEC)> {
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
 
+// Pseudo-registers: Used as placeholders during isel and immediately
+// replaced, never seeing the verifier.
+def PRIVATE_RSRC_REG : PPUReg<0, "private_rsrc">;
+def FP_REG : PPUReg<0, "fp">;
+def SP_REG : PPUReg<0, "sp">;
+// def SCRATCH_WAVE_OFFSET_REG : BIReg<"", 0>;
+
+
 // 32-bit real registers, for MC only.
 // May be used with both 32-bit and 64-bit operands.
 // def SRC_VCCZ : PPUReg<0,"src_vccz">;
@@ -332,6 +352,15 @@ def SCC_CLASS : RegisterClass<"PPU", [i1], 1, (add SCC)> {
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
 
+def SReg_32_XM0 : RegisterClass<"PPU", [XLenVT], 32,
+  (add GPR)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
 
 def SReg_32_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
   (add GPR, VCC)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
@@ -341,6 +370,16 @@ def SReg_32_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
+
+def SReg_32_XM0_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
+  (add GPR, VCC)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
+
 def SReg_32 : RegisterClass<"PPU", [XLenVT, i32, f32, i1, v2i16, v2f16], 32,
   (add SReg_32_XEXEC, EXEC)> {
   let CopyCost = 1;

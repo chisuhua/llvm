@@ -293,7 +293,7 @@ class BranchCC_rri<bits<3> funct3, string opcodestr>
   let isTerminator = 1;
 }
 
-let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0, UseNamedOperandTable = 1 in
 class Load_ri<bits<3> funct3, string opcodestr>
     : RVInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
               opcodestr, "$rd, ${imm12}(${rs1})">;
@@ -301,13 +301,13 @@ class Load_ri<bits<3> funct3, string opcodestr>
 // Operands for stores are in the order srcreg, base, offset rather than
 // reflecting the order these fields are specified in the instruction
 // encoding.
-let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1, UseNamedOperandTable = 1 in
 class Store_rri<bits<3> funct3, string opcodestr>
     : RVInstS<funct3, OPC_STORE, (outs),
               (ins GPR:$rs2, GPR:$rs1, simm12:$imm12),
               opcodestr, "$rs2, ${imm12}(${rs1})">;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, UseNamedOperandTable = 1 in
 class ALU_ri<bits<3> funct3, string opcodestr>
     : RVInstI<funct3, OPC_OP_IMM, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
               opcodestr, "$rd, $rs1, $imm12">;
@@ -318,7 +318,7 @@ class Shift_ri<bit arithshift, bits<3> funct3, string opcodestr>
                    (ins GPR:$rs1, uimmlog2xlen:$shamt), opcodestr,
                    "$rd, $rs1, $shamt">;
 
-let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, UseNamedOperandTable = 1 in
 class ALU_rr<bits<7> funct7, bits<3> funct3, string opcodestr>
     : RVInstR<funct7, funct3, OPC_OP, (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
               opcodestr, "$rd, $rs1, $rs2">;
@@ -537,7 +537,7 @@ def SFENCE_VMA : RVInstR<0b0001001, 0b000, OPC_SYSTEM, (outs),
 // Assembler Pseudo Instructions (User-Level ISA, Version 2.2, Chapter 20)
 //===----------------------------------------------------------------------===//
 
-def : InstAlias<"nop",           (ADDI      X0,      X0,       0)>;
+def NOP : InstAlias<"nop",           (ADDI      X0,      X0,       0)>;
 
 // Note that the size is 32 because up to 8 32-bit instructions are needed to
 // generate an arbitrary 64-bit immediate. However, the size does not really
@@ -1098,3 +1098,55 @@ include "PPUInstrInfoD.td"
 include "PPUInstrInfoC.td"
 // TODO copied from rvv
 include "PPUInstrInfoV.td"
+
+/*
+class NamedMatchClass<string CName, bit Optional = 1> : AsmOperandClass {
+  let Name = "Imm"#CName;
+  let PredicateMethod = "is"#CName;
+  let ParserMethod = !if(Optional, "parseOptionalOperand", "parse"#CName);
+  let RenderMethod = "addImmOperands";
+  let IsOptional = Optional;
+  let DefaultMethod = !if(Optional, "default"#CName, ?);
+}
+
+
+class NamedOperandBit<string Name, AsmOperandClass MatchClass> : Operand<i1> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
+class NamedOperandU8<string Name, AsmOperandClass MatchClass> : Operand<i8> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
+class NamedOperandU16<string Name, AsmOperandClass MatchClass> : Operand<i16> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
+class NamedOperandU32<string Name, AsmOperandClass MatchClass> : Operand<i32> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
+class NamedOperandU32Default0<string Name, AsmOperandClass MatchClass> :
+  OperandWithDefaultOps<i32, (ops (i32 0))> {
+  let PrintMethod = "print"#Name;
+  let ParserMatchClass = MatchClass;
+}
+
+// let OperandType = "OPERAND_IMMEDIATE" in {
+
+def offen : NamedOperandBit<"Offen", NamedMatchClass<"Offen">>;
+def idxen : NamedOperandBit<"Idxen", NamedMatchClass<"Idxen">>;
+def addr64 : NamedOperandBit<"Addr64", NamedMatchClass<"Addr64">>;
+
+def flat_offset : NamedOperandU16<"FlatOffset", NamedMatchClass<"FlatOffset">>;
+def offset : NamedOperandU16<"Offset", NamedMatchClass<"Offset">>;
+def offset0 : NamedOperandU8<"Offset0", NamedMatchClass<"Offset0">>;
+def offset1 : NamedOperandU8<"Offset1", NamedMatchClass<"Offset1">>;
+*/
+
+
+

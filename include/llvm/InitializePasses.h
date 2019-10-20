@@ -411,6 +411,7 @@ void initializeUnifyFunctionExitNodesPass(PassRegistry&);
 void initializeUnpackMachineBundlesPass(PassRegistry&);
 void initializeUnreachableBlockElimLegacyPassPass(PassRegistry&);
 void initializeUnreachableMachineBlockElimPass(PassRegistry&);
+void initializeVscalePropagationPass(PassRegistry&);
 void initializeVerifierLegacyPassPass(PassRegistry&);
 void initializeVirtRegMapPass(PassRegistry&);
 void initializeVirtRegRewriterPass(PassRegistry&);

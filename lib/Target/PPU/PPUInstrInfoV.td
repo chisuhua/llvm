@@ -123,6 +123,9 @@ let Predicates = [HasStdExtV] in {
 
 def VADD : VALU_rr<0b1001000, 0b1, "vadd">;
 
+def VMOV : VALU_rr<0b1001010, 0b1, "vmov">;  // tententive
+def SMOV : VALU_rr<0b1001011, 0b1, "smov">;  // tententive
+
 def VSUB : VALU_rr<0b1001001, 0b1, "vsub">;
 
 def VADDI : VALU_ri<0b0000, 0b1, "vaddi">;
@@ -143,6 +146,9 @@ def VSW : VStore_UnitStride<0b110, 0b00, "vsw">;
 
 def VMPOPC : VALU_VrGpr<0b101011100001, 0b1, "vmpop">;
 def VMFIRST : VALU_VrGpr<0b101011100000, 0b1, "vmfirst">;
+
+def VREADLANE : VALU_VrGpr<0b101011100010, 0b1, "vreadlane">;
+
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def VSETVL: RVInst<(outs VLR:$vl, GPR:$rd), (ins GPR:$rs1),

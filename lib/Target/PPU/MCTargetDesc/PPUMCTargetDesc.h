@@ -50,6 +50,8 @@ std::unique_ptr<MCObjectTargetWriter> createPPUELFObjectWriter(uint8_t OSABI,
 
 // Defines symbolic names for PPU instructions.
 #define GET_INSTRINFO_ENUM
+// FIXME we need OpName
+#define GET_INSTRINFO_OPERAND_ENUM
 #include "PPUGenInstrInfo.inc"
 
 #define GET_SUBTARGETINFO_ENUM

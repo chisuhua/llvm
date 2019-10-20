@@ -32,12 +32,15 @@ add_llvm_target(PPUCodeGen
   PPUAnnotateUniformValues.cpp
   PPUMCInstLower.cpp
   PPUMergeBaseOffset.cpp
+  PPUMachineFunction.cpp
   PPURegisterBankInfo.cpp
   PPURegisterInfo.cpp
   PPUSubtarget.cpp
   PPUTargetMachine.cpp
   PPUTargetObjectFile.cpp
   PPUTargetTransformInfo.cpp
+  PPUPerfHintAnalysis.cpp
+  PPUArgumentUsageInfo.cpp
   )
 
 add_subdirectory(AsmParser)
