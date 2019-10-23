@@ -33,7 +33,7 @@ class PPUTTIImpl : public BasicTTIImplBase<PPUTTIImpl> {
 
   const PPUSubtarget *ST;
   const PPUTargetLowering *TLI;
-  bool IsGraphicsShader {false};
+  const Function &F;
 
   const FeatureBitset InlineFeatureIgnoreList = {
     // Codegen control options which don't matter.
@@ -65,7 +65,9 @@ class PPUTTIImpl : public BasicTTIImplBase<PPUTTIImpl> {
 public:
   explicit PPUTTIImpl(const PPUTargetMachine *TM, const Function &F)
       : BaseT(TM, F.getParent()->getDataLayout()), ST(TM->getSubtargetImpl(F)),
-        TLI(ST->getTargetLowering()) {}
+        TLI(ST->getTargetLowering()),
+        F(F)
+    {}
 
   int getIntImmCost(const APInt &Imm, Type *Ty);
   int getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty);
@@ -73,7 +75,18 @@ public:
                     Type *Ty);
 
   // below is copied from AMDGPUTargetTransformInfo.h
-  bool hasBranchDivergence() { return true; }
+  bool hasBranchDivergence() {
+    CallingConv::ID CC = F.getCallingConv();
+    switch (CC) {
+      // Only thise 3 cc is SIMT execution
+      case CallingConv::AMDGPU_KERNEL:
+      case CallingConv::SPIR_KERNEL:
+      case CallingConv::AMDGPU_CS:
+        return true;
+      default:
+        return false;
+    }
+  }
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);
@@ -126,8 +139,6 @@ public:
   unsigned getFlatAddressSpace() const {
     // Don't bother running InferAddressSpaces pass on graphics shaders which
     // don't use flat addressing.
-    if (IsGraphicsShader)
-      return -1;
     return AMDGPUAS::FLAT_ADDRESS;
   }
 

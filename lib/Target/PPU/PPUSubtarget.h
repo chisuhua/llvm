@@ -66,7 +66,7 @@ protected:
   // bool HasTrigReducedRange {false};
   unsigned MaxWavesPerEU {10};
   int LocalMemorySize {0};
-  unsigned WavefrontSize {0};
+  unsigned WavefrontSize {32};
   static unsigned CUJITThreadsPerBlock;
 
 public:
@@ -292,7 +292,7 @@ protected:
   bool TrapHandler;
 
   // Used as options.
-  
+
   bool EnableLoadStoreOpt;
   bool EnableUnsafeDSOffsetFolding;
   */
@@ -535,9 +535,16 @@ public:
   // dynamic realignment in common cases.
   unsigned getStackAlignment() const { return 16; }
 
-  bool enableMachineScheduler() const override { return true; }
+  bool enableMachineScheduler() const override
+  {
+      // FIXME set to true after Scheduler is ready
+      return false;
+  }
 
-  bool enableSubRegLiveness() const override { return true; }
+  bool enableSubRegLiveness() const override
+  {
+      return true;
+  }
 
   void setScalarizeGlobalBehavior(bool b) { ScalarizeGlobal = b; }
   bool getScalarizeGlobalBehavior() const { return ScalarizeGlobal; }

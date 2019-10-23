@@ -419,7 +419,8 @@ std::pair<int, int> getIntegerPairAttribute(const Function &F,
 }
 
 bool isCompute(CallingConv::ID CC) {
-    return isEntryFunctionCC(CC);
+    return isKernel(CC);
+    // return isEntryFunctionCC(CC);
     // return true;
 }
 
@@ -427,7 +428,7 @@ bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
-  case CallingConv::AMDGPU_CS:
+  // case CallingConv::AMDGPU_CS:
     return true;
   default:
     return false;

@@ -666,6 +666,7 @@ inline bool isKernel(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
+  case CallingConv::AMDGPU_CS:
     return true;
   default:
     return false;

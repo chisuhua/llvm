@@ -525,6 +525,8 @@ bool ReconvergeCFG::runOnFunction(Function &F) {
 
   const bool bInputReconverging = IsReconverging(F, PDT, DA);
 
+  if (bInputReconverging) return Changed;
+
   PrintPDT(PDT, F.getName().str() + "_pdt.txt");
   
   GenerateDotGraph(F, F.getName().str() + ".dot", DA);

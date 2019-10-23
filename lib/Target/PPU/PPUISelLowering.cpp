@@ -28,6 +28,7 @@
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/CodeGen/Analysis.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/Support/Debug.h"
@@ -1843,7 +1844,7 @@ SDValue PPUTargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
-
+/*
   switch (CallConv) {
   default:
     report_fatal_error("Unsupported calling convention");
@@ -1851,10 +1852,12 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   case CallingConv::Fast:
     break;
   }
-
+*/
   MachineFunction &MF = DAG.getMachineFunction();
-
   const Function &Func = MF.getFunction();
+  FunctionType *FType = MF.getFunction().getFunctionType();
+  PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
+
   if (Func.hasFnAttribute("interrupt")) {
     if (!Func.arg_empty())
       report_fatal_error(
@@ -1868,6 +1871,32 @@ SDValue PPUTargetLowering::LowerFormalArguments(
         "Function interrupt attribute argument not supported!");
   }
 
+  SmallVector<ISD::InputArg, 16> Splits;
+  SmallVector<CCValAssign, 16> ArgLocs;
+  BitVector Skipped(Ins.size());
+  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
+  bool IsKernel = PPU::isKernel(CallConv);
+  bool IsEntryFunc = PPU::isEntryFunctionCC(CallConv);
+
+  if (IsKernel) {
+      if (!IsEntryFunc) {
+          // 4 bytes are reserved at offset 0 for the emergency stack slot. Skip over
+          // this when allocating argument fixed offsets.
+          CCInfo.AllocateStack(4, 4);
+      } else {
+          // allocateSpecialEntryInputVGPRs(Chain, DAG, DL, CCInfo, MF, *TRI, *Info);
+          // allocateSpecialEntryInputSGPRs(Chain, DAG, DL, CCInfo, MF, *TRI, *Info);
+          // allocateHSAUserSGPRs(CCInfo, MF, *TRI, *Info);
+      }
+
+      // assert(Info->hasWorkGroupIDX() && Info->hasWorkItemIDX());
+      // allocateLocalSizeSGPRs(Chain, DAG, DL, CCInfo, MF, *TRI, *Info);
+      analyzeFormalArgumentsCompute(CCInfo, Ins);
+  } else {
+      analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false);
+  }
+
+
   EVT PtrVT = getPointerTy(DAG.getDataLayout());
   MVT XLenVT = Subtarget.getXLenVT();
   unsigned XLenInBytes = Subtarget.getXLen() / 8;
@@ -1875,9 +1904,9 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   std::vector<SDValue> OutChains;
 
   // Assign locations to all of the incoming arguments.
-  SmallVector<CCValAssign, 16> ArgLocs;
-  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false);
+  // SmallVector<CCValAssign, 16> ArgLocs;
+  // CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
+  // analyzeInputArgs(MF, CCInfo, Ins, /*IsRet=*/false);
 
   for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
     CCValAssign &VA = ArgLocs[i];
@@ -2818,3 +2847,225 @@ bool PPUTargetLowering::shouldExtendTypeInLibCall(EVT Type) const {
 
   return true;
 }
+/*
+// Allocate special inputs passed in VGPRs.
+void PPUTargetLowering::allocateSpecialEntryInputVGPRs(CCState &CCInfo,
+                                                      MachineFunction &MF,
+                                                      const PPURegisterInfo &TRI,
+                                                      PPUMachineFunctionInfo &Info) const {
+  const LLT S32 = LLT::scalar(32);
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  if (Info.hasWorkItemIDX()) {
+    Register Reg = PPU::VR0;
+    MRI.setType(MF.addLiveIn(Reg, &PPU::VRRegClass), S32);
+
+    CCInfo.AllocateReg(Reg);
+    Info.setWorkItemIDX(ArgDescriptor::createRegister(Reg));
+  }
+
+  if (Info.hasWorkItemIDY()) {
+    Register Reg = PPU::VR1;
+    MRI.setType(MF.addLiveIn(Reg, &PPU::VRRegClass), S32);
+
+    CCInfo.AllocateReg(Reg);
+    Info.setWorkItemIDY(ArgDescriptor::createRegister(Reg));
+  }
+
+  if (Info.hasWorkItemIDZ()) {
+    Register Reg = PPU::VR2;
+    MRI.setType(MF.addLiveIn(Reg, &PPU::VRRegClass), S32);
+
+    CCInfo.AllocateReg(Reg);
+    Info.setWorkItemIDZ(ArgDescriptor::createRegister(Reg));
+  }
+}
+*/
+
+MVT PPUTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
+                                                    CallingConv::ID CC,
+                                                    EVT VT) const {
+  if (CC == CallingConv::AMDGPU_KERNEL)
+    return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT);
+
+  if (VT.isVector()) {
+    EVT ScalarVT = VT.getScalarType();
+    unsigned Size = ScalarVT.getSizeInBits();
+    if (Size == 32)
+      return ScalarVT.getSimpleVT();
+
+    if (Size > 32)
+      return MVT::i32;
+/*
+    if (Size == 16 && Subtarget.has16BitInsts())
+      return VT.isInteger() ? MVT::v2i16 : MVT::v2f16;
+      */
+  } else if (VT.getSizeInBits() > 32)
+    return MVT::i32;
+
+  return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT);
+}
+
+unsigned PPUTargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
+                                                         CallingConv::ID CC,
+                                                         EVT VT) const {
+  if (CC == CallingConv::AMDGPU_KERNEL)
+    return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT);
+
+  if (VT.isVector()) {
+    unsigned NumElts = VT.getVectorNumElements();
+    EVT ScalarVT = VT.getScalarType();
+    unsigned Size = ScalarVT.getSizeInBits();
+
+    if (Size == 32)
+      return NumElts;
+
+    if (Size > 32)
+      return NumElts * ((Size + 31) / 32);
+/*
+    if (Size == 16 && Subtarget->has16BitInsts())
+      return (NumElts + 1) / 2;
+      */
+  } else if (VT.getSizeInBits() > 32)
+    return (VT.getSizeInBits() + 31) / 32;
+
+  return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT);
+}
+
+/// The SelectionDAGBuilder will automatically promote function arguments
+/// with illegal types.  However, this does not work for the PPU targets
+/// since the function arguments are stored in memory as these illegal types.
+/// In order to handle this properly we need to get the original types sizes
+/// from the LLVM IR Function and fixup the ISD:InputArg values before
+/// passing them to AnalyzeFormalArguments()
+
+/// When the SelectionDAGBuilder computes the Ins, it takes care of splitting
+/// input values across multiple registers.  Each item in the Ins array
+/// represents a single value that will be stored in registers.  Ins[x].VT is
+/// the value type of the value that will be stored in the register, so
+/// whatever SDNode we lower the argument to needs to be this type.
+///
+/// In order to correctly lower the arguments we need to know the size of each
+/// argument.  Since Ins[x].VT gives us the size of the register that will
+/// hold the value, we need to look at Ins[x].ArgVT to see the 'real' type
+/// for the orignal function argument so that we can deduce the correct memory
+/// type to use for Ins[x].  In most cases the correct memory type will be
+/// Ins[x].ArgVT.  However, this will not always be the case.  If, for example,
+/// we have a kernel argument of type v8i8, this argument will be split into
+/// 8 parts and each part will be represented by its own item in the Ins array.
+/// For each part the Ins[x].ArgVT will be the v8i8, which is the full type of
+/// the argument before it was split.  From this, we deduce that the memory type
+/// for each individual part is i8.  We pass the memory type as LocVT to the
+/// calling convention analysis function and the register type (Ins[x].VT) as
+/// the ValVT.
+void PPUTargetLowering::analyzeFormalArgumentsCompute(
+  CCState &State,
+  const SmallVectorImpl<ISD::InputArg> &Ins) const {
+  const MachineFunction &MF = State.getMachineFunction();
+  const Function &Fn = MF.getFunction();
+  LLVMContext &Ctx = Fn.getParent()->getContext();
+  const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>(); // PPUSubtarget::get(MF);
+  const unsigned ExplicitOffset = ST.getExplicitKernelArgOffset(Fn);
+  CallingConv::ID CC = Fn.getCallingConv();
+
+  unsigned MaxAlign = 1;
+  uint64_t ExplicitArgOffset = 0;
+  const DataLayout &DL = Fn.getParent()->getDataLayout();
+
+  unsigned InIndex = 0;
+
+  for (const Argument &Arg : Fn.args()) {
+    Type *BaseArgTy = Arg.getType();
+    unsigned Align = DL.getABITypeAlignment(BaseArgTy);
+    MaxAlign = std::max(Align, MaxAlign);
+    unsigned AllocSize = DL.getTypeAllocSize(BaseArgTy);
+
+    uint64_t ArgOffset = alignTo(ExplicitArgOffset, Align) + ExplicitOffset;
+    ExplicitArgOffset = alignTo(ExplicitArgOffset, Align) + AllocSize;
+
+    // We're basically throwing away everything passed into us and starting over
+    // to get accurate in-memory offsets. The "PartOffset" is completely useless
+    // to us as computed in Ins.
+    //
+    // We also need to figure out what type legalization is trying to do to get
+    // the correct memory offsets.
+
+    SmallVector<EVT, 16> ValueVTs;
+    SmallVector<uint64_t, 16> Offsets;
+    ComputeValueVTs(*this, DL, BaseArgTy, ValueVTs, &Offsets, ArgOffset);
+
+    for (unsigned Value = 0, NumValues = ValueVTs.size();
+         Value != NumValues; ++Value) {
+      uint64_t BasePartOffset = Offsets[Value];
+
+      EVT ArgVT = ValueVTs[Value];
+      EVT MemVT = ArgVT;
+      MVT RegisterVT = getRegisterTypeForCallingConv(Ctx, CC, ArgVT);
+      unsigned NumRegs = getNumRegistersForCallingConv(Ctx, CC, ArgVT);
+
+      if (NumRegs == 1) {
+        // This argument is not split, so the IR type is the memory type.
+        if (ArgVT.isExtended()) {
+          // We have an extended type, like i24, so we should just use the
+          // register type.
+          MemVT = RegisterVT;
+        } else {
+          MemVT = ArgVT;
+        }
+      } else if (ArgVT.isVector() && RegisterVT.isVector() &&
+                 ArgVT.getScalarType() == RegisterVT.getScalarType()) {
+        assert(ArgVT.getVectorNumElements() > RegisterVT.getVectorNumElements());
+        // We have a vector value which has been split into a vector with
+        // the same scalar type, but fewer elements.  This should handle
+        // all the floating-point vector types.
+        MemVT = RegisterVT;
+      } else if (ArgVT.isVector() &&
+                 ArgVT.getVectorNumElements() == NumRegs) {
+        // This arg has been split so that each element is stored in a separate
+        // register.
+        MemVT = ArgVT.getScalarType();
+      } else if (ArgVT.isExtended()) {
+        // We have an extended type, like i65.
+        MemVT = RegisterVT;
+      } else {
+        unsigned MemoryBits = ArgVT.getStoreSizeInBits() / NumRegs;
+        assert(ArgVT.getStoreSizeInBits() % NumRegs == 0);
+        if (RegisterVT.isInteger()) {
+          MemVT = EVT::getIntegerVT(State.getContext(), MemoryBits);
+        } else if (RegisterVT.isVector()) {
+          assert(!RegisterVT.getScalarType().isFloatingPoint());
+          unsigned NumElements = RegisterVT.getVectorNumElements();
+          assert(MemoryBits % NumElements == 0);
+          // This vector type has been split into another vector type with
+          // a different elements size.
+          EVT ScalarVT = EVT::getIntegerVT(State.getContext(),
+                                           MemoryBits / NumElements);
+          MemVT = EVT::getVectorVT(State.getContext(), ScalarVT, NumElements);
+        } else {
+          llvm_unreachable("cannot deduce memory type.");
+        }
+      }
+
+      // Convert one element vectors to scalar.
+      if (MemVT.isVector() && MemVT.getVectorNumElements() == 1)
+        MemVT = MemVT.getScalarType();
+
+      // Round up vec3/vec5 argument.
+      if (MemVT.isVector() && !MemVT.isPow2VectorType()) {
+        assert(MemVT.getVectorNumElements() == 3 ||
+               MemVT.getVectorNumElements() == 5);
+        MemVT = MemVT.getPow2VectorType(State.getContext());
+      }
+
+      unsigned PartOffset = 0;
+      for (unsigned i = 0; i != NumRegs; ++i) {
+        State.addLoc(CCValAssign::getCustomMem(InIndex++, RegisterVT,
+                                               BasePartOffset + PartOffset,
+                                               MemVT.getSimpleVT(),
+                                               CCValAssign::Full));
+        PartOffset += MemVT.getStoreSize();
+      }
+    }
+  }
+}
+

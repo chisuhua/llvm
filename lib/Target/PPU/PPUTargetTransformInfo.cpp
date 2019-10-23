@@ -440,22 +440,15 @@ static bool isArgPassedInSGPR(const Argument *A) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
     return true;
-    /*
-  case CallingConv::AMDGPU_VS:
-  case CallingConv::AMDGPU_LS:
-  case CallingConv::AMDGPU_HS:
-  case CallingConv::AMDGPU_ES:
-  case CallingConv::AMDGPU_GS:
-  case CallingConv::AMDGPU_PS:
-  */
   case CallingConv::AMDGPU_CS:
     // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
     // Everything else is in VGPRs.
     return F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::InReg) ||
            F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::ByVal);
   default:
-    // TODO: Should calls support inreg for SGPR inputs?
-    return false;
+    // TODO: the default CC run as is normal way in SGPR
+    // return false;
+    return true;
   }
 }
 

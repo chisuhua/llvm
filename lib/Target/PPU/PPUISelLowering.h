@@ -221,6 +221,20 @@ private:
                                    Value *AlignedAddr, Value *CmpVal,
                                    Value *NewVal, Value *Mask,
                                    AtomicOrdering Ord) const override;
+
+ // from SIISelLowering
+   MVT getRegisterTypeForCallingConv(LLVMContext &Context,
+                                    CallingConv::ID CC,
+                                    EVT VT) const override;
+  unsigned getNumRegistersForCallingConv(LLVMContext &Context,
+                                         CallingConv::ID CC,
+                                         EVT VT) const override;
+
+ // from AMDGPUISelLowering
+  void analyzeFormalArgumentsCompute(
+    CCState &State,
+    const SmallVectorImpl<ISD::InputArg> &Ins) const;
+
 };
 }
 

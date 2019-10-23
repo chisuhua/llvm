@@ -193,7 +193,7 @@ static cl::opt<bool> EnableSpillSGPRToVGPR(
   "ppu-spill-sgpr-to-vgpr",
   cl::desc("Enable spilling VGPRs to SGPRs"),
   cl::ReallyHidden,
-  cl::init(true));
+  cl::init(false));
 
 // FIXME argument is not same as origina PPURegisterInfo
 PPURegisterInfo::PPURegisterInfo(const PPUSubtarget &ST, unsigned HwMode) :
@@ -1928,7 +1928,7 @@ unsigned PPURegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
                                                        MF.getFunction());
   switch (RC->getID()) {
   default:
-    return PPURegisterInfo::getRegPressureLimit(RC, MF);
+    return PPUBaseRegisterInfo::getRegPressureLimit(RC, MF);
   case PPU::VRRegClassID:
     return std::min(ST.getMaxNumVGPRs(Occupancy), ST.getMaxNumVGPRs(MF));
   case PPU::GPRRegClassID:
@@ -1946,7 +1946,7 @@ unsigned PPURegisterInfo::getRegPressureSetLimit(const MachineFunction &MF,
     return getRegPressureLimit(&PPU::GPRRegClass,
                                const_cast<MachineFunction &>(MF));
 
-  return PPURegisterInfo::getRegPressureSetLimit(MF, Idx);
+  return PPUBaseRegisterInfo::getRegPressureSetLimit(MF, Idx);
 }
 
 const int *PPURegisterInfo::getRegUnitPressureSets(unsigned RegUnit) const {
@@ -2044,7 +2044,7 @@ PPURegisterInfo::getRegClass(unsigned RCID) const {
   case -1:
     return nullptr;
   default:
-    return PPURegisterInfo::getRegClass(RCID);
+    return PPUBaseRegisterInfo::getRegClass(RCID);
   }
 }
 

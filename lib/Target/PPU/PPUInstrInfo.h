@@ -98,7 +98,7 @@ class TargetRegisterClass;
 class PPUInstrInfo final : public PPUBaseInstrInfo {
 private:
   const PPUSubtarget &ST;
-  const PPURegisterInfo RI;
+  const PPURegisterInfo &RI;
 
   // The inverse predicate should have the negative value.
   enum BranchPredicate {
