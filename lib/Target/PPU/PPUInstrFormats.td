@@ -56,7 +56,6 @@ class PPUOpcode<bits<7> val> {
 }
 def OPC_LOAD      : PPUOpcode<0b0000011>;
 def OPC_LOAD_FP   : PPUOpcode<0b0000111>;
-def OPC_OP_V      : PPUOpcode<0b1010111>; // TODO copied from rvv
 def OPC_MISC_MEM  : PPUOpcode<0b0001111>;
 def OPC_OP_IMM    : PPUOpcode<0b0010011>;
 def OPC_AUIPC     : PPUOpcode<0b0010111>;
@@ -72,10 +71,13 @@ def OPC_MSUB      : PPUOpcode<0b1000111>;
 def OPC_NMSUB     : PPUOpcode<0b1001011>;
 def OPC_NMADD     : PPUOpcode<0b1001111>;
 def OPC_OP_FP     : PPUOpcode<0b1010011>;
+def OPC_OP_V      : PPUOpcode<0b1010111>; // TODO copied from rvv
+def OPC_OP_T      : PPUOpcode<0b1011011>; // TODO copied from rvv
 def OPC_BRANCH    : PPUOpcode<0b1100011>;
 def OPC_JALR      : PPUOpcode<0b1100111>;
 def OPC_JAL       : PPUOpcode<0b1101111>;
 def OPC_SYSTEM    : PPUOpcode<0b1110011>;
+
 
 class RVInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format>
@@ -93,7 +95,6 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 
   let Inst{6-0} = Opcode;
 
-  list<Predicate> OtherPredicates = [];
   let Namespace = "PPU";
 
   dag OutOperandList = outs;
@@ -103,6 +104,223 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 
   let TSFlags{4-0} = format.Value;
 }
+
+
+def isPPU : Predicate<"Subtarget->getGeneration() "
+                      ">= PPUSubtarget::PPU">,
+            AssemblerPredicate<"FeaturePPU">;
+
+
+class Enc32 {
+  field bits<32> Inst;
+  int Size = 4;
+}
+
+class Enc64 {
+  field bits<64> Inst;
+  int Size = 8;
+}
+
+
+class PPUInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
+  list<dag> pattern = []> : PPUBaseInst<outs, ins, opcodestr # " " # argstr, pattern>, PredicateControl {
+  let SubtargetPredicate = isPPU;
+  field bit isRegisterLoad = 0;
+  field bit isRegisterStore = 0;
+
+  list<Predicate> OtherPredicates = [];
+
+  // Low bits - basic encoding information.
+  field bit SALU = 0;
+  field bit VALU = 0;
+
+  // SALU instruction formats.
+  field bit SOP1 = 0;
+  field bit SOP2 = 0;
+  field bit SOPC = 0;
+  field bit SOPK = 0;
+  field bit SOPP = 0;
+
+  // VALU instruction formats.
+  field bit VOP1 = 0;
+  field bit VOP2 = 0;
+  field bit VOPC = 0;
+  field bit VOP3 = 0;
+  field bit VOP3P = 0;
+  field bit DPP = 0;
+
+  // Memory instruction formats.
+  field bit MUBUF = 0;
+  field bit MTBUF = 0;
+  field bit SMRD = 0;
+  field bit MIMG = 0;
+  field bit EXP = 0;
+  field bit FLAT = 0;
+  field bit DS = 0;
+
+
+  // Pseudo instruction formats.
+  field bit VPRSpill = 0;
+  field bit SPRSpill = 0;
+  field bit GPRSpill = 0;
+  field bit TPRSpill = 0;
+
+  // High bits - other information.
+  field bit VM_CNT = 0;
+  field bit EXP_CNT = 0;
+  field bit LGKM_CNT = 0;
+
+  // Whether WQM _must_ be enabled for this instruction.
+  field bit WQM = 0;
+  // Whether WQM _must_ be disabled for this instruction.
+  field bit DisableWQM = 0;
+
+  // Most sopk treat the immediate as a signed 16-bit, however some
+  // use it as unsigned.
+  field bit SOPKZext = 0;
+
+  // This is an s_store_dword* instruction that requires a cache flush
+  // on wave termination. It is necessary to distinguish from mayStore
+  // SMEM instructions like the cache flush ones.
+  field bit ScalarStore = 0;
+
+  // Whether the operands can be ignored when computing the
+  // instruction size.
+  field bit FixedSize = 0;
+
+  // This bit tells the assembler to use the 32-bit encoding in case it
+  // is unable to infer the encoding from the operands.
+  field bit VOPAsmPrefer32Bit = 0;
+
+  // Is it possible for this instruction to be atomic?
+  field bit maybeAtomic = 0;
+
+  // This bit indicates that this has a floating point result type, so
+  // the clamp modifier has floating point semantics.
+  field bit FPClamp = 0;
+
+  // This bit indicates that instruction may support integer clamping
+  // which depends on GPU features.
+  field bit IntClamp = 0;
+
+  // This field indicates that the clamp applies to the low component
+  // of a packed output register.
+  field bit ClampLo = 0;
+
+  // This field indicates that the clamp applies to the high component
+  // of a packed output register.
+  field bit ClampHi = 0;
+
+  // This bit indicates that this is a packed VOP3P instruction
+  field bit IsPacked = 0;
+
+  // This bit indicates that this is a D16 buffer instruction.
+  field bit D16Buf = 0;
+
+  // This field indicates that FLAT instruction accesses FLAT_GLBL or
+  // FLAT_SCRATCH segment. Must be 0 for non-FLAT instructions.
+  field bit IsNonFlatSeg = 0;
+
+  // This bit indicates that this uses the floating point double precision
+  // rounding mode flags
+  field bit FPDPRounding = 0;
+
+  // Instruction is FP atomic.
+  field bit FPAtomic = 0;
+
+  // This bit indicates that this is one of MFMA instructions.
+  field bit IsMAI = 0;
+
+
+  // These need to be kept in sync with the enum in PPUInstrFlags.
+  let TSFlags{0} = SALU;
+  let TSFlags{1} = VALU;
+
+
+
+  let Namespace = "PPU";
+  let OutOperandList = outs;
+  let InOperandList = ins;
+  let AsmString = opcodestr # "\t" # argstr;
+  let Pattern = pattern;
+  let Itinerary = NullALU;
+
+  // SoftFail is a field the disassembler can use to provide a way for
+  // instructions to not match without killing the whole decode process. It is
+  // mainly used for ARM, but Tablegen expects this field to exist or it fails
+  // to build the decode table.
+  field bits<64> SoftFail = 0;
+
+  let DecoderNamespace = Namespace;
+
+  // These need to be kept in sync with the enum in PPUInstrFlags.
+  let TSFlags{0} = SALU;
+  let TSFlags{1} = VALU;
+  let TSFlags{2} = SOP1;
+  let TSFlags{3} = SOP2;
+  let TSFlags{4} = SOPC;
+  let TSFlags{5} = SOPK;
+  let TSFlags{6} = SOPP;
+  let TSFlags{7} = VOP1;
+  let TSFlags{8} = VOP2;
+  let TSFlags{9} = VOPC;
+  let TSFlags{10} = VOP3;
+  let TSFlags{12} = VOP3P;
+
+  let TSFlags{16} = MUBUF;
+  let TSFlags{17} = MTBUF;
+  let TSFlags{18} = SMRD;
+  let TSFlags{19} = MIMG;
+  let TSFlags{20} = EXP;
+  let TSFlags{21} = FLAT;
+  let TSFlags{22} = DS;
+
+
+  let TSFlags{23} = VPRSpill;
+  let TSFlags{24} = SPRSpill;
+  let TSFlags{25} = GPRSpill;
+  let TSFlags{26} = TPRSpill;
+
+  let TSFlags{32} = VM_CNT;
+  let TSFlags{33} = EXP_CNT;
+  let TSFlags{34} = LGKM_CNT;
+
+  let TSFlags{38} = SOPKZext;
+  let TSFlags{39} = ScalarStore;
+  let TSFlags{40} = FixedSize;
+  let TSFlags{41} = VOPAsmPrefer32Bit;
+
+  let TSFlags{43} = maybeAtomic;
+
+  let TSFlags{45} = FPClamp;
+  let TSFlags{46} = IntClamp;
+  let TSFlags{47} = ClampLo;
+  let TSFlags{48} = ClampHi;
+
+  let TSFlags{49} = IsPacked;
+  let TSFlags{50} = D16Buf;
+  let TSFlags{51} = IsNonFlatSeg;
+  let TSFlags{52} = FPDPRounding;
+  let TSFlags{53} = FPAtomic;
+  let TSFlags{54} = IsMAI;
+
+  let TSFlags{63} = isRegisterLoad;
+  let TSFlags{62} = isRegisterStore;
+
+  // let SchedRW = [Write32Bit];
+}
+
+
+// Pseudo instructions
+class PPUPseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
+    : PPUInst<outs, ins, opcodestr, argstr, pattern> {
+  let isPseudo = 1;
+  let isCodeGenOnly = 1;
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 0;
+}
+
 
 // Pseudo instructions
 class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">

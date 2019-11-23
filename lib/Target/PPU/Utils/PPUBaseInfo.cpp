@@ -419,16 +419,20 @@ std::pair<int, int> getIntegerPairAttribute(const Function &F,
 }
 
 bool isCompute(CallingConv::ID CC) {
-    return isKernel(CC);
-    // return isEntryFunctionCC(CC);
-    // return true;
+  switch (CC) {
+  case CallingConv::AMDGPU_KERNEL:
+  case CallingConv::SPIR_KERNEL:
+  case CallingConv::AMDGPU_CS:
+    return true;
+  default:
+    return false;
+  }
 }
 
 bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
-  // case CallingConv::AMDGPU_CS:
     return true;
   default:
     return false;
@@ -449,6 +453,19 @@ bool isArgPassedInSGPR(const Argument *A) {
     return true;
 }
 
+PPUModeRegisterDefaults::PPUModeRegisterDefaults(const Function &F) {
+  *this = getDefaultForCallingConv(F.getCallingConv());
+
+  StringRef IEEEAttr = F.getFnAttribute("ppu-ieee").getValueAsString();
+  if (!IEEEAttr.empty())
+    IEEE = IEEEAttr == "true";
+
+  StringRef DX10ClampAttr
+    = F.getFnAttribute("ppu-dx10-clamp").getValueAsString();
+  if (!DX10ClampAttr.empty())
+    DX10Clamp = DX10ClampAttr == "true";
+}
+
 namespace {
 
 struct SourceOfDivergence {
@@ -460,10 +477,12 @@ const SourceOfDivergence *lookupSourceOfDivergence(unsigned Intr);
 #include "PPUGenSearchableTables.inc"
 */
 constexpr SourceOfDivergence SourcesOfDivergence[] = {
+    /*
   { Intrinsic::ppu_nvvm_laneid },
   { Intrinsic::ppu_nvvm_tid_x },
   { Intrinsic::ppu_nvvm_tid_y },
   { Intrinsic::ppu_nvvm_tid_z },
+  */
   { Intrinsic::ppu_workitem_id_x },
   { Intrinsic::ppu_workitem_id_y },
   { Intrinsic::ppu_workitem_id_z },

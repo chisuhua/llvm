@@ -6,11 +6,103 @@
 //
 //===----------------------------------------------------------------------===//
 
+// Ptr of addresspace
+def p0 : PtrValueType<i64, 0>;
+def p1 : PtrValueType<i64, 1>;
+def p2 : PtrValueType<i32, 2>;
+def p3 : PtrValueType<i32, 3>;
+def p4 : PtrValueType<i64, 4>;
+def p5 : PtrValueType<i32, 5>;
+def p6 : PtrValueType<i32, 6>;
+
+
+//===----------------------------------------------------------------------===//
+//  Helpers
+//===----------------------------------------------------------------------===//
+let Namespace = "PPU" in {
+
+foreach Index = 0-31 in {
+  def sub#Index : SubRegIndex<32, !shl(Index, 5)>;
+}
+
+}
+
+class getSubRegs<int size> {
+  list<SubRegIndex> ret2 = [sub0, sub1];
+  list<SubRegIndex> ret3 = [sub0, sub1, sub2];
+  list<SubRegIndex> ret4 = [sub0, sub1, sub2, sub3];
+  list<SubRegIndex> ret5 = [sub0, sub1, sub2, sub3, sub4];
+  list<SubRegIndex> ret8 = [sub0, sub1, sub2, sub3, sub4, sub5, sub6, sub7];
+  list<SubRegIndex> ret16 = [sub0, sub1, sub2, sub3,
+                             sub4, sub5, sub6, sub7,
+                             sub8, sub9, sub10, sub11,
+                             sub12, sub13, sub14, sub15];
+  list<SubRegIndex> ret32 = [sub0, sub1, sub2, sub3,
+                             sub4, sub5, sub6, sub7,
+                             sub8, sub9, sub10, sub11,
+                             sub12, sub13, sub14, sub15,
+                             sub16, sub17, sub18, sub19,
+                             sub20, sub21, sub22, sub23,
+                             sub24, sub25, sub26, sub27,
+                             sub28, sub29, sub30, sub31];
+
+  list<SubRegIndex> ret = !if(!eq(size, 2), ret2,
+                              !if(!eq(size, 3), ret3,
+                                  !if(!eq(size, 4), ret4,
+                                      !if(!eq(size, 5), ret5,
+                                          !if(!eq(size, 8), ret8,
+                                              !if(!eq(size, 16), ret16, ret32))))));
+}
+
+// Generates list of sequential register tuple names.
+// E.g. RegSeq<3,2,2,"s">.ret -> [ "s[0:1]", "s[2:3]" ]
+class RegSeqNames<int last_reg, int stride, int size, string prefix,
+                  int start = 0> {
+  int next = !add(start, stride);
+  int end_reg = !add(!add(start, size), -1);
+  list<string> ret =
+    !if(!le(end_reg, last_reg),
+        !listconcat([prefix # "[" # start # ":" # end_reg # "]"],
+                    RegSeqNames<last_reg, stride, size, prefix, next>.ret),
+                    []);
+}
+
+// Generates list of dags for register tupless.
+class RegSeqDags<RegisterClass RC, int last_reg, int stride, int size,
+                int start = 0> {
+  dag trunc_rc = (trunc RC,
+                  !if(!and(!eq(stride, 1), !eq(start, 0)),
+                      !add(!add(last_reg, 2), !mul(size, -1)),
+                      !add(last_reg, 1)));
+  list<dag> ret =
+    !if(!lt(start, size),
+        !listconcat([(add (decimate (shl trunc_rc, start), stride))],
+                    RegSeqDags<RC, last_reg, stride, size, !add(start, 1)>.ret),
+        []);
+}
+
+class PPURegisterTuples<list<SubRegIndex> Indices, RegisterClass RC,
+                       int last_reg, int stride, int size, string prefix> :
+  RegisterTuples<Indices,
+                 RegSeqDags<RC, last_reg, stride, size>.ret,
+                 RegSeqNames<last_reg, stride, size, prefix>.ret>;
+
+
 //===----------------------------------------------------------------------===//
 //  Declarations that describe the PPU register files
 //===----------------------------------------------------------------------===//
 
 let Namespace = "PPU" in {
+
+class RegFile <string n, bits<16> regIdx = 0> :
+  Register<n>, DwarfRegNum<[!cast<int>(HWEncoding)]>
+{
+
+  // This is the not yet the complete register encoding. An additional
+  // bit is set for VGPRs.
+  let HWEncoding = regIdx;
+}
+
 class PPUReg<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
   let HWEncoding{4-0} = Enc;
   let AltNames = alt;
@@ -24,11 +116,11 @@ class PPUReg32<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
 // Because PPUReg64 register have AsmName and AltNames that alias with their
 // 32-bit sub-register, PPUAsmParser will need to coerce a register number
 // from a PPUReg32 to the equivalent PPUReg64 when appropriate.
-def sub_32 : SubRegIndex<32>;
+def sub_32_rv : SubRegIndex<32>;
 class PPUReg64<PPUReg32 subreg> : Register<""> {
   let HWEncoding{4-0} = subreg.HWEncoding{4-0};
   let SubRegs = [subreg];
-  let SubRegIndices = [sub_32];
+  let SubRegIndices = [sub_32_rv];
   let AsmName = subreg.AsmName;
   let AltNames = subreg.AltNames;
 }
@@ -81,12 +173,6 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def X30 : PPUReg<30,"x30", ["t5"]>, DwarfRegNum<[30]>;
   def X31 : PPUReg<31,"x31", ["t6"]>, DwarfRegNum<[31]>;
   }
-
-// more SGPR registers
-// foreach Index = 32-95 in {
-//   def X#Index : PPUReg<Index, "x"#Index, ["x"#Index]>, DwarfRegNum<[Index]>;
-// }
-
 
 }
 
@@ -243,6 +329,11 @@ def FPR64C : RegisterClass<"PPU", [f64], 64, (add
 
 // Vector registers
 let RegAltNameIndices = [ABIRegAltName] in {
+  // here we assuem Fload is not enable the DwarfRegNum is start from 32
+  foreach Index = 0-15 in {
+    def TPR#Index : PPUReg<Index, "t"#Index, ["t"#Index]>,
+      DwarfRegNum<[!add(Index, 32)]>;
+  }
   def V0  : PPUReg<0, "v0", ["v0"]>;
   def V1  : PPUReg<1, "v1", ["v1"]>;
   def V2  : PPUReg<2, "v2", ["v2"]>;
@@ -275,14 +366,13 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def V29 : PPUReg<29,"v29", ["v29"]>;
   def V30 : PPUReg<30,"v30", ["v30"]>;
   def V31 : PPUReg<31,"v31", ["v31"]>;
-
-// foreach Index = 32-255 in {
-//   def V#Index : PPUReg <Index, "v"#Index, ["v"#Index]>;
-// }
-
 }
 
-def VR : RegisterClass<"PPU", [nxv1i32], 32, (sequence "V%u", 0, 31)>;
+def TPR : RegisterClass<"PPU", [nxv1i32], 32, (add
+    (sequence "TPR%u", 0, 7),
+    (sequence "TPR%u", 10, 15),
+    (sequence "TPR%u", 8, 9)
+)>;
 
 // Active vector length register (vl)
 // There is only one physical register, and it is not explicitly encoded
@@ -317,9 +407,9 @@ def VCCR : RegisterClass<"PPU", [XLenVT], 32, (add VCC)> {
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
 
-// VCC
-def EXEC : PPUReg<0, "exec">;
-def EXECR : RegisterClass<"PPU", [XLenVT], 32, (add EXEC)> {
+// TMSK
+def TMSK : PPUReg<0, "tmsk">;
+def TMSKR : RegisterClass<"PPU", [XLenVT], 32, (add TMSK)> {
   let CopyCost = -1; // Don't allow copying
   let isAllocatable = 0; // Not allocatable
   let RegInfos = RegInfoByHwMode<
@@ -329,21 +419,58 @@ def EXECR : RegisterClass<"PPU", [XLenVT], 32, (add EXEC)> {
 
 // Pseudo-registers: Used as placeholders during isel and immediately
 // replaced, never seeing the verifier.
-def PRIVATE_RSRC_REG : PPUReg<0, "private_rsrc">;
-def FP_REG : PPUReg<0, "fp">;
-def SP_REG : PPUReg<0, "sp">;
-// def SCRATCH_WAVE_OFFSET_REG : BIReg<"", 0>;
+def PRIVATE_RSRC_REG : RegFile<"private_rsrc", 0>;
+def FP_REG : RegFile<"fp", 0>;
+def SP_REG : RegFile<"sp", 0>;
+def SCRATCH_WAVE_OFFSET_REG : RegFile<"scratch_wave_offset", 0>;
+def SCRATCH_RSRC_REG : RegFile<"scratch_rsr", 0>;
+
+
+
+class FlatReg <Register lo, Register hi, bits<16> encoding> :
+    RegisterWithSubRegs<"flat_scratch", [lo, hi]>,
+    DwarfRegAlias<lo> {
+  let Namespace = "PPU";
+  let SubRegIndices = [sub0, sub1];
+  let HWEncoding = encoding;
+}
+def FLAT_SCR_LO : RegFile<"flat_scratch_lo", 0>;
+def FLAT_SCR_HI : RegFile<"flat_scratch_hi", 0>;
+def FLAT_SCR : FlatReg<FLAT_SCR_LO, FLAT_SCR_HI, 0>;
 
 
 // 32-bit real registers, for MC only.
 // May be used with both 32-bit and 64-bit operands.
-// def SRC_VCCZ : PPUReg<0,"src_vccz">;
-// def SRC_EXECZ : PPUReg<0, "src_execz">;
-// def SRC_SCC : PPUReg<0, "src_scc">;
-
+def SRC_VCCZ : RegFile<"src_vccz", 251>;
+def SRC_TMSKZ : RegFile<"src_tmskz", 252>;
+def SRC_SCC : RegFile<"src_scc", 253>;
 // 1-bit pseudo register, for codegen only.
 // Should never be emitted.
-def SCC : PPUReg<0, "scc">;
+def SCC : RegFile<"scc", 0>;
+
+def M0 : PPUReg<0, "m0">;
+
+def SPR_NULL : RegFile<"null", 125>;
+
+
+def LDS_DIRECT : RegFile <"src_lds_direct", 254>;
+
+// SPR registers
+foreach Index = 0-105 in {
+  def SPR#Index : RegFile <"s"#Index, Index>;
+}
+
+// VPR registers
+foreach Index = 0-255 in {
+  def VPR#Index : RegFile <"v"#Index, Index> {
+    let HWEncoding{8} = 1;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+//  Groupings using register classes and tuples
+//===----------------------------------------------------------------------===//
+
 def SCC_CLASS : RegisterClass<"PPU", [i1], 1, (add SCC)> {
   let CopyCost = -1;
   let isAllocatable = 0;
@@ -352,62 +479,474 @@ def SCC_CLASS : RegisterClass<"PPU", [i1], 1, (add SCC)> {
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
 
-def SReg_32_XM0 : RegisterClass<"PPU", [XLenVT], 32,
-  (add GPR)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
-  let CopyCost = 1;
-  let AllocationPriority = 13;
-  let RegInfos = RegInfoByHwMode<
-      [RV32,              RV64,              DefaultMode],
-      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
-}
-
-
-def SReg_32_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
-  (add GPR, VCC)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
-  let CopyCost = 1;
-  let AllocationPriority = 13;
-  let RegInfos = RegInfoByHwMode<
-      [RV32,              RV64,              DefaultMode],
-      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
-}
-
-def SReg_32_XM0_XEXEC : RegisterClass<"PPU", [XLenVT], 32,
-  (add GPR, VCC)> { // , FLAT_SCR, XNACK_MASK, TTMP_64, TBA, TMA)> {
-  let CopyCost = 1;
-  let AllocationPriority = 13;
-  let RegInfos = RegInfoByHwMode<
-      [RV32,              RV64,              DefaultMode],
-      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
-}
-
-def SReg_32 : RegisterClass<"PPU", [XLenVT, i32, f32, i1, v2i16, v2f16], 32,
-  (add SReg_32_XEXEC, EXEC)> {
-  let CopyCost = 1;
-  let AllocationPriority = 13;
-  let RegInfos = RegInfoByHwMode<
-      [RV32,              RV64,              DefaultMode],
-      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
-
-}
-
-def SReg_1_XEXEC : RegisterClass<"PPU", [i1], 32,
-  (add SReg_32_XEXEC)> {
+def M0_CLASS : RegisterClass<"PPU", [i32], 32, (add M0)> {
   let CopyCost = 1;
   let isAllocatable = 0;
   let RegInfos = RegInfoByHwMode<
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+}
 
+// TODO: Do we need to set DwarfRegAlias on register tuples?
+
+// SPR 32-bit registers
+def SPR_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+    (add (sequence "SPR%u", 0, 105))> {
+
+  // Give all SGPR classes higher priority than VGPR classes, because
+  // we want to spill SGPRs to VGPRs.
+  let AllocationPriority = 9;
+}
+
+
+
+// SPR 64-bit registers
+def SPR_64Regs : PPURegisterTuples<getSubRegs<2>.ret, SPR_32, 105, 2, 2, "s">;
+
+/*
+// SPR 96-bit registers. No operations use these, but for symmetry with 96-bit VGPRs.
+def SPR_96Regs : PPURegisterTuples<getSubRegs<3>.ret, SPR_32, 105, 3, 3, "s">;
+
+// SPR 128-bit registers
+def SPR_128b : PPURegisterTuples<getSubRegs<4>.ret, SPR_32, 105, 4, 4, "s">;
+
+// SPR 160-bit registers. No operations use these, but for symmetry with 160-bit VGPRs.
+def SPR_160b : PPURegisterTuples<getSubRegs<5>.ret, SPR_32, 123, 4, 5, "s">;
+
+// SPR 256-bit registers
+def SPR_256b : PPURegisterTuples<getSubRegs<8>.ret, SPR_32b, 123, 4, 8, "s">;
+
+// SPR 512-bit registers
+def SPR_512b : PPURegisterTuples<getSubRegs<16>.ret, SPR_32b, 123, 4, 16, "s">;
+
+// SPR 1024-bit registers
+def SPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, SPR_32b, 123, 4, 32, "s">;
+*/
+
+// VPR 32-bit registers
+// i16/f16 only
+def VPR_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16, p2, p3, p5, p6], 32,
+                            (add (sequence "VPR%u", 0, 255))> {
+  let AllocationPriority = 1;
+  let Size = 32;
+}
+
+// VGPR 64-bit registers
+def VPR_64 : PPURegisterTuples<getSubRegs<2>.ret, VPR_32, 255, 1, 2, "v">;
+
+/*
+// VGPR 96-bit registers
+def VPR_96b : PPURegisterTuples<getSubRegs<3>.ret, VPR_32, 255, 1, 3, "v">;
+
+// VGPR 128-bit registers
+def VPR_128b : PPURegisterTuples<getSubRegs<4>.ret, VPR_32, 255, 1, 4, "v">;
+
+// VGPR 160-bit registers
+def VPR_160b : PPURegisterTuples<getSubRegs<5>.ret, VPR_32, 255, 1, 5, "v">;
+
+// VGPR 256-bit registers
+def VPR_256b : PPURegisterTuples<getSubRegs<8>.ret, VPR_32, 255, 1, 8, "v">;
+
+// VGPR 512-bit registers
+def VPR_512b : PPURegisterTuples<getSubRegs<16>.ret, VPR_32, 255, 1, 16, "v">;
+
+// VGPR 1024-bit registers
+def VPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, VPR_32, 255, 1, 32, "v">;
+*/
+
+//===----------------------------------------------------------------------===//
+//  Register classes used as source and destination
+//===----------------------------------------------------------------------===//
+
+def Pseudo_SReg_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+  (add FP_REG, SP_REG, SCRATCH_WAVE_OFFSET_REG)> {
+  let isAllocatable = 0;
+  let CopyCost = -1;
+}
+
+def Pseudo_SReg_64 : RegisterClass<"PPU", [v2i32, i64, f64], 32,
+  (add PRIVATE_RSRC_REG)> {
+  let isAllocatable = 0;
+  let CopyCost = -1;
+}
+
+def LDS_DIRECT_CLASS : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+  (add LDS_DIRECT)> {
+  let isAllocatable = 0;
+  let CopyCost = -1;
+}
+
+
+def SReg_32 : RegisterClass<"PPU", [i32, f32, i1, v2i16, v2f16], 32,
+  (add GPR, SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC, TMSK, M0_CLASS)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  /*
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+      */
+}
+
+def SRegOrLds_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16, i1], 32,
+  (add GPR, SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC,
+   TMSK, M0_CLASS, LDS_DIRECT_CLASS)> {
+  let isAllocatable = 0;
+  /*
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+      */
+}
+
+def SPR_64 : RegisterClass<"PPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 32,
+                            (add SPR_64Regs)> {
+  let CopyCost = 1;
+  let AllocationPriority = 11;
+}
+
+// CCR (call clobbered registers) SGPR 64-bit registers
+def CCR_SPR_64 : RegisterClass<"AMDGPU", SPR_64.RegTypes, 32,
+                                (add (trunc SPR_64, 16))> {
+  let CopyCost = SPR_64.CopyCost;
+  let AllocationPriority = SPR_64.AllocationPriority;
+}
+
+def SReg_64 : RegisterClass<"PPU", [v2i32, i64, v2f32, f64, i1, v4i16, v4f16], 32,
+  (add SPR_64)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+  /*
+  let RegInfos = RegInfoByHwMode<
+      [RV32,              RV64,              DefaultMode],
+      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+      */
 }
 
 def SReg_1 : RegisterClass<"PPU", [i1], 32,
-  (add SReg_1_XEXEC, EXEC)> {
+  (add SReg_32, SReg_64, TMSK)> {
   let CopyCost = 1;
   let isAllocatable = 0;
+  /*
   let RegInfos = RegInfoByHwMode<
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
+      */
 
 }
 
+// Requires 2 s_mov_b64 to copy
+// let RegInfo = RegInfoByHwMode<
+//       [RV32,              RV64,              DefaultMode],
+//      [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>
+// in {
 
+let CopyCost = 2 in {
+// There are no 3-component scalar instructions, but this is needed
+// for symmetry with VGPRs.
+/*
+def SPR_96 : RegisterClass<"PPU", [v3i32, v3f32], 32,
+  (add SPR_96b)> {
+  let AllocationPriority = 14;
+}
+
+def SReg_96 : RegisterClass<"PPU", [v3i32, v3f32], 32,
+  (add SPR_96)> {
+  let AllocationPriority = 14;
+}
+
+def SPR_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64], 32,
+  (add SPR_128b)> {
+  let AllocationPriority = 15;
+}
+
+def SReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
+  // (add SPR_128, TTMP_128)> {
+  (add SPR_128)> {
+  let AllocationPriority = 15;
+}
+*/
+
+} // End CopyCost = 2
+
+// There are no 5-component scalar instructions, but this is needed
+// for symmetry with VGPRs.
+/*
+def SPR_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,
+                             (add SPR_160b)> {
+  let AllocationPriority = 16;
+}
+
+def SReg_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,
+                             (add SPR_160)> {
+  let AllocationPriority = 16;
+}
+
+def SPR_256 : RegisterClass<"PPU", [v8i32, v8f32], 32, (add SPR_256b)> {
+  let AllocationPriority = 17;
+}
+
+def SReg_256 : RegisterClass<"PPU", [v8i32, v8f32], 32,
+                             (add SPR_256)> {
+  // Requires 4 s_mov_b64 to copy
+  let CopyCost = 4;
+  let AllocationPriority = 17;
+}
+
+def SPR_512 : RegisterClass<"PPU", [v16i32, v16f32], 32,
+                             (add SPR_512b)> {
+  let AllocationPriority = 18;
+}
+
+def SReg_512 : RegisterClass<"PPU", [v16i32, v16f32], 32,
+                             (add SPR_512)> {
+  // Requires 8 s_mov_b64 to copy
+  let CopyCost = 8;
+  let AllocationPriority = 18;
+}
+*/
+
+def VRegOrLds_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+                                 (add VPR_32, LDS_DIRECT_CLASS)> {
+  let isAllocatable = 0;
+}
+/*
+def SPR_1024 : RegisterClass<"PPU", [v32i32, v32f32], 32,
+                              (add SPR_1024b)> {
+  let AllocationPriority = 19;
+}
+
+def SReg_1024 : RegisterClass<"PPU", [v32i32, v32f32], 32,
+                              (add SPR_1024)> {
+  let CopyCost = 16;
+  let AllocationPriority = 19;
+}
+*/
+
+def VReg_32 : RegisterClass<"PPU", [i32, f32, i1, v2i16, v2f16], 32,
+  (add VPR_32)> {
+  let CopyCost = 1;
+  let AllocationPriority = 13;
+}
+
+// Register class for all vector registers (VGPRs + Interploation Registers)
+def VReg_64 : RegisterClass<"PPU", [i64, f64, v2i32, v2f32, v4f16, v4i16, p0, p1, p4], 32,
+                            (add VPR_64)> {
+  let Size = 64;
+
+  // Requires 2 v_mov_b32 to copy
+  let CopyCost = 2;
+  let AllocationPriority = 2;
+}
+/*
+def VReg_96 : RegisterClass<"PPU", [v3i32, v3f32], 32, (add VPR_96b)> {
+  let Size = 96;
+
+  // Requires 3 v_mov_b32 to copy
+  let CopyCost = 3;
+  let AllocationPriority = 3;
+}
+*/
+/*
+def VReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
+                             (add VPR_128b)> {
+  let Size = 128;
+
+  // Requires 4 v_mov_b32 to copy
+  let CopyCost = 4;
+  let AllocationPriority = 4;
+}
+*/
+
+/*
+def VReg_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,
+                             (add VPR_160b)> {
+  let Size = 160;
+
+  // Requires 5 v_mov_b32 to copy
+  let CopyCost = 5;
+  let AllocationPriority = 5;
+}
+
+def VReg_256 : RegisterClass<"PPU", [v8i32, v8f32], 32,
+                             (add VPR_256b)> {
+  let Size = 256;
+  let CopyCost = 8;
+  let AllocationPriority = 6;
+}
+
+def VReg_512 : RegisterClass<"PPU", [v16i32, v16f32], 32,
+                             (add VPR_512b)> {
+  let Size = 512;
+  let CopyCost = 16;
+  let AllocationPriority = 7;
+}
+
+def VReg_1024 : RegisterClass<"PPU", [v32i32, v32f32], 32,
+                              (add VPR_1024b)> {
+  let Size = 1024;
+  let CopyCost = 32;
+  let AllocationPriority = 8;
+}
+*/
+
+def VReg_1 : RegisterClass<"PPU", [i1], 32, (add VPR_32)> {
+  let Size = 32;
+}
+
+def VS_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
+                          (add VPR_32, SReg_32, LDS_DIRECT_CLASS)> {
+  let isAllocatable = 0;
+}
+
+def VS_64 : RegisterClass<"PPU", [i64, f64], 32, (add VReg_64, SReg_64)> {
+  let isAllocatable = 0;
+}
+// } RegInfo
+
+//===----------------------------------------------------------------------===//
+//  Register operands
+//===----------------------------------------------------------------------===//
+class RegImmMatcher<string name> : AsmOperandClass {
+  let Name = name;
+  let RenderMethod = "addRegOrImmOperands";
+}
+
+multiclass PPURegOperand <string rc, string MatchName, string opType> {
+  let OperandNamespace = "PPU" in {
+    def _b8 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_INT8";
+      let ParserMatchClass = RegImmMatcher<MatchName#"B8">;
+      let DecoderMethod = "decodeOperand_VSrc8";
+    }
+    def _b16 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_INT16";
+      let ParserMatchClass = RegImmMatcher<MatchName#"B16">;
+      let DecoderMethod = "decodeOperand_VSrc16";
+    }
+
+    def _f16 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_FP16";
+      let ParserMatchClass = RegImmMatcher<MatchName#"F16">;
+      let DecoderMethod = "decodeOperand_VSrc_16";
+    }
+
+    def _b32 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_INT32";
+      let ParserMatchClass = RegImmMatcher<MatchName#"B32">;
+      // let DecoderMethod = "decodeOperand_" # rc # rc_suffix;
+    }
+
+    def _f32 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_FP32";
+      let ParserMatchClass = RegImmMatcher<MatchName#"F32">;
+      // let DecoderMethod = "decodeOperand_" # rc # rc_suffix;
+    }
+
+    def _b64 : RegisterOperand<!cast<RegisterClass>(rc#"_64")> {
+      let OperandType = opType#"_INT64";
+      let ParserMatchClass = RegImmMatcher<MatchName#"B64">;
+    }
+
+    def _f64 : RegisterOperand<!cast<RegisterClass>(rc#"_64")> {
+      let OperandType = opType#"_FP64";
+      let ParserMatchClass = RegImmMatcher<MatchName#"F64">;
+    }
+
+    def _v2b16 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_V2INT16";
+      let ParserMatchClass = RegImmMatcher<MatchName#"V2B16">;
+      let DecoderMethod = "decodeOperand_VSrcV216";
+    }
+
+    def _v2f16 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_V2FP16";
+      let ParserMatchClass = RegImmMatcher<MatchName#"V2F16">;
+      let DecoderMethod = "decodeOperand_VSrcV216";
+    }
+
+    def _v4f16 : RegisterOperand<!cast<RegisterClass>(rc#"_64")> {
+      let OperandType = opType#"_V4FP16";
+      let ParserMatchClass = RegImmMatcher<MatchName#"V4F16">;
+      let DecoderMethod = "decodeOperand_VSrcV416";
+    }
+
+    def _v4b8 : RegisterOperand<!cast<RegisterClass>(rc#"_32")> {
+      let OperandType = opType#"_V4INT8";
+      let ParserMatchClass = RegImmMatcher<MatchName#"V4B8">;
+      let DecoderMethod = "decodeOperand_VSrcV48";
+    }
+
+  }
+}
+
+// FIXME: 64-bit sources can sometimes use 32-bit constants.
+multiclass RegImmOperand <string rc, string MatchName>
+  : PPURegOperand<rc, MatchName, "OPERAND_REG_IMM">;
+
+multiclass RegInlineOperand <string rc, string MatchName>
+  : PPURegOperand<rc, MatchName, "OPERAND_REG_INLINE_C">;
+
+
+
+//===----------------------------------------------------------------------===//
+//  SSrc_* Operands with an SPR or a 32-bit immediate
+defm SSrc : RegImmOperand<"SReg", "SSrc">;
+
+def SSrcOrLds_b32 : RegisterOperand<SRegOrLds_32> {
+  let OperandNamespace = "PPU";
+  let OperandType = "OPERAND_REG_IMM_INT32";
+  let ParserMatchClass = RegImmMatcher<"SSrcOrLdsB32">;
+}
+
+
+//===----------------------------------------------------------------------===//
+//  SCSrc_* Operands with an SGPR or a inline constant
+
+defm SCSrc : RegInlineOperand<"SReg", "SCSrc"> ;
+
+//===----------------------------------------------------------------------===//
+//  VSrc_* Operands with an SPR, VPR or a 32-bit immediate
+
+defm VSrc : RegImmOperand<"VS", "VSrc">;
+
+def VSrc_64 : RegisterOperand<VReg_64> {
+  let DecoderMethod = "DecodeVS_64RegisterClass";
+}
+
+/*
+def VSrc_128 : RegisterOperand<VReg_128> {
+  let DecoderMethod = "DecodeVS_128RegisterClass";
+}
+*/
+
+// This is for operands with the enum(9), VSrc encoding restriction,
+// but only allows VGPRs.
+def VRegSrc_32 : RegisterOperand<VPR_32> {
+  //let ParserMatchClass = RegImmMatcher<"VRegSrc32">;
+  let DecoderMethod = "DecodeVS_32RegisterClass";
+}
+
+//===----------------------------------------------------------------------===//
+//  VCSrc_* Operands with an SGPR, VGPR or an inline constant
+//===----------------------------------------------------------------------===//
+
+defm VCSrc : RegInlineOperand<"VS", "VCSrc">;
+
+//===----------------------------------------------------------------------===//
+//  VCSrc_* Operands with a VGPR or an inline constant
+//===----------------------------------------------------------------------===//
+// defm VISrc : RegInlineOperand<"VPR", "VISrc", "_32">;
+/*
+let OperandNamespace = "PPU" in {
+  def VCSrc_b32 : RegisterOperand<!cast<RegisterClass>("VReg_32")> {
+    let OperandType = "OPERAND_REG_INLINE_C_INT32";
+    let ParserMatchClass = RegImmMatcher<"VCSrcB32">;
+    let DecoderMethod = "DecodeVS_32RegisterClass";
+  }
+}
+*/
+
+//===----------------------------------------------------------------------===//
+//  Special Operands for corner cases
+//===----------------------------------------------------------------------===//

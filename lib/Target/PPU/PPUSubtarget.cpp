@@ -23,6 +23,7 @@
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/IR/MDBuilder.h"
 
 using namespace llvm;
 
@@ -92,8 +93,7 @@ std::pair<unsigned, unsigned> PPUBaseSubtarget::getFlatWorkGroupSizes(
   return Requested;
 }
 
-std::pair<unsigned, unsigned> PPUBaseSubtarget::getWavesPerEU(
-  const Function &F) const {
+std::pair<unsigned, unsigned> PPUBaseSubtarget::getWavesPerEU(const Function &F) const {
   // Default minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Default(1, getMaxWavesPerEU());
 
@@ -137,6 +137,59 @@ std::pair<unsigned, unsigned> PPUBaseSubtarget::getWavesPerEU(
   return Requested;
 }
 
+bool PPUBaseSubtarget::makeLIDRangeMetadata(Instruction *I) const {
+  Function *Kernel = I->getParent()->getParent();
+  unsigned MinSize = 0;
+  unsigned MaxSize = getFlatWorkGroupSizes(*Kernel).second;
+  bool IdQuery = false;
+
+  // If reqd_work_group_size is present it narrows value down.
+  if (auto *CI = dyn_cast<CallInst>(I)) {
+    const Function *F = CI->getCalledFunction();
+    if (F) {
+      unsigned Dim = UINT_MAX;
+      switch (F->getIntrinsicID()) {
+      case Intrinsic::ppu_workitem_id_x:
+        IdQuery = true;
+        LLVM_FALLTHROUGH;
+        break;
+      case Intrinsic::ppu_workitem_id_y:
+        IdQuery = true;
+        LLVM_FALLTHROUGH;
+        break;
+      case Intrinsic::ppu_workitem_id_z:
+        IdQuery = true;
+        LLVM_FALLTHROUGH;
+        break;
+      default:
+        break;
+      }
+      if (Dim <= 3) {
+        if (auto Node = Kernel->getMetadata("reqd_work_group_size"))
+          if (Node->getNumOperands() == 3)
+            MinSize = MaxSize = mdconst::extract<ConstantInt>(
+                                  Node->getOperand(Dim))->getZExtValue();
+      }
+    }
+  }
+
+  if (!MaxSize)
+    return false;
+
+  // Range metadata is [Lo, Hi). For ID query we need to pass max size
+  // as Hi. For size query we need to pass Hi + 1.
+  if (IdQuery)
+    MinSize = 0;
+  else
+    ++MaxSize;
+
+  MDBuilder MDB(I->getContext());
+  MDNode *MaxWorkGroupSizeRange = MDB.createRange(APInt(32, MinSize),
+                                                  APInt(32, MaxSize));
+  I->setMetadata(LLVMContext::MD_range, MaxWorkGroupSizeRange);
+  return true;
+}
+
 uint64_t PPUBaseSubtarget::getExplicitKernArgSize(const Function &F,
                                                  unsigned &MaxAlign) const {
   assert(F.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
@@ -173,6 +226,18 @@ unsigned PPUBaseSubtarget::getKernArgSegmentSize(const Function &F,
 
   // Being able to dereference past the end is useful for emitting scalar loads.
   return alignTo(TotalSize, 4);
+}
+
+unsigned PPUBaseSubtarget::getMaxLocalMemSizeWithWaveCount(unsigned NWaves,
+  const Function &F) const {
+  if (NWaves == 1)
+    return getLocalMemorySize();
+  unsigned WorkGroupSize = getFlatWorkGroupSizes(F).second;
+  unsigned WorkGroupsPerCu = getMaxWorkGroupsPerCU(WorkGroupSize);
+  if (!WorkGroupsPerCu)
+    return 0;
+  unsigned MaxWaves = getMaxWavesPerEU();
+  return getLocalMemorySize() * MaxWaves / WorkGroupsPerCu / NWaves;
 }
 
 unsigned PPUBaseSubtarget::getOccupancyWithLocalMemSize(uint32_t Bytes,
@@ -236,6 +301,10 @@ void PPUSubtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
     Policy.ShouldTrackLaneMasks = true;
 }
 
+bool PPUSubtarget::hasMadF16() const {
+  return InstrInfo.pseudoToMCOpcode(PPU::V_MAD_F16) != -1;
+}
+
 unsigned PPUSubtarget::getOccupancyWithNumSGPRs(unsigned SGPRs) const {
     return getMaxWavesPerEU();
 }
@@ -278,7 +347,7 @@ unsigned PPUSubtarget::getMaxNumSGPRs(const MachineFunction &MF) const {
   unsigned MaxAddressableNumSGPRs = getMaxNumSGPRs(WavesPerEU.first, true);
 
   // Check if maximum number of SGPRs was explicitly requested using
-  // "amdgpu-num-sgpr" attribute.
+  // "ppu-num-sgpr" attribute.
   if (F.hasFnAttribute("ppu-num-sgpr")) {
     unsigned Requested = PPU::getIntegerAttribute(F, "ppu-num-sgpr", MaxNumSGPRs);
 
@@ -325,7 +394,7 @@ unsigned PPUSubtarget::getMaxNumVGPRs(const MachineFunction &MF) const {
   unsigned MaxNumVGPRs = getMaxNumVGPRs(WavesPerEU.first);
 
   // Check if maximum number of VGPRs was explicitly requested using
-  // "amdgpu-num-vgpr" attribute.
+  // "ppu-num-vgpr" attribute.
   if (F.hasFnAttribute("ppu-num-vgpr")) {
     unsigned Requested = PPU::getIntegerAttribute(
       F, "ppu-num-vgpr", MaxNumVGPRs);
@@ -524,3 +593,12 @@ void PPUSubtarget::getPostRAMutations(
   Mutations.push_back(std::make_unique<FillMFMAShadowMutation>(&InstrInfo));
 }
 
+const PPUSubtarget &PPUSubtarget::get(const MachineFunction &MF) {
+  // if (MF.getTarget().getTargetTriple().getArch() == Triple::ppu)
+    return static_cast<const PPUSubtarget&>(MF.getSubtarget<PPUSubtarget>());
+}
+
+const PPUSubtarget &PPUSubtarget::get(const TargetMachine &TM, const Function &F) {
+  // if (TM.getTargetTriple().getArch() == Triple::ppu)
+    return static_cast<const PPUSubtarget&>(TM.getSubtarget<PPUSubtarget>(F));
+}

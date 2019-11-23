@@ -650,9 +650,17 @@ uint64_t encodeMsg(uint64_t MsgId,
 
 unsigned getInitialPSInputAddr(const Function &F);
 
-LLVM_READNONE
-bool isShader(CallingConv::ID CC);
 */
+LLVM_READNONE
+bool isShader(CallingConv::ID CC) {
+  switch (CC) {
+   case CallingConv::AMDGPU_CS:
+    return true;
+  default:
+    return false;
+  }
+}
+
 
 LLVM_READNONE
 bool isCompute(CallingConv::ID CC);
@@ -666,7 +674,7 @@ inline bool isKernel(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
-  case CallingConv::AMDGPU_CS:
+  // case CallingConv::AMDGPU_CS:
     return true;
   default:
     return false;
@@ -791,9 +799,8 @@ bool splitMUBUFOffset(uint32_t Imm, uint32_t &SOffset, uint32_t &ImmOffset,
 /// \returns true if the intrinsic is divergent
 bool isIntrinsicSourceOfDivergence(unsigned IntrID);
 
-/*
 // Track defaults for fields in the MODE registser.
-struct SIModeRegisterDefaults {
+struct PPUModeRegisterDefaults {
   /// Floating point opcodes that support exception flag gathering quiet and
   /// propagate signaling NaN inputs per IEEE 754-2008. Min_dx10 and max_dx10
   /// become IEEE 754- 2008 compliant due to signaling NaN propagation and
@@ -806,30 +813,30 @@ struct SIModeRegisterDefaults {
 
   // TODO: FP mode fields
 
-  SIModeRegisterDefaults() :
+  PPUModeRegisterDefaults() :
     IEEE(true),
     DX10Clamp(true) {}
 
-  SIModeRegisterDefaults(const Function &F);
+  PPUModeRegisterDefaults(const Function &F);
 
-  static SIModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
-    SIModeRegisterDefaults Mode;
+  static PPUModeRegisterDefaults getDefaultForCallingConv(CallingConv::ID CC) {
+    PPUModeRegisterDefaults Mode;
     Mode.DX10Clamp = true;
-    Mode.IEEE = AMDGPU::isCompute(CC);
+    Mode.IEEE = PPU::isCompute(CC);
     return Mode;
   }
 
-  bool operator ==(const SIModeRegisterDefaults Other) const {
+  bool operator ==(const PPUModeRegisterDefaults Other) const {
     return IEEE == Other.IEEE && DX10Clamp == Other.DX10Clamp;
   }
 
   // FIXME: Inlining should be OK for dx10-clamp, since the caller's mode should
   // be able to override.
-  bool isInlineCompatible(SIModeRegisterDefaults CalleeMode) const {
+  bool isInlineCompatible(PPUModeRegisterDefaults CalleeMode) const {
     return *this == CalleeMode;
   }
 };
-*/
+
 
 } // end namespace AMDGPU
 

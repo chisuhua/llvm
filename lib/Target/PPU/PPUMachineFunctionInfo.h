@@ -20,8 +20,15 @@
 #include "PPURegisterInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SparseBitVector.h"
+#include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/Support/ErrorHandling.h"
 
 // TODO copied from rvv
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -145,6 +152,203 @@ public:
   }
 };
 
+namespace yaml {
+
+struct PPUArgument {
+  bool IsRegister;
+  union {
+    StringValue RegisterName;
+    unsigned StackOffset;
+  };
+  Optional<unsigned> Mask;
+
+  // Default constructor, which creates a stack argument.
+  PPUArgument() : IsRegister(false), StackOffset(0) {}
+  PPUArgument(const PPUArgument &Other) {
+    IsRegister = Other.IsRegister;
+    if (IsRegister) {
+      ::new ((void *)std::addressof(RegisterName))
+          StringValue(Other.RegisterName);
+    } else
+      StackOffset = Other.StackOffset;
+    Mask = Other.Mask;
+  }
+  PPUArgument &operator=(const PPUArgument &Other) {
+    IsRegister = Other.IsRegister;
+    if (IsRegister) {
+      ::new ((void *)std::addressof(RegisterName))
+          StringValue(Other.RegisterName);
+    } else
+      StackOffset = Other.StackOffset;
+    Mask = Other.Mask;
+    return *this;
+  }
+  ~PPUArgument() {
+    if (IsRegister)
+      RegisterName.~StringValue();
+  }
+
+  // Helper to create a register or stack argument.
+  static inline PPUArgument createArgument(bool IsReg) {
+    if (IsReg)
+      return PPUArgument(IsReg);
+    return PPUArgument();
+  }
+
+private:
+  // Construct a register argument.
+  PPUArgument(bool) : IsRegister(true), RegisterName() {}
+};
+
+template <> struct MappingTraits<PPUArgument> {
+  static void mapping(IO &YamlIO, PPUArgument &A) {
+    if (YamlIO.outputting()) {
+      if (A.IsRegister)
+        YamlIO.mapRequired("reg", A.RegisterName);
+      else
+        YamlIO.mapRequired("offset", A.StackOffset);
+    } else {
+      auto Keys = YamlIO.keys();
+      if (is_contained(Keys, "reg")) {
+        A = PPUArgument::createArgument(true);
+        YamlIO.mapRequired("reg", A.RegisterName);
+      } else if (is_contained(Keys, "offset"))
+        YamlIO.mapRequired("offset", A.StackOffset);
+      else
+        YamlIO.setError("missing required key 'reg' or 'offset'");
+    }
+    YamlIO.mapOptional("mask", A.Mask);
+  }
+  static const bool flow = true;
+};
+
+struct PPUArgumentInfo {
+  Optional<PPUArgument> PrivateSegmentBuffer;
+  Optional<PPUArgument> DispatchPtr;
+  Optional<PPUArgument> QueuePtr;
+  Optional<PPUArgument> KernargSegmentPtr;
+  Optional<PPUArgument> DispatchID;
+  Optional<PPUArgument> FlatScratchInit;
+  Optional<PPUArgument> PrivateSegmentSize;
+
+  Optional<PPUArgument> WorkGroupIDX;
+  Optional<PPUArgument> WorkGroupIDY;
+  Optional<PPUArgument> WorkGroupIDZ;
+  Optional<PPUArgument> WorkGroupInfo;
+  Optional<PPUArgument> PrivateSegmentWaveByteOffset;
+
+  Optional<PPUArgument> ImplicitArgPtr;
+  Optional<PPUArgument> ImplicitBufferPtr;
+
+  Optional<PPUArgument> WorkItemIDX;
+  Optional<PPUArgument> WorkItemIDY;
+  Optional<PPUArgument> WorkItemIDZ;
+};
+
+template <> struct MappingTraits<PPUArgumentInfo> {
+  static void mapping(IO &YamlIO, PPUArgumentInfo &AI) {
+    YamlIO.mapOptional("privateSegmentBuffer", AI.PrivateSegmentBuffer);
+    YamlIO.mapOptional("dispatchPtr", AI.DispatchPtr);
+    YamlIO.mapOptional("queuePtr", AI.QueuePtr);
+    YamlIO.mapOptional("kernargSegmentPtr", AI.KernargSegmentPtr);
+    YamlIO.mapOptional("dispatchID", AI.DispatchID);
+    YamlIO.mapOptional("flatScratchInit", AI.FlatScratchInit);
+    YamlIO.mapOptional("privateSegmentSize", AI.PrivateSegmentSize);
+
+    YamlIO.mapOptional("workGroupIDX", AI.WorkGroupIDX);
+    YamlIO.mapOptional("workGroupIDY", AI.WorkGroupIDY);
+    YamlIO.mapOptional("workGroupIDZ", AI.WorkGroupIDZ);
+    YamlIO.mapOptional("workGroupInfo", AI.WorkGroupInfo);
+    YamlIO.mapOptional("privateSegmentWaveByteOffset",
+                       AI.PrivateSegmentWaveByteOffset);
+
+    YamlIO.mapOptional("implicitArgPtr", AI.ImplicitArgPtr);
+    YamlIO.mapOptional("implicitBufferPtr", AI.ImplicitBufferPtr);
+
+    YamlIO.mapOptional("workItemIDX", AI.WorkItemIDX);
+    YamlIO.mapOptional("workItemIDY", AI.WorkItemIDY);
+    YamlIO.mapOptional("workItemIDZ", AI.WorkItemIDZ);
+  }
+};
+
+// Default to default mode for default calling convention.
+struct PPUMode {
+  bool IEEE = true;
+  bool DX10Clamp = true;
+
+  PPUMode() = default;
+
+
+  PPUMode(const PPU::PPUModeRegisterDefaults &Mode) {
+    IEEE = Mode.IEEE;
+    DX10Clamp = Mode.DX10Clamp;
+  }
+
+  bool operator ==(const PPUMode Other) const {
+    return IEEE == Other.IEEE && DX10Clamp == Other.DX10Clamp;
+  }
+};
+
+template <> struct MappingTraits<PPUMode> {
+  static void mapping(IO &YamlIO, PPUMode &Mode) {
+    YamlIO.mapOptional("ieee", Mode.IEEE, true);
+    YamlIO.mapOptional("dx10-clamp", Mode.DX10Clamp, true);
+  }
+};
+
+struct PPUMachineFunctionInfo final : public yaml::MachineFunctionInfo {
+  uint64_t ExplicitKernArgSize = 0;
+  unsigned MaxKernArgAlign = 0;
+  unsigned LDSSize = 0;
+  bool IsEntryFunction = false;
+  bool NoSignedZerosFPMath = false;
+  bool MemoryBound = false;
+  bool WaveLimiter = false;
+  uint32_t HighBitsOf32BitAddress = 0;
+
+  StringValue ScratchRSrcReg = "$private_rsrc_reg";
+  StringValue ScratchWaveOffsetReg = "$scratch_wave_offset_reg";
+  StringValue FrameOffsetReg = "$fp_reg";
+  StringValue StackPtrOffsetReg = "$sp_reg";
+
+  Optional<PPUArgumentInfo> ArgInfo;
+  PPUMode Mode;
+
+  PPUMachineFunctionInfo() = default;
+  PPUMachineFunctionInfo(const llvm::PPUMachineFunctionInfo &,
+                        const TargetRegisterInfo &TRI);
+
+  void mappingImpl(yaml::IO &YamlIO) override;
+  ~PPUMachineFunctionInfo() = default;
+};
+
+template <> struct MappingTraits<PPUMachineFunctionInfo> {
+  static void mapping(IO &YamlIO, PPUMachineFunctionInfo &MFI) {
+    YamlIO.mapOptional("explicitKernArgSize", MFI.ExplicitKernArgSize,
+                       UINT64_C(0));
+    YamlIO.mapOptional("maxKernArgAlign", MFI.MaxKernArgAlign, 0u);
+    YamlIO.mapOptional("ldsSize", MFI.LDSSize, 0u);
+    YamlIO.mapOptional("isEntryFunction", MFI.IsEntryFunction, false);
+    YamlIO.mapOptional("noSignedZerosFPMath", MFI.NoSignedZerosFPMath, false);
+    YamlIO.mapOptional("memoryBound", MFI.MemoryBound, false);
+    YamlIO.mapOptional("waveLimiter", MFI.WaveLimiter, false);
+    YamlIO.mapOptional("scratchRSrcReg", MFI.ScratchRSrcReg,
+                       StringValue("$private_rsrc_reg"));
+    YamlIO.mapOptional("scratchWaveOffsetReg", MFI.ScratchWaveOffsetReg,
+                       StringValue("$scratch_wave_offset_reg"));
+    YamlIO.mapOptional("frameOffsetReg", MFI.FrameOffsetReg,
+                       StringValue("$fp_reg"));
+    YamlIO.mapOptional("stackPtrOffsetReg", MFI.StackPtrOffsetReg,
+                       StringValue("$sp_reg"));
+    YamlIO.mapOptional("argumentInfo", MFI.ArgInfo);
+    YamlIO.mapOptional("mode", MFI.Mode, PPUMode());
+    YamlIO.mapOptional("highBitsOf32BitAddress",
+                       MFI.HighBitsOf32BitAddress, 0u);
+  }
+};
+
+} // end namespace yaml
+
 /// This class keeps track of the SPI_SP_INPUT_ADDR config register, which
 /// tells the hardware which interpolation parameters to load.
 class PPUMachineFunctionInfo final : public PPUBaseMachineFunctionInfo {
@@ -154,25 +358,23 @@ class PPUMachineFunctionInfo final : public PPUBaseMachineFunctionInfo {
 
   // Registers that may be reserved for spilling purposes. These may be the same
   // as the input registers.
-  /* TODO
   unsigned ScratchRSrcReg = PPU::PRIVATE_RSRC_REG;
   unsigned ScratchWaveOffsetReg = PPU::SCRATCH_WAVE_OFFSET_REG;
-  */
 
   // This is the current function's incremented size from the kernel's scratch
   // wave offset register. For an entry function, this is exactly the same as
   // the ScratchWaveOffsetReg.
-  unsigned FrameOffsetReg = PPU::FP_REG;
+  unsigned FrameOffsetReg = PPU::FP_REG;  // FIXME PPU::X8
 
   // Top of the stack SGPR offset derived from the ScratchWaveOffsetReg.
-  unsigned StackPtrOffsetReg = PPU::SP_REG;
+  unsigned StackPtrOffsetReg = PPU::SP_REG;  // FIXME PPU::X2
 
   PPUFunctionArgInfo ArgInfo;
 
   // State of MODE register, assumed FP mode.
-  // TODO FP mode field
-  // PPU::SIModeRegisterDefaults Mode;
-  //
+  // TODO FP mode field consider RISCV 
+  PPU::PPUModeRegisterDefaults Mode;
+
 
   // Graphics info.
   // unsigned PSInputAddr = 0;
@@ -257,7 +459,7 @@ private:
   // Current recorded maximum possible occupancy.
   unsigned Occupancy;
 
-  MCPhysReg getNextUserSGPR() const;
+  MCPhysReg getNextUserSPR() const;
 
   MCPhysReg getNextSystemSGPR() const;
 
@@ -320,7 +522,7 @@ public: // FIXME
 public:
   PPUMachineFunctionInfo(const MachineFunction &MF);
 
-  // FIXME bool initializeBaseYamlFields(const yaml::SIMachineFunctionInfo &YamlMFI);
+  bool initializeBaseYamlFields(const yaml::PPUMachineFunctionInfo &YamlMFI);
 
   ArrayRef<SpilledReg> getSGPRToVGPRSpills(int FrameIndex) const {
     auto I = SGPRToVGPRSpills.find(FrameIndex);
@@ -345,15 +547,15 @@ public:
     return (I == VGPRToAGPRSpills.end()) ? (MCPhysReg)PPU::NoRegister
                                          : I->second.Lanes[Lane];
   }
-/* TODO FP mode 
-  PPU::SIModeRegisterDefaults getMode() const {
+
+  PPU::PPUModeRegisterDefaults getMode() const {
     return Mode;
   }
-*/
-  bool haveFreeLanesForSGPRSpill(const MachineFunction &MF,
-                                 unsigned NumLane) const;
+
+  bool haveFreeLanesForSGPRSpill(const MachineFunction &MF, unsigned NumLane) const;
   bool allocateSGPRSpillToVGPR(MachineFunction &MF, int FI);
   bool allocateVGPRSpillToAGPR(MachineFunction &MF, int FI, bool isAGPRtoVGPR);
+  void removeSGPRToVGPRFrameIndices(MachineFrameInfo &MFI);
   void removeDeadFrameIndices(MachineFrameInfo &MFI);
 
   bool hasCalculatedTID() const { return TIDReg != 0; };
@@ -534,7 +736,6 @@ public:
 
   /// Returns the physical register reserved for use as the resource
   /// descriptor for scratch accesses.
-  /* TODO
   unsigned getScratchRSrcReg() const {
     return ScratchRSrcReg;
   }
@@ -547,7 +748,6 @@ public:
   unsigned getScratchWaveOffsetReg() const {
     return ScratchWaveOffsetReg;
   }
-  */
 
   unsigned getFrameOffsetReg() const {
     return FrameOffsetReg;
@@ -570,12 +770,11 @@ public:
   unsigned getStackPtrOffsetReg() const {
     return StackPtrOffsetReg;
   }
-/*
+
   void setScratchWaveOffsetReg(unsigned Reg) {
     assert(Reg != 0 && "Should never be unset");
     ScratchWaveOffsetReg = Reg;
   }
-  */
 
   unsigned getQueuePtrUserSGPR() const {
     return ArgInfo.QueuePtr.getRegister();

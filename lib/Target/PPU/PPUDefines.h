@@ -172,6 +172,13 @@ namespace PPU {
   };
 }
 
+namespace PPUStackID {
+enum StackTypes : uint8_t {
+  SCRATCH = 0,
+  SGPR_SPILL = 1
+};
+}
+
 // Input operand modifiers bit-masks
 // NEG and SEXT share same bit-mask because they can't be set simultaneously.
 namespace PPUSrcMods {

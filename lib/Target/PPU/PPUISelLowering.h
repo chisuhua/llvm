@@ -1,4 +1,4 @@
-//===-- PPUISelLowering.h - PPU DAG Lowering Interface ------*- C++ -*-===//
+//===-- PPUISelLowering.h - PPU DAG Lowering Interface ------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,236 +6,412 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file defines the interfaces that PPU uses to lower LLVM code into a
-// selection DAG.
+/// \file
+/// PPU DAG Lowering interface definition
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_PPU_PPUISELLOWERING_H
-#define LLVM_LIB_TARGET_PPU_PPUISELLOWERING_H
+#ifndef LLVM_LIB_TARGET_PPU_ISELLOWERING_H
+#define LLVM_LIB_TARGET_PPU_ISELLOWERING_H
 
-#include "PPU.h"
-#include "llvm/CodeGen/SelectionDAG.h"
-#include "llvm/CodeGen/TargetLowering.h"
+#include "PPUBaseISelLowering.h"
+#include "PPUArgumentUsageInfo.h"
+#include "PPUInstrInfo.h"
+#include "llvm/CodeGen/ValueTypes.h"
 
 namespace llvm {
-class PPUSubtarget;
-namespace PPUISD {
-enum NodeType : unsigned {
-  FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  RET_FLAG,
-  URET_FLAG,
-  SRET_FLAG,
-  MRET_FLAG,
-  CALL,
-  SELECT_CC,
-  BuildPairF64,
-  SplitF64,
-  TAIL,
-  // RV64I shifts, directly matching the semantics of the named PPU
-  // instructions.
-  SLLW,
-  SRAW,
-  SRLW,
-  // 32-bit operations from RV64M that can't be simply matched with a pattern
-  // at instruction selection time.
-  DIVW,
-  DIVUW,
-  REMUW,
-  // FPR32<->GPR transfer operations for RV64. Needed as an i32<->f32 bitcast
-  // is not legal on RV64. FMV_W_X_RV64 matches the semantics of the FMV.W.X.
-  // FMV_X_ANYEXTW_RV64 is similar to FMV.X.W but has an any-extended result.
-  // This is a more convenient semantic for producing dagcombines that remove
-  // unnecessary GPR->FPR->GPR moves.
-  FMV_W_X_RV64,
-  FMV_X_ANYEXTW_RV64,
-  // READ_CYCLE_WIDE - A read of the 64-bit cycle CSR on a 32-bit target
-  // (returns (Lo, Hi)). It takes a chain operand.
-  READ_CYCLE_WIDE,
-  SETVL,
-  BROADCAST,
-  // PPUV
-  IF,
-  ELSE,
-  LOOP
-};
-}
 
-class PPUTargetLowering : public TargetLowering {
-  const PPUSubtarget &Subtarget;
+class PPUTargetLowering final : public PPUBaseTargetLowering {
+private:
+  const PPUSubtarget *Subtarget;
 
 public:
-  explicit PPUTargetLowering(const TargetMachine &TM,
-                               const PPUSubtarget &STI);
-
-  bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallInst &I,
-                          MachineFunction &MF,
-                          unsigned Intrinsic) const override;
-  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
-                             unsigned AS,
-                             Instruction *I = nullptr) const override;
-  bool isLegalICmpImmediate(int64_t Imm) const override;
-  bool isLegalAddImmediate(int64_t Imm) const override;
-  bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
-  bool isTruncateFree(EVT SrcVT, EVT DstVT) const override;
-  bool isZExtFree(SDValue Val, EVT VT2) const override;
-  bool isSExtCheaperThanZExt(EVT SrcVT, EVT DstVT) const override;
-
-  bool hasBitPreservingFPLogic(EVT VT) const override;
-
-  // Provide custom lowering hooks for some operations.
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                          SelectionDAG &DAG) const override;
-
-  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
-
-  unsigned ComputeNumSignBitsForTargetNode(SDValue Op,
-                                           const APInt &DemandedElts,
-                                           const SelectionDAG &DAG,
-                                           unsigned Depth) const override;
-
-  // This method returns the name of a target specific DAG node.
-  const char *getTargetNodeName(unsigned Opcode) const override;
-
-  ConstraintType getConstraintType(StringRef Constraint) const override;
-
-  unsigned getInlineAsmMemConstraint(StringRef ConstraintCode) const override;
-
-  std::pair<unsigned, const TargetRegisterClass *>
-  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
-                               StringRef Constraint, MVT VT) const override;
-
-  void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
-                                    std::vector<SDValue> &Ops,
-                                    SelectionDAG &DAG) const override;
-
-  MachineBasicBlock *
-  EmitInstrWithCustomInserter(MachineInstr &MI,
-                              MachineBasicBlock *BB) const override;
-
-  EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
-                         EVT VT) const override;
-
-  bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
-    return VT.isScalarInteger();
-  }
-
-  bool shouldInsertFencesForAtomic(const Instruction *I) const override {
-    return isa<LoadInst>(I) || isa<StoreInst>(I);
-  }
-  Instruction *emitLeadingFence(IRBuilder<> &Builder, Instruction *Inst,
-                                AtomicOrdering Ord) const override;
-  Instruction *emitTrailingFence(IRBuilder<> &Builder, Instruction *Inst,
-                                 AtomicOrdering Ord) const override;
-
-  ISD::NodeType getExtendForAtomicOps() const override {
-    return ISD::SIGN_EXTEND;
-  }
-
-  bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override {
-    if (DAG.getMachineFunction().getFunction().hasMinSize())
-      return false;
-    return true;
-  }
-  bool isDesirableToCommuteWithShift(const SDNode *N,
-                                     CombineLevel Level) const override;
-
-  /// If a physical register, this returns the register that receives the
-  /// exception address on entry to an EH pad.
-  unsigned
-  getExceptionPointerRegister(const Constant *PersonalityFn) const override;
-
-  /// If a physical register, this returns the register that receives the
-  /// exception typeid on entry to a landing pad.
-  unsigned
-  getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
-
-  bool shouldExtendTypeInLibCall(EVT Type) const override;
-
-private:
-  void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
-                        const SmallVectorImpl<ISD::InputArg> &Ins,
-                        bool IsRet) const;
-  void analyzeOutputArgs(MachineFunction &MF, CCState &CCInfo,
-                         const SmallVectorImpl<ISD::OutputArg> &Outs,
-                         bool IsRet, CallLoweringInfo *CLI) const;
-  // Lower incoming arguments, copy physregs into vregs
-  SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
-                               bool IsVarArg,
-                               const SmallVectorImpl<ISD::InputArg> &Ins,
-                               const SDLoc &DL, SelectionDAG &DAG,
-                               SmallVectorImpl<SDValue> &InVals) const override;
-  bool CanLowerReturn(CallingConv::ID CallConv, MachineFunction &MF,
-                      bool IsVarArg,
-                      const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      LLVMContext &Context) const override;
-  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
-                      const SmallVectorImpl<ISD::OutputArg> &Outs,
-                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
-                      SelectionDAG &DAG) const override;
-  SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
-                    SmallVectorImpl<SDValue> &InVals) const override;
-  bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
-                                         Type *Ty) const override {
-    return true;
-  }
-
-  template <class NodeTy>
-  SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
-
-  SDValue getStaticTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG,
-                           bool UseGOT) const;
-  SDValue getDynamicTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG) const;
-
-  bool shouldConsiderGEPOffsetSplit() const override { return true; }
-  SDValue lowerGlobalAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerBlockAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerSELECT(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
-
-  // TODO copied from rvv
-  SDValue lowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerSETVL(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerSPLAT_VECTOR(SDValue Op, SelectionDAG &DAG) const;
-
-  bool isEligibleForTailCallOptimization(
-      CCState &CCInfo, CallLoweringInfo &CLI, MachineFunction &MF,
-      const SmallVector<CCValAssign, 16> &ArgLocs) const;
-
-  TargetLowering::AtomicExpansionKind
-  shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
-  virtual Value *emitMaskedAtomicRMWIntrinsic(
-      IRBuilder<> &Builder, AtomicRMWInst *AI, Value *AlignedAddr, Value *Incr,
-      Value *Mask, Value *ShiftAmt, AtomicOrdering Ord) const override;
-  TargetLowering::AtomicExpansionKind
-  shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *CI) const override;
-  virtual Value *
-  emitMaskedAtomicCmpXchgIntrinsic(IRBuilder<> &Builder, AtomicCmpXchgInst *CI,
-                                   Value *AlignedAddr, Value *CmpVal,
-                                   Value *NewVal, Value *Mask,
-                                   AtomicOrdering Ord) const override;
-
- // from SIISelLowering
-   MVT getRegisterTypeForCallingConv(LLVMContext &Context,
+  MVT getRegisterTypeForCallingConv(LLVMContext &Context,
                                     CallingConv::ID CC,
                                     EVT VT) const override;
   unsigned getNumRegistersForCallingConv(LLVMContext &Context,
                                          CallingConv::ID CC,
                                          EVT VT) const override;
 
- // from AMDGPUISelLowering
-  void analyzeFormalArgumentsCompute(
-    CCState &State,
-    const SmallVectorImpl<ISD::InputArg> &Ins) const;
+  unsigned getVectorTypeBreakdownForCallingConv(
+    LLVMContext &Context, CallingConv::ID CC, EVT VT, EVT &IntermediateVT,
+    unsigned &NumIntermediates, MVT &RegisterVT) const override;
 
+private:
+  SDValue lowerKernArgParameterPtr(SelectionDAG &DAG, const SDLoc &SL,
+                                   SDValue Chain, uint64_t Offset) const;
+  SDValue getImplicitArgPtr(SelectionDAG &DAG, const SDLoc &SL) const;
+  SDValue lowerKernargMemParameter(SelectionDAG &DAG, EVT VT, EVT MemVT,
+                                   const SDLoc &SL, SDValue Chain,
+                                   uint64_t Offset, unsigned Align, bool Signed,
+                                   const ISD::InputArg *Arg = nullptr) const;
+
+  SDValue lowerStackParameter(SelectionDAG &DAG, CCValAssign &VA,
+                              const SDLoc &SL, SDValue Chain,
+                              const ISD::InputArg &Arg) const;
+  SDValue getPreloadedValue(SelectionDAG &DAG,
+                            const PPUMachineFunctionInfo &MFI,
+                            EVT VT,
+                            PPUFunctionArgInfo::PreloadedValue) const;
+
+  SDValue LowerGlobalAddress(PPUMachineFunction *MFI, SDValue Op,
+                             SelectionDAG &DAG) const override;
+  SDValue lowerImplicitZextParam(SelectionDAG &DAG, SDValue Op,
+                                 MVT VT, unsigned Offset) const;
+  /* TODO
+  SDValue lowerImage(SDValue Op, const PPU::ImageDimIntrinsicInfo *Intr,
+                     SelectionDAG &DAG) const;
+  */
+  SDValue lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc, SDValue Offset,
+                       SDValue GLC, SDValue DLC, SelectionDAG &DAG) const;
+
+  SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
+
+  // The raw.tbuffer and struct.tbuffer intrinsics have two offset args: offset
+  // (the offset that is included in bounds checking and swizzling, to be split
+  // between the instruction's voffset and immoffset fields) and soffset (the
+  // offset that is excluded from bounds checking and swizzling, to go in the
+  // instruction's soffset field).  This function takes the first kind of
+  // offset and figures out how to split it between voffset and immoffset.
+  std::pair<SDValue, SDValue> splitBufferOffsets(SDValue Offset,
+                                                 SelectionDAG &DAG) const;
+
+  SDValue widenLoad(LoadSDNode *Ld, DAGCombinerInfo &DCI) const;
+  SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSELECT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFastUnsafeFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFDIV_FAST(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFDIV16(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFDIV64(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+  SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerTrig(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue adjustLoadValueType(unsigned Opcode, MemSDNode *M,
+                              SelectionDAG &DAG, ArrayRef<SDValue> Ops,
+                              bool IsIntrinsic = false) const;
+
+  SDValue lowerIntrinsicLoad(MemSDNode *M, bool IsFormat, SelectionDAG &DAG,
+                             ArrayRef<SDValue> Ops) const;
+
+  // Call DAG.getMemIntrinsicNode for a load, but first widen a dwordx3 type to
+  // dwordx4 if on SI.
+  SDValue getMemIntrinsicNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
+                              ArrayRef<SDValue> Ops, EVT MemVT,
+                              MachineMemOperand *MMO, SelectionDAG &DAG) const;
+
+  SDValue handleD16VData(SDValue VData, SelectionDAG &DAG) const;
+
+  /// Converts \p Op, which must be of floating point type, to the
+  /// floating point type \p VT, by either extending or truncating it.
+  SDValue getFPExtOrFPTrunc(SelectionDAG &DAG,
+                            SDValue Op,
+                            const SDLoc &DL,
+                            EVT VT) const;
+
+  SDValue convertArgType(
+    SelectionDAG &DAG, EVT VT, EVT MemVT, const SDLoc &SL, SDValue Val,
+    bool Signed, const ISD::InputArg *Arg = nullptr) const;
+
+  /// Custom lowering for ISD::FP_ROUND for MVT::f16.
+  SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue getSegmentAperture(unsigned AS, const SDLoc &DL,
+                             SelectionDAG &DAG) const;
+
+  SDValue lowerADDRSPACECAST(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerTRAP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerDEBUGTRAP(SDValue Op, SelectionDAG &DAG) const;
+
+  SDNode *adjustWritemask(MachineSDNode *&N, SelectionDAG &DAG) const;
+
+  SDValue performUCharToFloatCombine(SDNode *N,
+                                     DAGCombinerInfo &DCI) const;
+  SDValue performSHLPtrCombine(SDNode *N,
+                               unsigned AS,
+                               EVT MemVT,
+                               DAGCombinerInfo &DCI) const;
+
+  SDValue performMemSDNodeCombine(MemSDNode *N, DAGCombinerInfo &DCI) const;
+
+  SDValue splitBinaryBitConstantOp(DAGCombinerInfo &DCI, const SDLoc &SL,
+                                   unsigned Opc, SDValue LHS,
+                                   const ConstantSDNode *CRHS) const;
+
+  SDValue performAndCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performOrCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performXorCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performZeroExtendCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performSignExtendInRegCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performClassCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue getCanonicalConstantFP(SelectionDAG &DAG, const SDLoc &SL, EVT VT,
+                                 const APFloat &C) const;
+  SDValue performFCanonicalizeCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  SDValue performFPMed3ImmCombine(SelectionDAG &DAG, const SDLoc &SL,
+                                  SDValue Op0, SDValue Op1) const;
+  SDValue performIntMed3ImmCombine(SelectionDAG &DAG, const SDLoc &SL,
+                                   SDValue Op0, SDValue Op1, bool Signed) const;
+  SDValue performMinMaxCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFMed3Combine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performCvtPkRTZCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performExtractVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performInsertVectorEltCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  SDValue reassociateScalarOps(SDNode *N, SelectionDAG &DAG) const;
+  unsigned getFusedOpcode(const SelectionDAG &DAG,
+                          const SDNode *N0, const SDNode *N1) const;
+  SDValue performAddCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performAddCarrySubCarryCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performSubCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFAddCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFSubCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFMACombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performSetCCCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performCvtF32UByteNCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performClampCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performRcpCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  bool isLegalFlatAddressingMode(const AddrMode &AM) const;
+  bool isLegalMUBUFAddressingMode(const AddrMode &AM) const;
+
+  unsigned isCFIntrinsic(const SDNode *Intr) const;
+
+  /// \returns True if fixup needs to be emitted for given global value \p GV,
+  /// false otherwise.
+  bool shouldEmitFixup(const GlobalValue *GV) const;
+
+  /// \returns True if GOT relocation needs to be emitted for given global value
+  /// \p GV, false otherwise.
+  bool shouldEmitGOTReloc(const GlobalValue *GV) const;
+
+  /// \returns True if PC-relative relocation needs to be emitted for given
+  /// global value \p GV, false otherwise.
+  bool shouldEmitPCReloc(const GlobalValue *GV) const;
+
+  // Analyze a combined offset from an amdgcn_buffer_ intrinsic and store the
+  // three offsets (voffset, soffset and instoffset) into the SDValue[3] array
+  // pointed to by Offsets.
+  void setBufferOffsets(SDValue CombinedOffset, SelectionDAG &DAG,
+                        SDValue *Offsets, unsigned Align = 4) const;
+
+  // Handle 8 bit and 16 bit buffer loads
+  SDValue handleByteShortBufferLoads(SelectionDAG &DAG, EVT LoadVT, SDLoc DL,
+                                     ArrayRef<SDValue> Ops, MemSDNode *M) const;
+
+  // Handle 8 bit and 16 bit buffer stores
+  SDValue handleByteShortBufferStores(SelectionDAG &DAG, EVT VDataType,
+                                      SDLoc DL, SDValue Ops[],
+                                      MemSDNode *M) const;
+
+public:
+  PPUTargetLowering(const TargetMachine &tm, const PPUSubtarget &STI);
+
+  const PPUSubtarget *getSubtarget() const;
+
+  bool isFPExtFoldable(unsigned Opcode, EVT DestVT, EVT SrcVT) const override;
+
+  bool isShuffleMaskLegal(ArrayRef<int> /*Mask*/, EVT /*VT*/) const override;
+/* FIXME
+  bool getTgtMemIntrinsic(IntrinsicInfo &, const CallInst &,
+                          MachineFunction &MF,
+                          unsigned IntrinsicID) const override;
+*/
+  bool getAddrModeArguments(IntrinsicInst * /*I*/,
+                            SmallVectorImpl<Value*> &/*Ops*/,
+                            Type *&/*AccessTy*/) const override;
+
+  bool isLegalGlobalAddressingMode(const AddrMode &AM) const;
+  bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM, Type *Ty,
+                             unsigned AS,
+                             Instruction *I = nullptr) const override;
+
+  bool canMergeStoresTo(unsigned AS, EVT MemVT,
+                        const SelectionDAG &DAG) const override;
+
+  bool allowsMisalignedMemoryAccesses(
+      EVT VT, unsigned AS, unsigned Align,
+      MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+      bool *IsFast = nullptr) const override;
+
+  EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign,
+                          unsigned SrcAlign, bool IsMemset,
+                          bool ZeroMemset,
+                          bool MemcpyStrSrc,
+                          const AttributeList &FuncAttributes) const override;
+
+  bool isMemOpUniform(const SDNode *N) const;
+  bool isMemOpHasNoClobberedMemOperand(const SDNode *N) const;
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
+  bool isFreeAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override;
+
+  TargetLoweringBase::LegalizeTypeAction
+  getPreferredVectorAction(MVT VT) const override;
+
+  bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
+                                        Type *Ty) const override;
+
+  bool isTypeDesirableForOp(unsigned Op, EVT VT) const override;
+
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+
+  bool supportSplitCSR(MachineFunction *MF) const override;
+  void initializeSplitCSR(MachineBasicBlock *Entry) const override;
+  void insertCopiesSplitCSR(
+    MachineBasicBlock *Entry,
+    const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
+
+  SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
+                               bool isVarArg,
+                               const SmallVectorImpl<ISD::InputArg> &Ins,
+                               const SDLoc &DL, SelectionDAG &DAG,
+                               SmallVectorImpl<SDValue> &InVals) const override;
+
+  bool CanLowerReturn(CallingConv::ID CallConv,
+                      MachineFunction &MF, bool isVarArg,
+                      const SmallVectorImpl<ISD::OutputArg> &Outs,
+                      LLVMContext &Context) const override;
+
+  SDValue LowerReturn(SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
+                      const SmallVectorImpl<ISD::OutputArg> &Outs,
+                      const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
+                      SelectionDAG &DAG) const override;
+
+  void passSpecialInputs(
+    CallLoweringInfo &CLI,
+    CCState &CCInfo,
+    const PPUMachineFunctionInfo &Info,
+    SmallVectorImpl<std::pair<unsigned, SDValue>> &RegsToPass,
+    SmallVectorImpl<SDValue> &MemOpChains,
+    SDValue Chain) const;
+
+  SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
+                          CallingConv::ID CallConv, bool isVarArg,
+                          const SmallVectorImpl<ISD::InputArg> &Ins,
+                          const SDLoc &DL, SelectionDAG &DAG,
+                          SmallVectorImpl<SDValue> &InVals, bool isThisReturn,
+                          SDValue ThisVal) const;
+
+  bool mayBeEmittedAsTailCall(const CallInst *) const override;
+
+  bool isEligibleForTailCallOptimization(
+    SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg,
+    const SmallVectorImpl<ISD::OutputArg> &Outs,
+    const SmallVectorImpl<SDValue> &OutVals,
+    const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
+
+  SDValue LowerCall(CallLoweringInfo &CLI,
+                    SmallVectorImpl<SDValue> &InVals) const override;
+
+  unsigned getRegisterByName(const char* RegName, EVT VT,
+                             SelectionDAG &DAG) const override;
+
+  MachineBasicBlock *splitKillBlock(MachineInstr &MI,
+                                    MachineBasicBlock *BB) const;
+
+  void bundleInstWithWaitcnt(MachineInstr &MI) const;
+  MachineBasicBlock *emitGWSMemViolTestLoop(MachineInstr &MI,
+                                            MachineBasicBlock *BB) const;
+
+  MachineBasicBlock *
+  EmitInstrWithCustomInserter(MachineInstr &MI,
+                              MachineBasicBlock *BB) const override;
+
+  bool hasBitPreservingFPLogic(EVT VT) const override;
+  bool enableAggressiveFMAFusion(EVT VT) const override;
+  EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
+                         EVT VT) const override;
+  MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override;
+  bool isFMAFasterThanFMulAndFAdd(EVT VT) const override;
+  SDValue splitUnaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue splitBinaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue splitTernaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+
+  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                          SelectionDAG &DAG) const override;
+
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
+  SDNode *PostISelFolding(MachineSDNode *N, SelectionDAG &DAG) const override;
+  void AdjustInstrPostInstrSelection(MachineInstr &MI,
+                                     SDNode *Node) const override;
+
+  SDNode *legalizeTargetIndependentNode(SDNode *Node, SelectionDAG &DAG) const;
+
+  MachineSDNode *wrapAddr64Rsrc(SelectionDAG &DAG, const SDLoc &DL,
+                                SDValue Ptr) const;
+  MachineSDNode *buildRSRC(SelectionDAG &DAG, const SDLoc &DL, SDValue Ptr,
+                           uint32_t RsrcDword1, uint64_t RsrcDword2And3) const;
+  std::pair<unsigned, const TargetRegisterClass *>
+  getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                               StringRef Constraint, MVT VT) const override;
+  ConstraintType getConstraintType(StringRef Constraint) const override;
+  SDValue copyToM0(SelectionDAG &DAG, SDValue Chain, const SDLoc &DL,
+                   SDValue V) const;
+
+  void finalizeLowering(MachineFunction &MF) const override;
+
+  void computeKnownBitsForFrameIndex(const SDValue Op,
+                                     KnownBits &Known,
+                                     const APInt &DemandedElts,
+                                     const SelectionDAG &DAG,
+                                     unsigned Depth = 0) const override;
+
+  bool isSDNodeSourceOfDivergence(const SDNode *N,
+    FunctionLoweringInfo *FLI, LegacyDivergenceAnalysis *DA) const override;
+
+  bool isCanonicalized(SelectionDAG &DAG, SDValue Op,
+                       unsigned MaxDepth = 5) const;
+  bool denormalsEnabledForType(EVT VT) const;
+
+  bool isKnownNeverNaNForTargetNode(SDValue Op,
+                                    const SelectionDAG &DAG,
+                                    bool SNaN = false,
+                                    unsigned Depth = 0) const override;
+  AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
+
+  unsigned getPrefLoopAlignment(MachineLoop *ML) const override;
+
+
+  void allocateHSAUserSGPRs(CCState &CCInfo,
+                            MachineFunction &MF,
+                            const PPURegisterInfo &TRI,
+                            PPUMachineFunctionInfo &Info) const;
+
+  void allocateSystemSGPRs(CCState &CCInfo,
+                           MachineFunction &MF,
+                           PPUMachineFunctionInfo &Info,
+                           CallingConv::ID CallConv,
+                           bool IsShader) const;
+
+  void allocateSpecialEntryInputVGPRs(CCState &CCInfo,
+                                      MachineFunction &MF,
+                                      const PPURegisterInfo &TRI,
+                                      PPUMachineFunctionInfo &Info) const;
+  void allocateSpecialInputSGPRs(
+    CCState &CCInfo,
+    MachineFunction &MF,
+    const PPURegisterInfo &TRI,
+    PPUMachineFunctionInfo &Info) const;
+
+  void allocateSpecialInputVGPRs(CCState &CCInfo,
+                                 MachineFunction &MF,
+                                 const PPURegisterInfo &TRI,
+                                 PPUMachineFunctionInfo &Info) const;
 };
-}
+
+} // End namespace llvm
 
 #endif

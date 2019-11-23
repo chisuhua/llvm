@@ -190,29 +190,32 @@ static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint64_t RegNo,
 }
 
 // TODO schi copied from rvv
-static const unsigned VRDecoderTable[] = {
-  PPU::V0,  PPU::V1,  PPU::V2,  PPU::V3,
-  PPU::V4,  PPU::V5,  PPU::V6,  PPU::V7,
-  PPU::V8,  PPU::V9,  PPU::V10, PPU::V11,
-  PPU::V12, PPU::V13, PPU::V14, PPU::V15,
+static const unsigned TPRDecoderTable[] = {
+  PPU::TPR0,  PPU::TPR1,  PPU::TPR2,  PPU::TPR3,
+  PPU::TPR4,  PPU::TPR5,  PPU::TPR6,  PPU::TPR7,
+  PPU::TPR8,  PPU::TPR9,  PPU::TPR10, PPU::TPR11,
+  PPU::TPR12, PPU::TPR13, PPU::TPR14, PPU::TPR15
+};
+/*
   PPU::V16, PPU::V17, PPU::V18, PPU::V19,
   PPU::V20, PPU::V21, PPU::V22, PPU::V23,
   PPU::V24, PPU::V25, PPU::V26, PPU::V27,
   PPU::V28, PPU::V29, PPU::V30, PPU::V31
 };
+*/
 
-static DecodeStatus DecodeVRRegisterClass(MCInst &Inst, uint64_t RegNo,
+static DecodeStatus DecodeTPRRegisterClass(MCInst &Inst, uint64_t RegNo,
                                           uint64_t Address,
                                           const void *Decoder) {
   // FIXME(rkruppe) this should be >= and the same bug exists in the other register decoders
-  if (RegNo > sizeof(VRDecoderTable)) {
+  if (RegNo > sizeof(TPRDecoderTable)) {
     return MCDisassembler::Fail;
   }
 
   // We must define our own mapping from RegNo to register identifier.
   // Accessing index RegNo in the register class will work in the case that
   // registers were added in ascending order, but not in general.
-  unsigned Reg = VRDecoderTable[RegNo];
+  unsigned Reg = TPRDecoderTable[RegNo];
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }

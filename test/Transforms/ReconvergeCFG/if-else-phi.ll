@@ -1,6 +1,6 @@
 ; RUN: opt -S -reconvergecfg %s | FileCheck %s
 
-define i32 @test1(i1 %cc, i32 %a, i32 %b) {
+define amdgpu_cs i32 @test1(i1 inreg %cc, i32 inreg %a, i32 inreg %b) {
 ; CHECK-LABEL: @test1(
 ; CHECK: A:
 ; CHECK:   br i1 %cc, label %flow, label %C

@@ -11,3 +11,19 @@
 
 /// General Purpose Registers: X.
 def GPRRegBank : RegisterBank<"GPRB", [GPR]>;
+
+def SPRRegBank : RegisterBank<"SPR",
+  // [SReg_32, SReg_64, SReg_128, SReg_256, SReg_512]
+  [SReg_32, SReg_64]
+>;
+
+def VPRRegBank : RegisterBank<"VPR",
+  // [VReg_32, VReg_64, VReg_96, VReg_128, VReg_256, VReg_512]
+  [VReg_32, VReg_64]
+>;
+
+def SCCRegBank : RegisterBank <"SCC", [SReg_32, SCC_CLASS]>;
+
+// It is helpful to distinguish conditions from ordinary SGPRs.
+def VCCRegBank : RegisterBank <"VCC", [SReg_1]>;
+

@@ -112,8 +112,8 @@ void PPUBaseInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   }
 
   // VR -> VR copies
-  if (PPU::VRRegClass.contains(SrcReg) &&
-      PPU::VRRegClass.contains(DstReg)) {
+  if (PPU::TPRRegClass.contains(SrcReg) &&
+      PPU::TPRRegClass.contains(DstReg)) {
     
     auto Scavenger = RegScavenger();
     Scavenger.enterBasicBlockEnd(MBB);
@@ -547,6 +547,31 @@ bool PPUBaseInstrInfo::isBranchOp(unsigned BranchOp) const {
   }
 }
 
+// this is base on AMDGPUInstrInfo.cpp
+// TODO: Should largely merge with AMDGPUTTIImpl::isSourceOfDivergence.
+bool PPUInstrInfo::isUniformMMO(const MachineMemOperand *MMO) {
+  const Value *Ptr = MMO->getValue();
+  // UndefValue means this is a load of a kernel input.  These are uniform.
+  // Sometimes LDS instructions have constant pointers.
+  // If Ptr is null, then that means this mem operand contains a
+  // PseudoSourceValue like GOT.
+  if (!Ptr || isa<UndefValue>(Ptr) ||
+      isa<Constant>(Ptr) || isa<GlobalValue>(Ptr))
+    return true;
+
+  if (MMO->getAddrSpace() == AMDGPUAS::CONSTANT_ADDRESS_32BIT)
+    return true;
+
+  if (const Argument *Arg = dyn_cast<Argument>(Ptr))
+    return PPU::isArgPassedInSGPR(Arg);
+
+  const Instruction *I = dyn_cast<Instruction>(Ptr);
+  return I && I->getMetadata("ppu.uniform");
+}
+
+
+// below is base on SIInstrInfo.cpp
+//
 // Must be at least 4 to be able to branch over minimum unconditional branch
 // code. This is only for making it possible to write reasonably small tests for
 // long branches.
@@ -998,8 +1023,8 @@ void PPUInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                               unsigned SrcReg, bool KillSrc) const {
   const TargetRegisterClass *RC = RI.getPhysRegClass(DestReg);
 
-  if (RC == &PPU::VRRegClass) {
-    assert(PPU::VRRegClass.contains(SrcReg) ||
+  if (RC == &PPU::TPRRegClass) {
+    assert(PPU::TPRRegClass.contains(SrcReg) ||
            PPU::GPRRegClass.contains(SrcReg));
     unsigned Opc = PPU::VMOV;
     BuildMI(MBB, MI, DL, get(Opc), DestReg)
@@ -1023,7 +1048,7 @@ void PPUInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
           .addReg(SrcReg, getKillRegState(KillSrc));
       } else {
         // FIXME: Hack until VReg_1 removed.
-        assert(PPU::VRRegClass.contains(SrcReg));
+        assert(PPU::TPRRegClass.contains(SrcReg));
         BuildMI(MBB, MI, DL, get(PPU::V_CMP_NE_U32_e32))
           .addImm(0)
           .addReg(SrcReg, getKillRegState(KillSrc));
@@ -1122,14 +1147,13 @@ void PPUInstrInfo::materializeImmediate(MachineBasicBlock &MBB,
   MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *RegClass = MRI.getRegClass(DestReg);
   if (RegClass == &PPU::GPRRegClass ||
-      RegClass == &PPU::SReg_32_XM0RegClass ||
-      RegClass == &PPU::SReg_32_XM0_XEXECRegClass) {
+      RegClass == &PPU::SReg_32RegClass) {
     BuildMI(MBB, MI, DL, get(PPU::SMOV), DestReg)
       .addImm(Value);
     return;
   }
 
-  if (RegClass == &PPU::VRRegClass) {
+  if (RegClass == &PPU::TPRRegClass) {
     BuildMI(MBB, MI, DL, get(PPU::VMOV), DestReg)
       .addImm(Value);
     return;
@@ -1154,7 +1178,7 @@ void PPUInstrInfo::materializeImmediate(MachineBasicBlock &MBB,
 
 const TargetRegisterClass *
 PPUInstrInfo::getPreferredSelectRegClass(unsigned Size) const {
-  return &PPU::VRRegClass;
+  return &PPU::TPRRegClass;
 }
 
 void PPUInstrInfo::insertVectorSelect(MachineBasicBlock &MBB,
@@ -1169,7 +1193,7 @@ void PPUInstrInfo::insertVectorSelect(MachineBasicBlock &MBB,
   const PPUSubtarget &ST = MF->getSubtarget<PPUSubtarget>();
   const TargetRegisterClass *BoolXExecRC =
     RI.getRegClass(PPU::SReg_1_XEXECRegClassID);
-  assert(MRI.getRegClass(DstReg) == &PPU::VRRegClass &&
+  assert(MRI.getRegClass(DstReg) == &PPU::TPRRegClass &&
          "Not a VGPR32 reg");
 
   if (Cond.size() == 1) {
@@ -1577,7 +1601,7 @@ unsigned PPUInstrInfo::calculateLDSSpillAddress(
     MachineBasicBlock::iterator Insert = Entry.front();
     const DebugLoc &DL = Insert->getDebugLoc();
 
-    TIDReg = RI.findUnusedRegister(MF->getRegInfo(), &PPU::VRRegClass,
+    TIDReg = RI.findUnusedRegister(MF->getRegInfo(), &PPU::TPRRegClass,
                                    *MF);
     if (TIDReg == PPU::NoRegister)
       return TIDReg;
@@ -2525,7 +2549,7 @@ void PPUInstrInfo::insertSelect(MachineBasicBlock &MBB,
   };
 
   unsigned SelOp = PPU::V_CNDMASK_B32_e32;
-  const TargetRegisterClass *EltRC = &PPU::VRRegClass;
+  const TargetRegisterClass *EltRC = &PPU::TPRRegClass;
   const int16_t *SubIndices = Sub0_15;
   int NElts = DstSize / 32;
 
@@ -3121,7 +3145,7 @@ bool PPUInstrInfo::mayReadEXEC(const MachineRegisterInfo &MRI,
       return true;
 
     // Make sure this isn't copying exec as a normal operand
-    return MI.readsRegister(PPU::EXEC, &RI);
+    return MI.readsRegister(PPU::TMSK, &RI);
   }
 
   // Make a conservative assumption about the callee.
@@ -3132,7 +3156,7 @@ bool PPUInstrInfo::mayReadEXEC(const MachineRegisterInfo &MRI,
   if (!isTargetSpecificOpcode(MI.getOpcode()))
     return true;
 
-  return !isSALU(MI) || MI.readsRegister(PPU::EXEC, &RI);
+  return !isSALU(MI) || MI.readsRegister(PPU::TMSK, &RI);
 }
 
 bool PPUInstrInfo::isInlineConstant(const APInt &Imm) const {
@@ -4156,7 +4180,7 @@ void PPUInstrInfo::legalizeOpWithMove(MachineInstr &MI, unsigned OpIdx) const {
     Opcode = PPU::SMOV;
 
   const TargetRegisterClass *VRC = RI.getEquivalentVGPRClass(RC);
-  VRC = &PPU::VRRegClass;
+  VRC = &PPU::TPRRegClass;
 
   Register Reg = MRI.createVirtualRegister(VRC);
   DebugLoc DL = MBB->findDebugLoc(I);
@@ -5005,8 +5029,8 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
     if (VAddr && PPU::getIfAddr64Inst(MI.getOpcode()) != -1) {
       // This is already an ADDR64 instruction so we need to add the pointer
       // extracted from the resource descriptor to the current value of VAddr.
-      Register NewVAddrLo = MRI.createVirtualRegister(&PPU::VRRegClass);
-      Register NewVAddrHi = MRI.createVirtualRegister(&PPU::VRRegClass);
+      Register NewVAddrLo = MRI.createVirtualRegister(&PPU::TPRRegClass);
+      Register NewVAddrHi = MRI.createVirtualRegister(&PPU::TPRRegClass);
       Register NewVAddr = MRI.createVirtualRegister(&PPU::VReg_64RegClass);
 
       const auto *BoolXExecRC = RI.getRegClass(PPU::SReg_1_XEXECRegClassID);
@@ -5421,7 +5445,7 @@ bool PPUInstrInfo::moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
     MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
 
     Register OldDstReg = Inst.getOperand(0).getReg();
-    Register ResultReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+    Register ResultReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
 
     unsigned Opc = Inst.getOpcode();
     assert(Opc == PPU::S_ADD_I32 || Opc == PPU::S_SUB_I32);
@@ -5456,8 +5480,8 @@ void PPUInstrInfo::lowerScalarAbs(SetVectorType &Worklist,
 
   MachineOperand &Dest = Inst.getOperand(0);
   MachineOperand &Src = Inst.getOperand(1);
-  Register TmpReg = MRI.createVirtualRegister(&PPU::VRRegClass);
-  Register ResultReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+  Register TmpReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
+  Register ResultReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
 
   unsigned SubOp = ST.hasAddNoCarry() ?
     PPU::V_SUB_U32_e32 : PPU::V_SUB_I32_e32;
@@ -5488,9 +5512,9 @@ void PPUInstrInfo::lowerScalarXnor(SetVectorType &Worklist,
   MachineOperand &Src1 = Inst.getOperand(2);
 
   if (ST.hasDLInsts()) {
-    Register NewDest = MRI.createVirtualRegister(&PPU::VRRegClass);
-    legalizeGenericOperand(MBB, MII, &PPU::VRRegClass, Src0, MRI, DL);
-    legalizeGenericOperand(MBB, MII, &PPU::VRRegClass, Src1, MRI, DL);
+    Register NewDest = MRI.createVirtualRegister(&PPU::TPRRegClass);
+    legalizeGenericOperand(MBB, MII, &PPU::TPRRegClass, Src0, MRI, DL);
+    legalizeGenericOperand(MBB, MII, &PPU::TPRRegClass, Src1, MRI, DL);
 
     BuildMI(MBB, MII, DL, get(PPU::V_XNOR_B32_e64), NewDest)
       .add(Src0)
@@ -5645,7 +5669,7 @@ void PPUInstrInfo::movePackToVALU(SetVectorType &Worklist,
                                  MachineRegisterInfo &MRI,
                                  MachineInstr &Inst) const {
     /*
-  Register ResultReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+  Register ResultReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
   MachineBasicBlock *MBB = Inst.getParent();
   MachineOperand &Src0 = Inst.getOperand(1);
   MachineOperand &Src1 = Inst.getOperand(2);
@@ -5653,8 +5677,8 @@ void PPUInstrInfo::movePackToVALU(SetVectorType &Worklist,
 
   switch (Inst.getOpcode()) {
   case PPU::S_PACK_LL_B32_B16: {
-    Register ImmReg = MRI.createVirtualRegister(&PPU::VRRegClass);
-    Register TmpReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+    Register ImmReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
+    Register TmpReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
 
     // FIXME: Can do a lot better if we know the high bits of src0 or src1 are
     // 0.
@@ -5672,7 +5696,7 @@ void PPUInstrInfo::movePackToVALU(SetVectorType &Worklist,
     break;
   }
   case PPU::S_PACK_LH_B32_B16: {
-    Register ImmReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+    Register ImmReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
     BuildMI(*MBB, Inst, DL, get(PPU::V_MOV_B32_e32), ImmReg)
       .addImm(0xffff);
     BuildMI(*MBB, Inst, DL, get(PPU::V_BFI_B32), ResultReg)
@@ -5682,8 +5706,8 @@ void PPUInstrInfo::movePackToVALU(SetVectorType &Worklist,
     break;
   }
   case PPU::S_PACK_HH_B32_B16: {
-    Register ImmReg = MRI.createVirtualRegister(&PPU::VRRegClass);
-    Register TmpReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+    Register ImmReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
+    Register TmpReg = MRI.createVirtualRegister(&PPU::TPRRegClass);
     BuildMI(*MBB, Inst, DL, get(PPU::V_LSHRREV_B32_e64), TmpReg)
       .addImm(16)
       .add(Src0);
@@ -6181,7 +6205,7 @@ PPUInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
 
 bool PPUInstrInfo::isBasicBlockPrologue(const MachineInstr &MI) const {
   return !MI.isTerminator() && MI.getOpcode() != PPU::COPY &&
-         MI.modifiesRegister(PPU::EXEC, &RI);
+         MI.modifiesRegister(PPU::TMSK, &RI);
 }
 
 MachineInstrBuilder
@@ -6295,34 +6319,19 @@ bool PPUInstrInfo::isLegalFLATOffset(int64_t Offset, unsigned AddrSpace,
 
 
 // This must be kept in sync with the SIEncodingFamily class in PPUInstrInfo.td
-enum SIEncodingFamily {
-  SI = 0,
-  VI = 1,
-  SDWA = 2,
-  SDWA9 = 3,
-  GFX80 = 4,
-  GFX9 = 5,
-  GFX10 = 6,
-  SDWA10 = 7
+enum PPUEncodingFamily {
+  PPU = 0
 };
 
-/*
-static SIEncodingFamily subtargetEncodingFamily(const PPUSubtarget &ST) {
+static PPUEncodingFamily subtargetEncodingFamily(const PPUSubtarget &ST) {
   switch (ST.getGeneration()) {
   default:
     break;
-  case PPUSubtarget::SOUTHERN_ISLANDS:
-  case PPUSubtarget::SEA_ISLANDS:
-    return SIEncodingFamily::SI;
-  case PPUSubtarget::VOLCANIC_ISLANDS:
-  case PPUSubtarget::GFX9:
-    return SIEncodingFamily::VI;
-  case PPUSubtarget::GFX10:
-    return SIEncodingFamily::GFX10;
+  case PPUSubtarget::PPU:
+    return PPUEncodingFamily::PPU;
   }
   llvm_unreachable("Unknown subtarget generation!");
 }
-*/
 
 int PPUInstrInfo::pseudoToMCOpcode(int Opcode) const {
     /*
@@ -6476,7 +6485,7 @@ bool llvm::PPU::execMayBeModifiedBeforeUse(const MachineRegisterInfo &MRI,
     if (++NumInst > MaxInstScan)
       return true;
 
-    if (I->modifiesRegister(PPU::EXEC, TRI))
+    if (I->modifiesRegister(PPU::TMSK, TRI))
       return true;
   }
 

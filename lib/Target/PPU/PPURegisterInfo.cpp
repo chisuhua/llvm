@@ -134,6 +134,10 @@ Register PPUBaseRegisterInfo::getFrameRegister(const MachineFunction &MF) const 
   return TFI->hasFP(MF) ? PPU::X8 : PPU::X2;
 }
 
+const uint32_t *PPURegisterInfo::getAllVGPRRegMask() const {
+  return CSR_PPU_AllVPRs_RegMask;
+}
+
 const uint32_t *
 PPUBaseRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
                                         CallingConv::ID /*CC*/) const {
@@ -161,9 +165,9 @@ PPUBaseRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
   }
 }
 
-unsigned PPUBaseRegisterInfo::getVCC() const {
-  return PPU::VCC;
-}
+// unsigned PPUBaseRegisterInfo::getVCC() const {
+//   return PPU::VCC;
+// }
 
 static bool hasPressureSet(const int *PSets, unsigned PSetID) {
   for (unsigned i = 0; PSets[i] != -1; ++i) {
@@ -215,8 +219,8 @@ PPURegisterInfo::PPURegisterInfo(const PPUSubtarget &ST, unsigned HwMode) :
   VGPRSetID = NumRegPressureSets;
 
   for (unsigned i = 0; i < NumRegPressureSets; ++i) {
-    classifyPressureSet(i, PPU::X0, SGPRPressureSets);
-    classifyPressureSet(i, PPU::V0, VGPRPressureSets);
+    classifyPressureSet(i, PPU::SPR0, SGPRPressureSets);
+    classifyPressureSet(i, PPU::VPR0, VGPRPressureSets);
   }
 
   // Determine the number of reg units for each pressure set.
@@ -311,7 +315,7 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   // EXEC_LO and EXEC_HI could be allocated and used as regular register, but
   // this seems likely to result in bugs, so I'm marking them as reserved.
-  reserveRegisterTuples(Reserved, PPU::EXEC);
+  reserveRegisterTuples(Reserved, PPU::TMSK);
 /*
   reserveRegisterTuples(Reserved, PPU::FLAT_SCR);
 
@@ -363,19 +367,19 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   unsigned MaxNumSGPRs = ST.getMaxNumSGPRs(MF);
   // unsigned TotalNumSGPRs = PPU::SGPR_32RegClass.getNumRegs();
-  unsigned TotalNumSGPRs = PPU::GPRRegClass.getNumRegs();
+  unsigned TotalNumSGPRs = PPU::SPR_32RegClass.getNumRegs();
   for (unsigned i = MaxNumSGPRs; i < TotalNumSGPRs; ++i) {
     // unsigned Reg = PPU::SGPR_32RegClass.getRegister(i);
-    unsigned Reg = PPU::GPRRegClass.getRegister(i);
+    unsigned Reg = PPU::SPR_32RegClass.getRegister(i);
     reserveRegisterTuples(Reserved, Reg);
   }
 
   unsigned MaxNumVGPRs = ST.getMaxNumVGPRs(MF);
-  // unsigned TotalNumVGPRs = PPU::VRRegClass.getNumRegs();
-  unsigned TotalNumVGPRs = PPU::VRRegClass.getNumRegs();
+  // unsigned TotalNumVGPRs = PPU::VPR_32RegClass.getNumRegs();
+  unsigned TotalNumVGPRs = PPU::VPR_32RegClass.getNumRegs();
   for (unsigned i = MaxNumVGPRs; i < TotalNumVGPRs; ++i) {
-    // unsigned Reg = PPU::VRRegClass.getRegister(i);
-    unsigned Reg = PPU::VRRegClass.getRegister(i);
+    // unsigned Reg = PPU::VPR_32RegClass.getRegister(i);
+    unsigned Reg = PPU::VPR_32RegClass.getRegister(i);
     reserveRegisterTuples(Reserved, Reg);
   }
 
@@ -528,10 +532,10 @@ void PPURegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
 
   MachineRegisterInfo &MRI = MF->getRegInfo();
   // TODO Register OffsetReg = MRI.createVirtualRegister(&PPU::SReg_32_XM0RegClass);
-  Register OffsetReg = MRI.createVirtualRegister(&PPU::GPRRegClass);
+  Register OffsetReg = MRI.createVirtualRegister(&PPU::SPR_32RegClass);
 
-  // Register FIReg = MRI.createVirtualRegister(&PPU::VRRegClass);
-  Register FIReg = MRI.createVirtualRegister(&PPU::VRRegClass);
+  // Register FIReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
+  Register FIReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
 
   // FIXME BuildMI(*MBB, Ins, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
   BuildMI(*MBB, Ins, DL, TII->get(PPU::ADD), OffsetReg)
@@ -602,7 +606,7 @@ const TargetRegisterClass *PPURegisterInfo::getPointerRegClass(
   // This is inaccurate. It depends on the instruction and address space. The
   // only place where we should hit this is for dealing with frame indexes /
   // private accesses, so this is correct in that case.
-  return &PPU::VRRegClass;
+  return &PPU::VPR_32RegClass;
 }
 
 static unsigned getNumSubRegsForSpillOp(unsigned Op) {
@@ -811,7 +815,7 @@ void PPURegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
     // We don't have access to the register scavenger if this function is called
     // during  PEI::scavengeFrameVirtualRegs().
     if (RS)
-      SOffset = RS->scavengeRegister(&PPU::GPRRegClass, MI, 0, false);
+      SOffset = RS->scavengeRegister(&PPU::SPR_32RegClass, MI, 0, false);
 
     if (SOffset == PPU::NoRegister) {
       // There are no free SGPRs, and since we are in the process of spilling
@@ -859,27 +863,27 @@ void PPURegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
 
 static std::pair<unsigned, unsigned> getSpillEltSize(unsigned SuperRegSize,
                                                      bool Store) {
-    /*
+#if 0 
   if (SuperRegSize % 16 == 0) {
-    return { 16, Store ? PPU::S_BUFFER_STORE_DWORDX4_SGPR :
-                         PPU::S_BUFFER_LOAD_DWORDX4_SGPR };
+    // return { 16, Store ? PPU::S_BUFFER_STORE_DWORDX4_SGPR :
+    //                      PPU::S_BUFFER_LOAD_DWORDX4_SGPR };
+    return { 16, Store ? PPU::SWX4_GPR :
+                         PPU::LWX4_GPR };
   }
 
   if (SuperRegSize % 8 == 0) {
-    return { 8, Store ? PPU::S_BUFFER_STORE_DWORDX2_SGPR :
-                        PPU::S_BUFFER_LOAD_DWORDX2_SGPR };
+    return { 8, Store ? PPU::SWX2_GPR :
+                        PPU::SWX2_GPR };
   }
-
-  return { 4, Store ? PPU::S_BUFFER_STORE_DWORD_SGPR :
-                      PPU::S_BUFFER_LOAD_DWORD_SGPR};
-                      */
+#endif
+  return { 4, Store ? PPU::SW :
+                      PPU::LW};
 }
 
 bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
                                int Index,
                                RegScavenger *RS,
                                bool OnlyToVGPR) const {
-    /*
   MachineBasicBlock *MBB = MI->getParent();
   MachineFunction *MF = MBB->getParent();
   PPUMachineFunctionInfo *MFI = MF->getInfo<PPUMachineFunctionInfo>();
@@ -917,7 +921,7 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
   if (SpillToSMEM) {
     if (RS->isRegUsed(PPU::M0)) {
-      M0CopyReg = RS->scavengeRegister(&PPU::SReg_32_XM0RegClass, MI, 0, false);
+      M0CopyReg = RS->scavengeRegister(&PPU::SReg_32RegClass, MI, 0, false);
       BuildMI(*MBB, MI, DL, TII->get(PPU::COPY), M0CopyReg)
         .addReg(PPU::M0);
     }
@@ -968,11 +972,11 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
       int64_t Offset = (ST.getWavefrontSize() * FrOffset) + (EltSize * i);
       if (Offset != 0) {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::S_ADD_U32), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::ADD), OffsetReg)
           .addReg(FrameReg)
           .addImm(Offset);
       } else {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::SMOV), OffsetReg)
           .addReg(FrameReg);
       }
 
@@ -999,12 +1003,14 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
       // Mark the "old value of vgpr" input undef only if this is the first sgpr
       // spill to this specific vgpr in the first basic block.
+      /* FIXME
       BuildMI(*MBB, MI, DL,
-              TII->getMCOpcodeFromPseudo(PPU::V_WRITELANE_B32),
+              TII->getMCOpcodeFromPseudo(PPU::VWRITELANE),
               Spill.VGPR)
         .addReg(SubReg, getKillRegState(IsKill))
         .addImm(Spill.Lane)
         .addReg(Spill.VGPR, VGPRDefined ? 0 : RegState::Undef);
+        */
 
       // FIXME: Since this spills to another register instead of an actual
       // frame index, we should delete the frame index when all references to
@@ -1017,11 +1023,11 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
       // Spill SGPR to a frame index.
       // TODO: Should VI try to spill to VGPR and then spill to SMEM?
       if (!TmpVGPR.isValid())
-        TmpVGPR = RS->scavengeRegister(&PPU::VRRegClass, MI, 0);
+        TmpVGPR = RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
       // TODO: Should VI try to spill to VGPR and then spill to SMEM?
 
       MachineInstrBuilder Mov
-        = BuildMI(*MBB, MI, DL, TII->get(PPU::V_MOV_B32_e32), TmpVGPR)
+        = BuildMI(*MBB, MI, DL, TII->get(PPU::VMOV), TmpVGPR)
         .addReg(SubReg, SubKillState);
 
       // There could be undef components of a spilled super register.
@@ -1040,13 +1046,15 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
       MachineMemOperand *MMO
         = MF->getMachineMemOperand(PtrInfo, MachineMemOperand::MOStore,
                                    EltSize, MinAlign(Align, EltSize * i));
-      BuildMI(*MBB, MI, DL, TII->get(PPU::SI_SPILL_V32_SAVE))
+      /* FIXME  
+      BuildMI(*MBB, MI, DL, TII->get(PPU::PPU_SPILL_V32_SAVE))
         .addReg(TmpVGPR, RegState::Kill)      // src
         .addFrameIndex(Index)                 // vaddr
         .addReg(MFI->getScratchRSrcReg())     // srrsrc
         .addReg(MFI->getStackPtrOffsetReg())  // soffset
         .addImm(i * 4)                        // offset
         .addMemOperand(MMO);
+        */
     }
   }
 
@@ -1057,7 +1065,6 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
   MI->eraseFromParent();
   MFI->addToSpilledSGPRs(NumSubRegs);
-  */
   return true;
 }
 
@@ -1068,7 +1075,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
   MachineFunction *MF = MI->getParent()->getParent();
   MachineBasicBlock *MBB = MI->getParent();
   PPUMachineFunctionInfo *MFI = MF->getInfo<PPUMachineFunctionInfo>();
-/*
+
   ArrayRef<PPUMachineFunctionInfo::SpilledReg> VGPRSpills
     = MFI->getSGPRToVGPRSpills(Index);
   bool SpillToVGPR = !VGPRSpills.empty();
@@ -1092,7 +1099,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
 
   if (SpillToSMEM) {
     if (RS->isRegUsed(PPU::M0)) {
-      M0CopyReg = RS->scavengeRegister(&PPU::SReg_32_XM0RegClass, MI, 0, false);
+      M0CopyReg = RS->scavengeRegister(&PPU::SReg_32RegClass, MI, 0, false);
       BuildMI(*MBB, MI, DL, TII->get(PPU::COPY), M0CopyReg)
         .addReg(PPU::M0);
     }
@@ -1172,7 +1179,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       // Restore SGPR from a stack slot.
       // FIXME: We should use S_LOAD_DWORD here for VI.
       if (!TmpVGPR.isValid())
-        TmpVGPR = RS->scavengeRegister(&PPU::VRRegClass, MI, 0);
+        TmpVGPR = RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
       unsigned Align = FrameInfo.getObjectAlignment(Index);
 
       MachinePointerInfo PtrInfo
@@ -1181,7 +1188,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       MachineMemOperand *MMO = MF->getMachineMemOperand(PtrInfo,
         MachineMemOperand::MOLoad, EltSize,
         MinAlign(Align, EltSize * i));
-
+/* FIXME
       BuildMI(*MBB, MI, DL, TII->get(PPU::SI_SPILL_V32_RESTORE), TmpVGPR)
         .addFrameIndex(Index)                 // vaddr
         .addReg(MFI->getScratchRSrcReg())     // srsrc
@@ -1192,9 +1199,9 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       auto MIB =
         BuildMI(*MBB, MI, DL, TII->get(PPU::V_READFIRSTLANE_B32), SubReg)
         .addReg(TmpVGPR, RegState::Kill);
-
       if (NumSubRegs > 1)
         MIB.addReg(MI->getOperand(0).getReg(), RegState::ImplicitDefine);
+*/
     }
   }
 
@@ -1204,7 +1211,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
   }
 
   MI->eraseFromParent();
-  */
+
   return true;
 }
 
@@ -1361,7 +1368,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
         // address relative to the frame register.
 
         Register TmpDiffReg =
-          RS->scavengeRegister(&PPU::SReg_32_XM0RegClass, MI, 0, false);
+          RS->scavengeRegister(&PPU::SReg_32RegClass, MI, 0, false);
 
         // If there's no free SGPR, in-place modify the FP
         Register DiffReg = TmpDiffReg.isValid() ? TmpDiffReg : FrameReg;
@@ -1369,7 +1376,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
         bool IsCopy = MI->getOpcode() == PPU::VMOV;
         Register ResultReg = IsCopy ?
           MI->getOperand(0).getReg() :
-          RS->scavengeRegister(&PPU::VRRegClass, MI, 0);
+          RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
 /*
         BuildMI(*MBB, MI, DL, TII->get(PPU::SUB), DiffReg)
           .addReg(FrameReg)
@@ -1386,7 +1393,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
             */
         } else {
           Register ScaledReg =
-            RS->scavengeRegister(&PPU::VRRegClass, MI, 0);
+            RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
 
           // FIXME: Assusmed VGPR use.
           /*
@@ -1463,7 +1470,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       int64_t Offset = FrameInfo.getObjectOffset(Index);
       FIOp.ChangeToImmediate(Offset);
       if (!TII->isImmOperandLegal(*MI, FIOperandNum, FIOp)) {
-        Register TmpReg = RS->scavengeRegister(&PPU::VRRegClass, MI, 0);
+        Register TmpReg = RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
         BuildMI(*MBB, MI, DL, TII->get(PPU::VMOV), TmpReg)
           .addImm(Offset);
         FIOp.ChangeToRegister(TmpReg, false, false, true);
@@ -1482,12 +1489,11 @@ const TargetRegisterClass *PPURegisterInfo::getPhysRegClass(unsigned Reg) const 
   assert(!Register::isVirtualRegister(Reg));
 
   static const TargetRegisterClass *const BaseClasses[] = {
-    &PPU::VRRegClass,
-    &PPU::GPRRegClass,
-    /*
-    &PPU::AGPR_32RegClass,
+    &PPU::VPR_32RegClass,
+    &PPU::SPR_32RegClass,
     &PPU::VReg_64RegClass,
     &PPU::SReg_64RegClass,
+    /*
     &PPU::AReg_64RegClass,
     &PPU::VReg_96RegClass,
     &PPU::SReg_96RegClass,
@@ -1526,7 +1532,7 @@ bool PPURegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
     return false;
   switch (Size) {
   case 32:
-    return getCommonSubClass(&PPU::VRRegClass, RC) != nullptr;
+    return getCommonSubClass(&PPU::VPR_32RegClass, RC) != nullptr;
     /*
   case 64:
     return getCommonSubClass(&PPU::VReg_64RegClass, RC) != nullptr;
@@ -1552,7 +1558,7 @@ const TargetRegisterClass *PPURegisterInfo::getEquivalentVGPRClass(
                                          const TargetRegisterClass *SRC) const {
   switch (getRegSizeInBits(*SRC)) {
   case 32:
-    return &PPU::VRRegClass;
+    return &PPU::VPR_RegClass;
     /*
   case 64:
     return &PPU::VReg_64RegClass;
@@ -1578,7 +1584,7 @@ const TargetRegisterClass *PPURegisterInfo::getEquivalentSGPRClass(
                                          const TargetRegisterClass *VRC) const {
   switch (getRegSizeInBits(*VRC)) {
   case 32:
-    return &PPU::GPRRegClass;
+    return &PPU::SPR_32RegClass;
     /*
   case 64:
     return &PPU::SReg_64RegClass;
@@ -1610,7 +1616,7 @@ const TargetRegisterClass *PPURegisterInfo::getSubRegClass(
   if (isSGPRClass(RC)) {
     switch (Count) {
     case 1:
-      return &PPU::GPRRegClass;
+      return &PPU::SPR_32RegClass;
       /*
     case 2:
       return &PPU::SReg_64RegClass;
@@ -1632,7 +1638,7 @@ const TargetRegisterClass *PPURegisterInfo::getSubRegClass(
   } else {
     switch (Count) {
     case 1:
-      return &PPU::VRRegClass;
+      return &PPU::VPR_32RegClass;
       /*
     case 2:
       return &PPU::VReg_64RegClass;
@@ -1929,7 +1935,7 @@ unsigned PPURegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
   switch (RC->getID()) {
   default:
     return PPUBaseRegisterInfo::getRegPressureLimit(RC, MF);
-  case PPU::VRRegClassID:
+  case PPU::TPRRegClassID:
     return std::min(ST.getMaxNumVGPRs(Occupancy), ST.getMaxNumVGPRs(MF));
   case PPU::GPRRegClassID:
     return std::min(ST.getMaxNumSGPRs(Occupancy, true), ST.getMaxNumSGPRs(MF));
@@ -1939,11 +1945,11 @@ unsigned PPURegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
 unsigned PPURegisterInfo::getRegPressureSetLimit(const MachineFunction &MF,
                                                 unsigned Idx) const {
   if (Idx == getVGPRPressureSet())
-    return getRegPressureLimit(&PPU::VRRegClass,
+    return getRegPressureLimit(&PPU::VPR_32RegClass,
                                const_cast<MachineFunction &>(MF));
 
   if (Idx == getSGPRPressureSet())
-    return getRegPressureLimit(&PPU::GPRRegClass,
+    return getRegPressureLimit(&PPU::SPR_32RegClass,
                                const_cast<MachineFunction &>(MF));
 
   return PPUBaseRegisterInfo::getRegPressureSetLimit(MF, Idx);
@@ -1974,10 +1980,10 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
   case 1: {
     switch (RB.getID()) {
     case PPU::GPRRegBankID:
-      return &PPU::SReg_32_XM0RegClass;
+      return &PPU::SReg_32RegClass;
       /*
     case PPU::VRRegBankID:
-      return &PPU::VRRegClass;
+      return &PPU::VPR_32RegClass;
     case PPU::VCCRegBankID:
       return &PPU::SReg_32_XM0_XEXECRegClass 
     case PPU::SCCRegBankID:
@@ -1991,7 +1997,7 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
   }
     /*
   case 32:
-    return RB.getID() == PPU::VRRegBankID ? &PPU::VRRegClass :
+    return RB.getID() == PPU::VRRegBankID ? &PPU::VPR_32RegClass :
                                                  &PPU::SReg_32_XM0RegClass;
   case 64:
     return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_64RegClass :
@@ -2015,7 +2021,7 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
   default:
           /*
     if (Size < 32)
-      return RB.getID() == PPU::VRRegBankID ? &PPU::VRRegClass :
+      return RB.getID() == PPU::VRRegBankID ? &PPU::VPR_32RegClass :
                                                    &PPU::SReg_32_XM0RegClass;
                                                    */
     return nullptr;
@@ -2039,8 +2045,10 @@ PPURegisterInfo::getRegClass(unsigned RCID) const {
   switch ((int)RCID) {
   case PPU::SReg_1RegClassID:
     return getBoolRC();
-  case PPU::SReg_1_XEXECRegClassID:
-    return &PPU::SReg_32_XM0_XEXECRegClass;
+    /* FIXME
+  case PPU::SReg_1_RegClassID:
+    return &PPU::SReg_32RegClass;
+    */
   case -1:
     return nullptr;
   default:

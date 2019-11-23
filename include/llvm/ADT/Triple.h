@@ -189,6 +189,7 @@ public:
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
     WASI,       // Experimental WebAssembly OS
+    PPS,
     Emscripten,
     LastOSType = Emscripten
   };

@@ -63,3 +63,9 @@ def CSR_XLEN_F64_Interrupt: CalleeSavedRegs<(add X1,
     (sequence "F%u_64", 28, 31),
     (sequence "F%u_64", 8, 9),
     (sequence "F%u_64", 18, 27))>;
+
+// Just to get the regmask, not for calling convention purposes.
+def CSR_PPU_AllVPRs : CalleeSavedRegs<
+  (sequence "VPR%u", 0, 255)
+>;
+

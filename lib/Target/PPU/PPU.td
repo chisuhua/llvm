@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 include "llvm/Target/Target.td"
+
 include "PPUFeatures.td"
 
 //===----------------------------------------------------------------------===//
@@ -77,6 +78,7 @@ def FeatureRelax
     : SubtargetFeature<"relax", "EnableLinkerRelax", "true",
                        "Enable Linker relaxation.">;
 
+
 //===----------------------------------------------------------------------===//
 // Predicate helper class
 //===----------------------------------------------------------------------===//
@@ -98,21 +100,7 @@ include "PPUSystemOperands.td"
 // Registers, calling conventions, instruction descriptions.
 //===----------------------------------------------------------------------===//
 
-include "PPURegisterInfo.td"
-include "PPUCallingConv.td"
-// include "PPUInstructions.td"
-include "PPUInstrInfo.td"
-include "PPURegisterBanks.td"
-
-//===----------------------------------------------------------------------===//
-// PPU processors supported.
-//===----------------------------------------------------------------------===//
-
-def : ProcessorModel<"generic-ppu", NoSchedModel, [FeatureRVCHints]>;
-
-def : ProcessorModel<"generic-ppu64", NoSchedModel, [Feature64Bit,
-                     FeatureRVCHints]>;
-
+include "PPUSchedule.td"
 //===----------------------------------------------------------------------===//
 // Define the PPU target.
 //===----------------------------------------------------------------------===//
@@ -130,9 +118,89 @@ def PPUAsmWriter : AsmWriter {
   int PassSubtarget = 1;
 }
 
+def PPUAsmVariants {
+  string Default = "Default";
+  int Default_ID = 0;
+  string VOP3 = "VOP3";
+  int VOP3_ID = 1;
+  string Disable = "Disable";
+  int Disable_ID = 5;
+}
+
 def PPU : Target {
   let InstructionSet = PPUInstrInfo;
   let AssemblyParsers = [PPUAsmParser];
   let AssemblyWriters = [PPUAsmWriter];
   let AllowRegisterRenaming = 1;
 }
+// Dummy Instruction itineraries for pseudo instructions
+def ALU_NULL : FuncUnit;
+def NullALU : InstrItinClass;
+
+
+
+
+def Has16BitInsts : Predicate<"Subtarget->has16BitInsts()">,
+  AssemblerPredicate<"Feature16BitInsts">;
+
+def HasSdstCMPX : Predicate<"!Subtarget->hasNoSdstCMPX()">,
+  AssemblerPredicate<"!FeatureNoSdstCMPX">;
+
+def HasNoSdstCMPX : Predicate<"Subtarget->hasNoSdstCMPX()">,
+  AssemblerPredicate<"FeatureNoSdstCMPX">;
+
+def HasScalarStores : Predicate<"Subtarget->hasScalarStores()">,
+  AssemblerPredicate<"FeatureScalarStores">;
+
+def HasScalarAtomics : Predicate<"Subtarget->hasScalarAtomics()">,
+  AssemblerPredicate<"FeatureScalarAtomics">;
+
+def HasScalarFlatScratchInsts : Predicate<"Subtarget->hasScalarFlatScratchInsts()">,
+  AssemblerPredicate<"FeatureScalarFlatScratchInsts">;
+
+
+def HasUnpackedD16VMem : Predicate<"Subtarget->hasUnpackedD16VMem()">,
+  AssemblerPredicate<"FeatureUnpackedD16VMem">;
+
+def HasPackedD16VMem : Predicate<"!Subtarget->hasUnpackedD16VMem()">,
+  AssemblerPredicate<"!FeatureUnpackedD16VMem">;
+
+def HasVPRIndexMode : Predicate<"Subtarget->hasVPRIndexMode()">,
+  AssemblerPredicate<"FeatureVPRIndexMode">;
+
+def HasD16LoadStore : Predicate<"subtarget->hasd16loadstore()">,
+  AssemblerPredicate<"featuregfx9insts">;
+
+def D16PreservesUnusedBits : Predicate<"Subtarget->d16PreservesUnusedBits()">,
+  AssemblerPredicate<"FeatureGFX9Insts,!FeatureSRAMECC">;
+
+def isGFX10Plus :
+  Predicate<"Subtarget->getGeneration() >= AMDGPUSubtarget::GFX10">,
+  AssemblerPredicate<"FeatureGFX10Insts">;
+
+
+
+
+include "PPURegisterInfo.td"
+include "PPUCallingConv.td"
+include "PPUInstructions.td"
+include "PPUInstrInfo.td"
+include "PPURegisterBanks.td"
+//===----------------------------------------------------------------------===//
+// PPU processors supported.
+//===----------------------------------------------------------------------===//
+// The code produced for "generic" is only useful for tests and cannot
+// reasonably be expected to execute on any particular target.
+def : ProcessorModel<"generic", PPUFullSpeedModel,
+  []
+>;
+
+def : ProcessorModel<"generic-hsa", NoSchedModel,
+  [] // [FeatureFlatAddressSpace]
+>;
+
+
+def : ProcessorModel<"generic-ppu", NoSchedModel, [FeatureRVCHints]>;
+def : ProcessorModel<"generic-ppu64", NoSchedModel, [Feature64Bit,
+                     FeatureRVCHints]>;
+

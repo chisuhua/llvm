@@ -35,8 +35,6 @@ void LowerPPUMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
 bool LowerPPUMachineOperandToMCOperand(const MachineOperand &MO,
                                          MCOperand &MCOp, const AsmPrinter &AP);
 
-FunctionPass *createPPUISelDag(PPUTargetMachine &TM);
-
 FunctionPass *createPPUMergeBaseOffsetOptPass();
 void initializePPUMergeBaseOffsetOptPass(PassRegistry &);
 
@@ -46,6 +44,151 @@ void initializePPUExpandPseudoPass(PassRegistry &);
 InstructionSelector *createPPUInstructionSelector(const PPUTargetMachine &,
                                                     PPUSubtarget &,
                                                     PPURegisterBankInfo &);
+FunctionPass *createPPUISelDag(PPUTargetMachine &TM,
+                               CodeGenOpt::Level OptLevel = CodeGenOpt::Default);
+// copied from AMDGPU
+void initializePPUDAGToDAGISelPass(PassRegistry&);
+extern char &PPUDAGToDAGISelID;
+
+Pass *createPPUAnnotateKernelFeaturesPass();
+void initializePPUAnnotateKernelFeaturesPass(PassRegistry &);
+extern char &PPUAnnotateKernelFeaturesID;
+/*
+FunctionPass *createPPUAtomicOptimizerPass();
+void initializePPUAtomicOptimizerPass(PassRegistry &);
+extern char &PPUAtomicOptimizerID;
+*/
+
+ModulePass *createPPULowerIntrinsicsPass();
+void initializePPULowerIntrinsicsPass(PassRegistry &);
+extern char &PPULowerIntrinsicsID;
+/*
+ModulePass *createPPUFixFunctionBitcastsPass();
+void initializePPUFixFunctionBitcastsPass(PassRegistry &);
+extern char &PPUFixFunctionBitcastsID;
+*/
+
+FunctionPass *createPPULowerKernelArgumentsPass();
+void initializePPULowerKernelArgumentsPass(PassRegistry &);
+extern char &PPULowerKernelArgumentsID;
+
+ModulePass *createPPULowerKernelAttributesPass();
+void initializePPULowerKernelAttributesPass(PassRegistry &);
+extern char &PPULowerKernelAttributesID;
+
+void initializePPUPropagateAttributesEarlyPass(PassRegistry &);
+extern char &PPUPropagateAttributesEarlyID;
+
+void initializePPUPropagateAttributesLatePass(PassRegistry &);
+extern char &PPUPropagateAttributesLateID;
+
+FunctionPass *createPPURewriteOutArgumentsPass();
+void initializePPURewriteOutArgumentsPass(PassRegistry &);
+extern char &PPURewriteOutArgumentsID;
+
+FunctionPass *createPPUFoldOperandsPass();
+void initializePPUFoldOperandsPass(PassRegistry &);
+extern char &PPUFoldOperandsID;
+
+FunctionPass *createPPULoadStoreOptimizerPass();
+void initializePPULoadStoreOptimizerPass(PassRegistry &);
+extern char &PPULoadStoreOptimizerID;
+
+// FunctionPass *createPPUFixSGPRCopiesPass();
+// void initializePPUFixSGPRCopiesPass(PassRegistry &);
+// extern char &PPUFixSGPRCopiesID;
+
+void initializePPUFixVGPRCopiesPass(PassRegistry &);
+extern char &PPUFixVGPRCopiesID;
+
+// FunctionPass *createPPUFixupVectorISelPass();
+// void initializePPUFixupVectorISelPass(PassRegistry &);
+// extern char &PPUFixupVectorISelID;
+
+
+FunctionPass *createPPULowerI1CopiesPass();
+void initializePPULowerI1CopiesPass(PassRegistry &);
+extern char &PPULowerI1CopiesID;
+
+void initializePPULowerSPRSpillsPass(PassRegistry &);
+extern char &PPULowerSPRSpillsID;
+
+void initializePPULowerControlFlowPass(PassRegistry &);
+extern char &PPULowerControlFlowID;
+
+void initializePPUOptimizeExecMaskingPass(PassRegistry &);
+extern char &PPUOptimizeExecMaskingID;
+
+FunctionPass *createPPUPreAllocateWWMRegsPass();
+void initializePPUPreAllocateWWMRegsPass(PassRegistry &);
+extern char &PPUPreAllocateWWMRegsID;
+
+FunctionPass *createPPUPromoteAlloca();
+void initializePPUPromoteAllocaPass(PassRegistry&);
+extern char &PPUPromoteAllocaID;
+
+ModulePass* createPPUUnifyMetadataPass();
+void initializePPUUnifyMetadataPass(PassRegistry&);
+extern char &PPUUnifyMetadataID;
+
+FunctionPass *createPPUUseNativeCallsPass();
+void initializePPUUseNativeCallsPass(PassRegistry &);
+extern char &PPUUseNativeCallsID;
+
+void initializePPUPerfHintAnalysisPass(PassRegistry &);
+extern char &PPUPerfHintAnalysisID;
+
+ModulePass *createPPUAlwaysInlinePass(bool GlobalOpt = true);
+void initializePPUAlwaysInlinePass(PassRegistry&);
+
+FunctionPass *createPPUOptimizeExecMaskingPreRAPass();
+void initializePPUOptimizeExecMaskingPreRAPass(PassRegistry&);
+extern char &PPUOptimizeExecMaskingPreRAID;
+
+FunctionPass *createPPUCodeGenPreparePass();
+void initializePPUCodeGenPreparePass(PassRegistry&);
+extern char &PPUCodeGenPrepareID;
+
+FunctionPass *createPPUAnnotateControlFlowPass();
+void initializePPUAnnotateControlFlowPass(PassRegistry&);
+extern char &PPUAnnotateControlFlowPassID;
+
+FunctionPass *createPPUMemoryLegalizerPass();
+void initializePPUMemoryLegalizerPass(PassRegistry&);
+extern char &PPUMemoryLegalizerID;
+
+// FunctionPass *createPPUInsertWaitcntsPass();
+// void initializePPUInsertWaitcntsPass(PassRegistry&);
+// extern char &PPUInsertWaitcntsID;
+
+FunctionPass *createPPUFormMemoryClausesPass();
+void initializePPUFormMemoryClausesPass(PassRegistry&);
+extern char &PPUFormMemoryClausesID;
+
+
+void initializePPUUnifyDivergentExitNodesPass(PassRegistry&);
+extern char &PPUUnifyDivergentExitNodesID;
+
+ImmutablePass *createPPUAAWrapperPass();
+void initializePPUAAWrapperPassPass(PassRegistry&);
+ImmutablePass *createPPUExternalAAWrapperPass();
+void initializePPUExternalAAWrapperPass(PassRegistry&);
+
+void initializePPUArgumentUsageInfoPass(PassRegistry &);
+
+Pass *createPPUFunctionInliningPass();
+void initializePPUInlinerPass(PassRegistry&);
+
+FunctionPass *createPPUSimplifyLibCallsPass(const TargetOptions &,
+                                               const TargetMachine *);
+
+void initializePPURegBankReassignPass(PassRegistry &);
+extern char &PPURegBankReassignID;
+
+// void initializePPUNSAReassignPass(PassRegistry &);
+// extern char &PPUNSAReassignID;
+
+
 // TODO schi copied from rvv
 FunctionPass *createPPUOptimizeVSETVLUsesPass();
 void initializePPUOptimizeVSETVLUsesPass(PassRegistry &);
@@ -54,18 +197,21 @@ FunctionPass *createPPUAnnotateUniformValues();
 void initializePPUAnnotateUniformValuesPass(PassRegistry&);
 extern char &PPUAnnotateUniformValuesPassID;
 
-
 FunctionPass *createPPULowerReconvergingControlFlowPass();
 void initializePPULowerReconvergingControlFlowPass(PassRegistry &);
 extern char &PPULowerReconvergingControlFlowID;
 
-void initializePPUPerfHintAnalysisPass(PassRegistry &);
-extern char &PPUPerfHintAnalysisID;
 
-void initializePPUArgumentUsageInfoPass(PassRegistry &);
 
+namespace PPU {
+enum TargetIndex {
+  TI_CONSTDATA_START,
+  TI_SCRATCH_RSRC_DWORD0,
+  TI_SCRATCH_RSRC_DWORD1
+};
 }
 
+}
 // FIXME schi below copied from AMDGPU.h
 /// OpenCL uses address spaces to differentiate between
 /// various memory regions on the hardware. On the CPU

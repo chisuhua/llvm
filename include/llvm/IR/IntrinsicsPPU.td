@@ -10,6 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
+class PPUReadPreloadRegisterIntrinsic
+  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
+
+class PPUReadPreloadRegisterIntrinsicNamed<string name>
+  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>, GCCBuiltin<name>;
+
+
+multiclass PPUReadPreloadRegisterIntrinsic_xyz {
+  def _x : PPUReadPreloadRegisterIntrinsic;
+  def _y : PPUReadPreloadRegisterIntrinsic;
+  def _z : PPUReadPreloadRegisterIntrinsic;
+}
+
+multiclass PPUReadPreloadRegisterIntrinsic_xyz_named<string prefix> {
+  def _x : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_x")>;
+  def _y : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_y")>;
+  def _z : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_z")>;
+}
+
 let TargetPrefix = "ppu" in {
 
 //===----------------------------------------------------------------------===//
@@ -74,6 +93,10 @@ def int_ppu_vadd : Intrinsic<[llvm_nxv1i32_ty],
                                [llvm_nxv1i32_ty, llvm_nxv1i32_ty, llvm_i32_ty],
                                [IntrNoMem]>;
 
+def int_ppu_vaddi : Intrinsic<[llvm_nxv1i32_ty],
+                               [llvm_nxv1i32_ty, llvm_nxv1i32_ty, llvm_i32_ty],
+                               [IntrNoMem]>;
+
 def int_ppu_vsub : Intrinsic<[llvm_nxv1i32_ty],
                                [llvm_nxv1i32_ty, llvm_nxv1i32_ty, llvm_i32_ty],
                                [IntrNoMem]>;
@@ -112,33 +135,41 @@ def int_ppu_vmfirst : Intrinsic<[llvm_i32_ty],
                                [llvm_nxv1i32_ty, llvm_i32_ty],
                                [IntrNoMem]>;
 
-class PPUReadPreloadRegisterIntrinsic
-  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
-
-class PPUReadPreloadRegisterIntrinsicNamed<string name>
-  : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>, GCCBuiltin<name>;
-
-
-multiclass PPUReadPreloadRegisterIntrinsic_xyz {
-  def _x : PPUReadPreloadRegisterIntrinsic;
-  def _y : PPUReadPreloadRegisterIntrinsic;
-  def _z : PPUReadPreloadRegisterIntrinsic;
-}
-
-multiclass PPUReadPreloadRegisterIntrinsic_xyz_named<string prefix> {
-  def _x : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_x")>;
-  def _y : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_y")>;
-  def _z : PPUReadPreloadRegisterIntrinsicNamed<!strconcat(prefix, "_z")>;
-}
 
 //===----------------------------------------------------------------------===//
 // ABI Special Intrinsics
 //===----------------------------------------------------------------------===//
 
 defm int_ppu_workitem_id : PPUReadPreloadRegisterIntrinsic_xyz;
-defm int_ppu_workgroup_id : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_workgroup_id">;
+defm int_ppu_workgroup_id : PPUReadPreloadRegisterIntrinsic_xyz_named<"__builtin_ppu_workgroup_id">;
+defm int_ppu_workgroup_size : PPUReadPreloadRegisterIntrinsic_xyz_named<"__builtin_ppu_workgroup_size">;
+defm int_ppu_workitem_size : PPUReadPreloadRegisterIntrinsic_xyz_named<"__builtin_ppu_workitem_size">;
+defm int_ppu_global_size : PPUReadPreloadRegisterIntrinsic_xyz_named<"__builtin_ppu_global_size">;
+defm int_ppu_local_size : PPUReadPreloadRegisterIntrinsic_xyz_named<"__builtin_ppu_local_size">;
 
+def int_ppu_dispatch_ptr :
+  GCCBuiltin<"__builtin_ppu_dispatch_ptr">,
+  Intrinsic<[LLVMQualPointerType<llvm_i8_ty, 4>], [],
+  [IntrNoMem, IntrSpeculatable]>;
+
+def int_ppu_queue_ptr :
+  GCCBuiltin<"__builtin_ppu_queue_ptr">,
+  Intrinsic<[LLVMQualPointerType<llvm_i8_ty, 4>], [],
+  [IntrNoMem, IntrSpeculatable]>;
+
+def int_ppu_kernarg_segment_ptr :
+  GCCBuiltin<"__builtin_ppu_kernarg_segment_ptr">,
+  Intrinsic<[LLVMQualPointerType<llvm_i8_ty, 4>], [],
+  [IntrNoMem, IntrSpeculatable]>;
+
+def int_ppu_implicitarg_ptr :
+  GCCBuiltin<"__builtin_ppu_implicitarg_ptr">,
+  Intrinsic<[LLVMQualPointerType<llvm_i8_ty, 4>], [],
+  [IntrNoMem, IntrSpeculatable]>;
+
+def int_ppu_dispatch_id :
+  GCCBuiltin<"__builtin_ppu_dispatch_id">,
+  Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrSpeculatable]>;
 
 // Fields should mirror atomicrmw
 class PPUAtomicIncIntrin : Intrinsic<[llvm_anyint_ty],
@@ -205,6 +236,67 @@ def int_ppu_ds_fadd : PPULDSF32Intrin<"__builtin_ppu_ds_faddf">;
 def int_ppu_ds_fmin : PPULDSF32Intrin<"__builtin_ppu_ds_fminf">;
 def int_ppu_ds_fmax : PPULDSF32Intrin<"__builtin_ppu_ds_fmaxf">;
 
+
+// Set EXEC to the 64-bit value given.
+// This is always moved to the beginning of the basic block.
+def int_ppu_init_exec : Intrinsic<[],
+  [llvm_i32_ty],      // 32-bit literal constant
+  [IntrConvergent]>;
+
+// Set EXEC according to a thread count packed in an SGPR input:
+//    thread_count = (input >> bitoffset) & 0x7f;
+// This is always moved to the beginning of the basic block.
+def int_ppu_init_exec_from_input : Intrinsic<[],
+  [llvm_i32_ty,       // 32-bit SGPR input
+   llvm_i32_ty],      // bit offset of the thread count
+  [IntrConvergent]>;
+
+// Copies the active channels of the source value to the destination value,
+// with the guarantee that the source value is computed as if the entire
+// program were executed in Whole Wavefront Mode, i.e. with all channels
+// enabled, with a few exceptions: - Phi nodes with require WWM return an
+// undefined value.
+def int_ppu_wwm : Intrinsic<[llvm_any_ty],
+  [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable, IntrConvergent]
+>;
+
+// Given a value, copies it while setting all the inactive lanes to a given
+// value. Note that OpenGL helper lanes are considered active, so if the
+// program ever uses WQM, then the instruction and the first source will be
+// computed in WQM.
+def int_ppu_set_inactive :
+  Intrinsic<[llvm_anyint_ty],
+            [LLVMMatchType<0>, // value to be copied
+             LLVMMatchType<0>], // value for the inactive lanes to take
+            [IntrNoMem, IntrConvergent]>;
+
+
+//===----------------------------------------------------------------------===//
+// Instruction Intrinsics
+//===----------------------------------------------------------------------===//
+// The first parameter is s_sendmsg immediate (i16),
+// the second one is copied to m0
+def int_ppu_sendmsg : GCCBuiltin<"__builtin_ppu_sendmsg">,
+  Intrinsic <[], [llvm_i32_ty, llvm_i32_ty], []>;
+
+def int_ppu_sendmsghalt : GCCBuiltin<"__builtin_ppu_sendmsghalt">,
+  Intrinsic <[], [llvm_i32_ty, llvm_i32_ty], []>;
+
+def int_ppu_barrier : GCCBuiltin<"__syncthreads">,
+  Intrinsic<[], [], [IntrConvergent]>;
+
+def int_ppu_barrier_popc : GCCBuiltin<"__builtin_ppu_barrier_popc">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrConvergent]>;
+
+def int_ppu_barrier_sync_cnt : GCCBuiltin<"__builtin_ppu_barrier_sync_cnt">,
+    Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], [IntrConvergent]>;
+
+def int_ppu_wave_barrier : GCCBuiltin<"__builtin_ppu_wave_barrier">,
+  Intrinsic<[], [], [IntrConvergent]>;
+
+def int_ppu_waitcnt : GCCBuiltin<"__builtin_ppu_waitcnt">,
+  Intrinsic<[], [llvm_i32_ty], []>;
+
 def int_ppu_icmp :
   Intrinsic<[llvm_anyint_ty], [llvm_anyint_ty, LLVMMatchType<1>, llvm_i32_ty],
             [IntrNoMem, IntrConvergent, ImmArg<2>]>;
@@ -234,6 +326,46 @@ def int_ppu_writelane :
     llvm_i32_ty     // returned by all lanes other than the selected one
   ],
   [IntrNoMem, IntrConvergent]
+>;
+
+//===----------------------------------------------------------------------===//
+// Special Intrinsics for backend internal use only. No frontend
+// should emit calls to these.
+// ===----------------------------------------------------------------------===//
+def int_ppu_if : Intrinsic<[llvm_i1_ty, llvm_i32_ty],
+  [llvm_i1_ty], [IntrConvergent]
+>;
+
+def int_ppu_else : Intrinsic<[llvm_i1_ty, llvm_i32_ty],
+  [llvm_i32_ty], [IntrConvergent]
+>;
+
+def int_ppu_break : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty], [IntrNoMem, IntrConvergent]
+>;
+
+def int_ppu_if_break : Intrinsic<[llvm_i32_ty],
+  [llvm_i1_ty, llvm_i32_ty], [IntrNoMem, IntrConvergent]
+>;
+
+def int_ppu_else_break : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty], [IntrNoMem, IntrConvergent]
+>;
+
+def int_ppu_loop : Intrinsic<[llvm_i1_ty],
+  [llvm_i32_ty], [IntrConvergent]
+>;
+
+def int_ppu_end_cf : Intrinsic<[], [llvm_i32_ty], [IntrConvergent]>;
+
+// Represent unreachable in a divergent region.
+def int_ppu_unreachable : Intrinsic<[], [], [IntrConvergent]>;
+
+// Emit 2.5 ulp, no denormal division. Should only be inserted by
+// pass based on !fpmath metadata.
+def int_ppu_fdiv_fast : Intrinsic<
+  [llvm_float_ty], [llvm_float_ty, llvm_float_ty],
+  [IntrNoMem, IntrSpeculatable]
 >;
 
 
@@ -270,24 +402,24 @@ def int_ppu_writelane :
 // }
 
 
-let TargetPrefix = "ppu" in {
-defm int_ppu_nvvm_tid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_tid">;
-
-defm int_ppu_nvvm_ntid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_ntid">;
-
-def int_ppu_nvvm_laneid : PPUReadPreloadRegisterIntrinsic;
-
-defm int_ppu_nvvm_warpid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_warpid">;
-
-defm int_ppu_nvvm_nwarpid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_nwarpid">;
-
-defm int_ppu_nvvm_ctaid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_ctaid">;
-
-defm int_ppu_nvvm_nctaid : PPUReadPreloadRegisterIntrinsic_xyz_named
-                               <"__builtin_ppu_nvvm_nctaid">;
-}
+//let TargetPrefix = "ppu" in {
+//defm int_ppu_nvvm_tid : PPUThreadRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_tid">;
+//
+//defm int_ppu_nvvm_ntid : PPUWarpRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_ntid">;
+//
+//def int_ppu_nvvm_laneid : PPUThreadRegisterIntrinsic;
+//
+//defm int_ppu_nvvm_warpid : PPUWarpRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_warpid">;
+//
+//defm int_ppu_nvvm_nwarpid : PPUWarpRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_nwarpid">;
+//
+//defm int_ppu_nvvm_ctaid : PPUWarpRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_ctaid">;
+//
+//defm int_ppu_nvvm_nctaid : PPUWarpRegisterIntrinsic_xyz_named
+//                               <"__builtin_ppu_nvvm_nctaid">;
+//}

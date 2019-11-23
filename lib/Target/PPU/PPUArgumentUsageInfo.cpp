@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "amdgpu-argument-reg-usage-info"
+#define DEBUG_TYPE "ppu-argument-reg-usage-info"
 
 INITIALIZE_PASS(PPUArgumentUsageInfo, DEBUG_TYPE,
                 "Argument Register Usage Information Storage", false, true)
@@ -94,14 +94,13 @@ PPUFunctionArgInfo::getPreloadedValue(
                           */
   case PPUFunctionArgInfo::WORKGROUP_ID_X:
     return std::make_pair(WorkGroupIDX ? &WorkGroupIDX : nullptr,
-                          &PPU::GPRRegClass);
-
+                          &PPU::SPR_32RegClass);
   case PPUFunctionArgInfo::WORKGROUP_ID_Y:
     return std::make_pair(WorkGroupIDY ? &WorkGroupIDY : nullptr,
-                          &PPU::GPRRegClass);
+                          &PPU::SPR_32RegClass);
   case PPUFunctionArgInfo::WORKGROUP_ID_Z:
     return std::make_pair(WorkGroupIDZ ? &WorkGroupIDZ : nullptr,
-                          &PPU::GPRRegClass);
+                          &PPU::SPR_32RegClass);
     /*
   case PPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET:
     return std::make_pair(
@@ -128,13 +127,13 @@ PPUFunctionArgInfo::getPreloadedValue(
                           */
   case PPUFunctionArgInfo::WORKITEM_ID_X:
     return std::make_pair(WorkItemIDX ? &WorkItemIDX : nullptr,
-                          &PPU::VRRegClass);
+                          &PPU::VPR_32RegClass);
   case PPUFunctionArgInfo::WORKITEM_ID_Y:
     return std::make_pair(WorkItemIDY ? &WorkItemIDY : nullptr,
-                          &PPU::VRRegClass);
+                          &PPU::VPR_32RegClass);
   case PPUFunctionArgInfo::WORKITEM_ID_Z:
     return std::make_pair(WorkItemIDZ ? &WorkItemIDZ : nullptr,
-                          &PPU::VRRegClass);
+                          &PPU::VPR_32RegClass);
   }
   llvm_unreachable("unexpected preloaded value type");
 }

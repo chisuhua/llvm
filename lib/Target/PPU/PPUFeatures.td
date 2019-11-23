@@ -35,4 +35,18 @@ def FeatureDumpCodeLower : SubtargetFeature <"dumpcode",
   "Dump MachineInstrs in the CodeEmitter"
 >;
 
+//===----------------------------------------------------------------------===//
+// feature base on AMDGPU.td
+//===----------------------------------------------------------------------===//
+def FeatureVPRIndexMode : SubtargetFeature<"vpr-index-mode",
+  "HasVPRIndexMode",
+  "true",
+  "Has VGPR mode register indexing"
+>;
+
+def FeatureUnpackedD16VMem : SubtargetFeature<"unpacked-d16-vmem",
+  "HasUnpackedD16VMem",
+  "true",
+  "Has unpacked d16 vmem instructions"
+>;
 

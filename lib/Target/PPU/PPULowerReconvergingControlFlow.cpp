@@ -134,7 +134,7 @@ bool PPULowerReconvergingControlFlow::runOnMachineFunction(MachineFunction &MF) 
       CondReg = MRI->createVirtualRegister(&PPU::GPRRegClass);
       BuildMI(MBB, *NonUniformBrcond, DL, TII->get(PPU::XOR), CondReg)
           .add(NonUniformBrcond->getOperand(0))
-          .addReg(PPU::EXEC);
+          .addReg(PPU::TMSK);
     } else {
       assert(IPostDom == NonUniformBrcond->getOperand(1).getMBB());
       Secondary = FinalSucc;
@@ -148,8 +148,8 @@ bool PPULowerReconvergingControlFlow::runOnMachineFunction(MachineFunction &MF) 
 
     // FIXME reconverge BuildMI(MBB, *NonUniformBrcond, DL, TII->get(PPU::S_ANDN2_B64_term),
     BuildMI(MBB, *NonUniformBrcond, DL, TII->get(PPU::AND),
-            PPU::EXEC)
-        .addReg(PPU::EXEC)
+            PPU::TMSK)
+        .addReg(PPU::TMSK)
         .addReg(CondReg);
 
     // FIXME schi: is is VBranch, we should create VBranch Op in td 

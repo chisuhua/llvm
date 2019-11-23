@@ -95,7 +95,11 @@ class RegScavenger;
 class PPUSubtarget;
 class TargetRegisterClass;
 
+// it is base on SIIntrInfo
 class PPUInstrInfo final : public PPUBaseInstrInfo {
+public:
+    // from AMDGPUInstrInfo
+  static bool isUniformMMO(const MachineMemOperand *MMO);
 private:
   const PPUSubtarget &ST;
   const PPURegisterInfo &RI;

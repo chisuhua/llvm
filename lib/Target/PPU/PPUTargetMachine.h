@@ -13,40 +13,70 @@
 #ifndef LLVM_LIB_TARGET_PPU_PPUTARGETMACHINE_H
 #define LLVM_LIB_TARGET_PPU_PPUTARGETMACHINE_H
 
-#include "MCTargetDesc/PPUMCTargetDesc.h"
 #include "PPUSubtarget.h"
+// #include "PPUIntrinsicInfo.h"
+#include "MCTargetDesc/PPUMCTargetDesc.h"
 #include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
 class PPUTargetMachine : public LLVMTargetMachine {
+protected:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   PPUSubtarget Subtarget;
 
+  StringRef getFeatureString(const Function &F) const;
+
+  // PPUIntrinsicInfo IntrinsicInfo;
+  mutable StringMap<std::unique_ptr<PPUSubtarget>> SubtargetMap;
+
 public:
   // static bool EnableReconvergeCFG;
+  static bool EnableLateStructurizeCFG;
+  static bool EnableFunctionCalls;
 
   PPUTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                      StringRef FS, const TargetOptions &Options,
                      Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
                      CodeGenOpt::Level OL, bool JIT);
 
-  const PPUSubtarget *getSubtargetImpl() const {
+  const PPUSubtarget *getSubtargetImpl() const
+  {
     return &Subtarget;
   }
 
-  const PPUSubtarget *getSubtargetImpl(const Function &) const override {
+  const PPUSubtarget *getSubtargetImpl(const Function &) const override
+  {
     return &Subtarget;
   }
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+
 
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
 
   TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+
+  void adjustPassManager(PassManagerBuilder &) override;
+  /// Get the integer value of a null pointer in the given address space.
+  uint64_t getNullPointerValue(unsigned AddrSpace) const {
+    return (AddrSpace == AMDGPUAS::LOCAL_ADDRESS ||
+            AddrSpace == AMDGPUAS::REGION_ADDRESS) ? -1 : 0;
+  }
+
+  bool useIPRA() const override {
+    return true;
+  }
+
+  // const PPUIntrinsicInfo *getIntrinsicInfo() const override {
+  //   return &IntrinsicInfo;
+  // }
+
 };
 }
 

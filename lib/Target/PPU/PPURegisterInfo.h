@@ -62,7 +62,7 @@ struct PPUBaseRegisterInfo : public PPUGenRegisterInfo {
     return &PPU::GPRRegClass;
   }
 
-  unsigned getVCC() const;
+  // unsigned getVCC() const;
 };
 
 class PPUSubtarget;
@@ -325,7 +325,7 @@ public:
                                 LiveIntervals *LIS) const;
 
   const uint32_t *getAllVGPRRegMask() const;
-  const uint32_t *getAllAllocatableSRegMask() const;
+  // const uint32_t *getAllAllocatableSRegMask() const;
 
 private:
   void buildSpillLoadStore(MachineBasicBlock::iterator MI,

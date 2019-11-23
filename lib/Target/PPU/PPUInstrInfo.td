@@ -518,6 +518,13 @@ def MRET : Priv<"mret", 0b0011000> {
   let rs1 = 0;
   let rs2 = 0b00010;
 }
+
+def ENDPGM : Priv<"endpgm", 0b0011001> {
+  let rd = 0;
+  let rs1 = 0;
+  let rs2 = 0b00010;
+}
+
 } // isBarrier = 1, isReturn = 1, isTerminator = 1
 
 def WFI : Priv<"wfi", 0b0001000> {
@@ -1098,6 +1105,11 @@ include "PPUInstrInfoD.td"
 include "PPUInstrInfoC.td"
 // TODO copied from rvv
 include "PPUInstrInfoV.td"
+
+class VOPDstOperand <RegisterClass rc> : RegisterOperand <rc, "printVOPDst">;
+
+// TODO copied from amdgpu
+include "PPUInstrInfoT.td"
 
 /*
 class NamedMatchClass<string CName, bit Optional = 1> : AsmOperandClass {

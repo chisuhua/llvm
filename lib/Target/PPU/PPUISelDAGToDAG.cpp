@@ -10,12 +10,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MCTargetDesc/PPUMCTargetDesc.h"
 #include "PPU.h"
+#include "PPUArgumentUsageInfo.h"
+#include "PPUISelLowering.h" // For AMDGPUISD
+#include "PPUInstrInfo.h"
+#include "PPUPerfHintAnalysis.h"
 #include "PPUTargetMachine.h"
+#include "PPUMachineFunctionInfo.h"
+#include "PPURegisterInfo.h"
+#include "MCTargetDesc/PPUMCTargetDesc.h"
 #include "Utils/PPUMatInt.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/LegacyDivergenceAnalysis.h"
+#include "llvm/Analysis/ValueTracking.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
+#include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/IR/BasicBlock.h"
+#ifdef EXPENSIVE_CHECKS
+#include "llvm/IR/Dominators.h"
+#endif
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -23,40 +41,145 @@ using namespace llvm;
 
 #define DEBUG_TYPE "ppu-isel"
 
+//===----------------------------------------------------------------------===//
+// Instruction Selector Implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+static bool isNullConstantOrUndef(SDValue V) {
+  if (V.isUndef())
+    return true;
+
+  ConstantSDNode *Const = dyn_cast<ConstantSDNode>(V);
+  return Const != nullptr && Const->isNullValue();
+}
+
+static bool getConstantValue(SDValue N, uint32_t &Out) {
+  // This is only used for packed vectors, where ussing 0 for undef should
+  // always be good.
+  if (N.isUndef()) {
+    Out = 0;
+    return true;
+  }
+
+  if (const ConstantSDNode *C = dyn_cast<ConstantSDNode>(N)) {
+    Out = C->getAPIntValue().getSExtValue();
+    return true;
+  }
+
+  if (const ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(N)) {
+    Out = C->getValueAPF().bitcastToAPInt().getSExtValue();
+    return true;
+  }
+
+  return false;
+}
+
+// TODO: Handle undef as zero
+static SDNode *packConstantV2I16(const SDNode *N, SelectionDAG &DAG,
+                                 bool Negate = false) {
+  assert(N->getOpcode() == ISD::BUILD_VECTOR && N->getNumOperands() == 2);
+  uint32_t LHSVal, RHSVal;
+  if (getConstantValue(N->getOperand(0), LHSVal) &&
+      getConstantValue(N->getOperand(1), RHSVal)) {
+    SDLoc SL(N);
+    uint32_t K = Negate ?
+      (-LHSVal & 0xffff) | (-RHSVal << 16) :
+      (LHSVal & 0xffff) | (RHSVal << 16);
+    return DAG.getMachineNode(PPU::SMOV, SL, N->getValueType(0),
+                              DAG.getTargetConstant(K, SL, MVT::i32));
+  }
+
+  return nullptr;
+}
+
+static SDNode *packNegConstantV2I16(const SDNode *N, SelectionDAG &DAG) {
+  return packConstantV2I16(N, DAG, true);
+}
+
 // PPU-specific code to select PPU machine instructions for
 // SelectionDAG operations.
-namespace {
 class PPUDAGToDAGISel final : public SelectionDAGISel {
   const PPUSubtarget *Subtarget;
   bool EnableReconvergeCFG;
 
 public:
-  explicit PPUDAGToDAGISel(PPUTargetMachine &TargetMachine)
-      : SelectionDAGISel(TargetMachine) {
-    EnableReconvergeCFG = TargetMachine.getSubtargetImpl()->enableReconvergeCFG();
+  explicit PPUDAGToDAGISel(PPUTargetMachine *TM = nullptr,
+                              CodeGenOpt::Level OptLevel = CodeGenOpt::Default)
+      : SelectionDAGISel(*TM, OptLevel) {
+    EnableReconvergeCFG = TM->getSubtargetImpl()->enableReconvergeCFG();
   }
 
   StringRef getPassName() const override {
     return "PPU DAG->DAG Pattern Instruction Selection";
   }
 
+  ~PPUDAGToDAGISel() override = default;
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<PPUArgumentUsageInfo>();
+    AU.addRequired<LegacyDivergenceAnalysis>();
+#ifdef EXPENSIVE_CHECKS
+    AU.addRequired<DominatorTreeWrapperPass>();
+    AU.addRequired<LoopInfoWrapperPass>();
+#endif
+    SelectionDAGISel::getAnalysisUsage(AU);
+  }
+
+  static char ID;
+
+  bool matchLoadD16FromBuildVector(SDNode *N) const; // AMD
+
   bool runOnMachineFunction(MachineFunction &MF) override {
+#ifdef EXPENSIVE_CHECKS
+  DominatorTree & DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+  LoopInfo * LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+  for (auto &L : LI->getLoopsInPreorder()) {
+    assert(L->isLCSSAForm(DT));
+  }
+#endif
     Subtarget = &MF.getSubtarget<PPUSubtarget>();
     return SelectionDAGISel::runOnMachineFunction(MF);
   }
 
+  void PreprocessISelDAG() override;  // AMD
   void PostprocessISelDAG() override;
 
   void Select(SDNode *Node) override;
+
+  // AMD begin
+protected:
+  void SelectBuildVector(SDNode *N, unsigned RegClassID); // AMD
+
+private:
+  std::pair<SDValue, SDValue> foldFrameIndex(SDValue N) const;
+  bool isNoNanSrc(SDValue N) const;
+  /* FIXME
+  bool isInlineImmediate(const SDNode *N, bool Negated = false) const;
+  bool isNegInlineImmediate(const SDNode *N) const {
+    return isInlineImmediate(N, true);
+  }
+  */
+  SDValue getHi16Elt(SDValue In) const;
+
+  bool isUniformBr(const SDNode *N) const;
+
+  // MachineSDNode *buildSMovImm64(SDLoc &DL, uint64_t Val, EVT VT) const;
+  const TargetRegisterClass *getOperandRegClass(SDNode *N, unsigned OpNo) const;
+
+  bool isCBranchSCC(const SDNode *N) const;
+  void SelectBRCOND(SDNode *N);
+
+  // ... FIXME to port from PPU
+  // AMD end
 
   bool SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
                                     std::vector<SDValue> &OutOps) override;
 
   bool SelectAddrFI(SDValue Addr, SDValue &Base);
 
-  bool isUniformBr(const SDNode *N) const;
-  bool isCBranchSCC(const SDNode *N) const;
-  void SelectBRCOND(SDNode *N);
+protected:
 
 // Include the pieces autogenerated from the target description.
 #include "PPUGenDAGISel.inc"
@@ -64,11 +187,69 @@ public:
 private:
   void doPeepholeLoadStoreADDI();
 };
+
+static SDValue stripBitcast(SDValue Val) {
+  return Val.getOpcode() == ISD::BITCAST ? Val.getOperand(0) : Val;
 }
 
-void PPUDAGToDAGISel::PostprocessISelDAG() {
-  doPeepholeLoadStoreADDI();
+// Figure out if this is really an extract of the high 16-bits of a dword.
+static bool isExtractHiElt(SDValue In, SDValue &Out) {
+  In = stripBitcast(In);
+  if (In.getOpcode() != ISD::TRUNCATE)
+    return false;
+
+  SDValue Srl = In.getOperand(0);
+  if (Srl.getOpcode() == ISD::SRL) {
+    if (ConstantSDNode *ShiftAmt = dyn_cast<ConstantSDNode>(Srl.getOperand(1))) {
+      if (ShiftAmt->getZExtValue() == 16) {
+        Out = stripBitcast(Srl.getOperand(0));
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
+
+// Look through operations that obscure just looking at the low 16-bits of the
+// same register.
+static SDValue stripExtractLoElt(SDValue In) {
+  if (In.getOpcode() == ISD::TRUNCATE) {
+    SDValue Src = In.getOperand(0);
+    if (Src.getValueType().getSizeInBits() == 32)
+      return stripBitcast(Src);
+  }
+
+  return In;
+}
+
+
+}  // end anonymous namespace
+
+
+INITIALIZE_PASS_BEGIN(PPUDAGToDAGISel, "ppu-isel",
+                      "PPU DAG->DAG Pattern Instruction Selection", false, false)
+INITIALIZE_PASS_DEPENDENCY(PPUArgumentUsageInfo)
+INITIALIZE_PASS_DEPENDENCY(PPUPerfHintAnalysis)
+INITIALIZE_PASS_DEPENDENCY(LegacyDivergenceAnalysis)
+#ifdef EXPENSIVE_CHECKS
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
+#endif
+INITIALIZE_PASS_END(PPUDAGToDAGISel, "ppu-isel",
+                    "PPU DAG->DAG Pattern Instruction Selection", false, false)
+
+char PPUDAGToDAGISel::ID = 0;
+char &llvm::PPUDAGToDAGISelID = PPUDAGToDAGISel::ID;
+
+
+// This pass converts a legalized DAG into a PPU-specific DAG, ready
+// for instruction scheduling.
+FunctionPass *llvm::createPPUISelDag(PPUTargetMachine &TM,
+                                        CodeGenOpt::Level OptLevel) {
+  return new PPUDAGToDAGISel(&TM, OptLevel);
+}
+
 
 static SDNode *selectImm(SelectionDAG *CurDAG, const SDLoc &DL, int64_t Imm,
                          MVT XLenVT) {
@@ -102,6 +283,39 @@ static bool isConstantMask(SDNode *Node, uint64_t &Mask) {
   return false;
 }
 
+static unsigned selectSGPRVectorRegClassID(unsigned NumVectorElts) {
+  switch (NumVectorElts) {
+    /* FIXME
+  case 1:
+    return PPU::SReg_32_XX0RegClassID;
+  case 2:
+    return PPU::SReg_64RegClassID;
+  case 4:
+    return PPU::SReg_128RegClassID;
+  case 8:
+    return PPU::SReg_256RegClassID;
+  case 16:
+    return PPU::SReg_512RegClassID;
+    */
+  }
+
+  llvm_unreachable("invalid vector size");
+}
+
+static bool getConstantValue(SDValue N, uint32_t &Out) {
+  if (const ConstantSDNode *C = dyn_cast<ConstantSDNode>(N)) {
+    Out = C->getAPIntValue().getZExtValue();
+    return true;
+  }
+
+  if (const ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(N)) {
+    Out = C->getValueAPF().bitcastToAPInt().getZExtValue();
+    return true;
+  }
+
+  return false;
+}
+
 void PPUDAGToDAGISel::Select(SDNode *Node) {
   // If we have a custom node, we have already selected.
   if (Node->isMachineOpcode()) {
@@ -113,6 +327,11 @@ void PPUDAGToDAGISel::Select(SDNode *Node) {
   // Instruction Selection not handled by the auto-generated tablegen selection
   // should be handled here.
   unsigned Opcode = Node->getOpcode();
+
+  // be used since AMD code use them
+  SDNode *N = Node;
+  unsigned int Opc = Opcode;
+
   MVT XLenVT = Subtarget->getXLenVT();
   SDLoc DL(Node);
   EVT VT = Node->getValueType(0);
@@ -171,6 +390,26 @@ void PPUDAGToDAGISel::Select(SDNode *Node) {
                                              MVT::i32, MVT::Other,
                                              Node->getOperand(0)));
     return;
+  case ISD::SCALAR_TO_VECTOR:
+  case ISD::BUILD_VECTOR: {
+    EVT VT = N->getValueType(0);
+    unsigned NumVectorElts = VT.getVectorNumElements();
+    if (VT.getScalarSizeInBits() == 16) {
+      if (Opc == ISD::BUILD_VECTOR && NumVectorElts == 2) {
+        if (SDNode *Packed = packConstantV2I16(N, *CurDAG)) {
+          ReplaceNode(N, Packed);
+          return;
+        }
+      }
+
+      break;
+    }
+
+    assert(VT.getVectorElementType().bitsEq(MVT::i32));
+    unsigned RegClassID = selectSGPRVectorRegClassID(NumVectorElts);
+    SelectBuildVector(N, RegClassID);
+    return;
+  }
   case ISD::BRCOND:
     SelectBRCOND(Node);
     return;
@@ -197,6 +436,29 @@ bool PPUDAGToDAGISel::SelectInlineAsmMemoryOperand(
 
   return true;
 }
+
+SDValue PPUDAGToDAGISel::getHi16Elt(SDValue In) const {
+  if (In.isUndef())
+    return CurDAG->getUNDEF(MVT::i32);
+
+  if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(In)) {
+    SDLoc SL(In);
+    return CurDAG->getConstant(C->getZExtValue() << 16, SL, MVT::i32);
+  }
+
+  if (ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(In)) {
+    SDLoc SL(In);
+    return CurDAG->getConstant(
+      C->getValueAPF().bitcastToAPInt().getZExtValue() << 16, SL, MVT::i32);
+  }
+
+  SDValue Src;
+  if (isExtractHiElt(In, Src))
+    return Src;
+
+  return SDValue();
+}
+
 
 bool PPUDAGToDAGISel::SelectAddrFI(SDValue Addr, SDValue &Base) {
   if (auto FIN = dyn_cast<FrameIndexSDNode>(Addr)) {
@@ -293,7 +555,7 @@ void PPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
     // catches both cases.
     Cond = SDValue(CurDAG->getMachineNode(PPU::AND,
                      SL, MVT::i1,
-                     CurDAG->getRegister(PPU::EXEC,
+                     CurDAG->getRegister(PPU::TMSK,
                                          MVT::i1),
                     Cond),
                    0);
@@ -305,7 +567,6 @@ void PPUDAGToDAGISel::SelectBRCOND(SDNode *N) {
   }
 
 }
-
 // Merge an ADDI into the offset of a load/store instruction where possible.
 // (load (add base, off), 0) -> (load base, off)
 // (store val, (add base, off)) -> (store val, base, off)
@@ -393,9 +654,292 @@ void PPUDAGToDAGISel::doPeepholeLoadStoreADDI() {
       CurDAG->RemoveDeadNode(Base.getNode());
   }
 }
+/* FIXME
+bool PPUDAGToDAGISel::isInlineImmediate(const SDNode *N) const {
+  const PPUInstrInfo *TII = Subtarget->getInstrInfo();
+  bool IsVALU = TII->isVALU(N->getOpcode());
+  unsigned BitSize = N->getValueType(0).getSizeInBits();
 
-// This pass converts a legalized DAG into a PPU-specific DAG, ready
-// for instruction scheduling.
-FunctionPass *llvm::createPPUISelDag(PPUTargetMachine &TM) {
-  return new PPUDAGToDAGISel(TM);
+  if (BitSize == 64 && IsVALU == false) {
+    return false;
+  }
+
+  if (const ConstantSDNode *C = dyn_cast<ConstantSDNode>(N))
+    return TII->isInlineConstant(C->getAPIntValue());
+
+  if (const ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(N))
+    return TII->isInlineConstant(C->getValueAPF().bitcastToAPInt());
+
+  return false;
 }
+*/
+
+/// Determine the register class for \p OpNo
+/// \returns The register class of the virtual register that will be used for
+/// the given operand number \OpNo or NULL if the register class cannot be
+/// determined.
+const TargetRegisterClass *
+PPUDAGToDAGISel::getOperandRegClass(SDNode *N, unsigned OpNo) const {
+  if (!N->isMachineOpcode()) {
+    if (N->getOpcode() == ISD::CopyToReg) {
+      unsigned Reg = cast<RegisterSDNode>(N->getOperand(1))->getReg();
+      if (Register::isVirtualRegister(Reg)) {
+        MachineRegisterInfo &MRI = CurDAG->getMachineFunction().getRegInfo();
+        return MRI.getRegClass(Reg);
+      }
+
+      const PPURegisterInfo *TRI =
+          static_cast<const PPUSubtarget *>(Subtarget)->getRegisterInfo();
+      return TRI->getPhysRegClass(Reg);
+    }
+
+    return nullptr;
+  }
+
+  switch (N->getMachineOpcode()) {
+  default: {
+    const MCInstrDesc &Desc =
+        Subtarget->getInstrInfo()->get(N->getMachineOpcode());
+    unsigned OpIdx = Desc.getNumDefs() + OpNo;
+    if (OpIdx >= Desc.getNumOperands())
+      return nullptr;
+    int RegClass = Desc.OpInfo[OpIdx].RegClass;
+    if (RegClass == -1)
+      return nullptr;
+
+    return Subtarget->getRegisterInfo()->getRegClass(RegClass);
+  }
+  case PPU::REG_SEQUENCE: {
+    unsigned RCID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
+    const TargetRegisterClass *SuperRC =
+        Subtarget->getRegisterInfo()->getRegClass(RCID);
+
+    SDValue SubRegOp = N->getOperand(OpNo + 1);
+    unsigned SubRegIdx = cast<ConstantSDNode>(SubRegOp)->getZExtValue();
+    return Subtarget->getRegisterInfo()->getSubClassWithSubReg(SuperRC,
+                                                               SubRegIdx);
+  }
+  }
+}
+
+
+void PPUDAGToDAGISel::SelectBuildVector(SDNode *N, unsigned RegClassID) {
+  EVT VT = N->getValueType(0);
+  unsigned NumVectorElts = VT.getVectorNumElements();
+  EVT EltVT = VT.getVectorElementType();
+  SDLoc DL(N);
+  SDValue RegClass = CurDAG->getTargetConstant(RegClassID, DL, MVT::i32);
+
+  if (NumVectorElts == 1) {
+    CurDAG->SelectNodeTo(N, PPU::COPY_TO_REGCLASS, EltVT, N->getOperand(0),
+                         RegClass);
+    return;
+  }
+
+  assert(NumVectorElts <= 16 && "Vectors with more than 16 elements not "
+                                "supported yet");
+  // 16 = Max Num Vector Elements
+  // 2 = 2 REG_SEQUENCE operands per element (value, subreg index)
+  // 1 = Vector Register Class
+  SmallVector<SDValue, 16 * 2 + 1> RegSeqArgs(NumVectorElts * 2 + 1);
+
+  RegSeqArgs[0] = CurDAG->getTargetConstant(RegClassID, DL, MVT::i32);
+  bool IsRegSeq = true;
+  unsigned NOps = N->getNumOperands();
+  for (unsigned i = 0; i < NOps; i++) {
+    // XXX: Why is this here?
+    if (isa<RegisterSDNode>(N->getOperand(i))) {
+      IsRegSeq = false;
+      break;
+    }
+    unsigned Sub = PPURegisterInfo::getSubRegFromChannel(i);
+    RegSeqArgs[1 + (2 * i)] = N->getOperand(i);
+    RegSeqArgs[1 + (2 * i) + 1] = CurDAG->getTargetConstant(Sub, DL, MVT::i32);
+  }
+  if (NOps != NumVectorElts) {
+    // Fill in the missing undef elements if this was a scalar_to_vector.
+    assert(N->getOpcode() == ISD::SCALAR_TO_VECTOR && NOps < NumVectorElts);
+    MachineSDNode *ImpDef =
+        CurDAG->getMachineNode(TargetOpcode::IMPLICIT_DEF, DL, EltVT);
+    for (unsigned i = NOps; i < NumVectorElts; ++i) {
+      unsigned Sub = PPURegisterInfo::getSubRegFromChannel(i);
+      RegSeqArgs[1 + (2 * i)] = SDValue(ImpDef, 0);
+      RegSeqArgs[1 + (2 * i) + 1] =
+          CurDAG->getTargetConstant(Sub, DL, MVT::i32);
+    }
+  }
+
+  if (!IsRegSeq)
+    SelectCode(N);
+  CurDAG->SelectNodeTo(N, PPU::REG_SEQUENCE, N->getVTList(), RegSeqArgs);
+}
+
+std::pair<SDValue, SDValue>
+PPUDAGToDAGISel::foldFrameIndex(SDValue N) const {
+  const MachineFunction &MF = CurDAG->getMachineFunction();
+  const PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
+
+  if (auto FI = dyn_cast<FrameIndexSDNode>(N)) {
+    SDValue TFI =
+        CurDAG->getTargetFrameIndex(FI->getIndex(), FI->getValueType(0));
+
+    // If we can resolve this to a frame index access, this is relative to the
+    // frame pointer SGPR.
+    return std::make_pair(
+        TFI, CurDAG->getRegister(Info->getFrameOffsetReg(), MVT::i32));
+  }
+
+  // If we don't know this private access is a local stack object, it needs to
+  // be relative to the entry point's scratch wave offset register.
+  return std::make_pair(
+      N, CurDAG->getRegister(Info->getScratchWaveOffsetReg(), MVT::i32));
+}
+
+bool PPUDAGToDAGISel::matchLoadD16FromBuildVector(SDNode *N) const {
+  // assert(Subtarget->d16PreservesUnusedBits()); TODO i think we have LH and LHU
+  MVT VT = N->getValueType(0).getSimpleVT();
+  if (VT != MVT::v2i16 && VT != MVT::v2f16)
+    return false;
+
+  SDValue Lo = N->getOperand(0);
+  SDValue Hi = N->getOperand(1);
+
+  LoadSDNode *LdHi = dyn_cast<LoadSDNode>(stripBitcast(Hi));
+
+  // build_vector lo, (load ptr) -> load_d16_hi ptr, lo
+  // build_vector lo, (zextload ptr from i8) -> load_d16_hi_u8 ptr, lo
+  // build_vector lo, (sextload ptr from i8) -> load_d16_hi_i8 ptr, lo
+
+  // Need to check for possible indirect dependencies on the other half of the
+  // vector to avoid introducing a cycle.
+  if (LdHi && Hi.hasOneUse() && !LdHi->isPredecessorOf(Lo.getNode())) {
+    SDVTList VTList = CurDAG->getVTList(VT, MVT::Other);
+
+    SDValue TiedIn = CurDAG->getNode(ISD::SCALAR_TO_VECTOR, SDLoc(N), VT, Lo);
+    SDValue Ops[] = {
+      LdHi->getChain(), LdHi->getBasePtr(), TiedIn
+    };
+
+    // FIXME
+    unsigned LoadOp = PPUISD::LOAD_D16_HI;
+
+    if (LdHi->getMemoryVT() == MVT::i8) {
+      // FIXME
+      LoadOp = LdHi->getExtensionType() == ISD::SEXTLOAD ?  PPUISD::LOAD_D16_HI_I8 : PPUISD::LOAD_D16_HI_U8;
+    } else {
+      assert(LdHi->getMemoryVT() == MVT::i16);
+    }
+
+    SDValue NewLoadHi =
+      CurDAG->getMemIntrinsicNode(LoadOp, SDLoc(LdHi), VTList,
+                                  Ops, LdHi->getMemoryVT(),
+                                  LdHi->getMemOperand());
+
+    CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), NewLoadHi);
+    CurDAG->ReplaceAllUsesOfValueWith(SDValue(LdHi, 1), NewLoadHi.getValue(1));
+    return true;
+  }
+
+  // build_vector (load ptr), hi -> load_d16_lo ptr, hi
+  // build_vector (zextload ptr from i8), hi -> load_d16_lo_u8 ptr, hi
+  // build_vector (sextload ptr from i8), hi -> load_d16_lo_i8 ptr, hi
+  LoadSDNode *LdLo = dyn_cast<LoadSDNode>(stripBitcast(Lo));
+  if (LdLo && Lo.hasOneUse()) {
+    SDValue TiedIn = getHi16Elt(Hi);
+    if (!TiedIn || LdLo->isPredecessorOf(TiedIn.getNode()))
+      return false;
+
+    SDVTList VTList = CurDAG->getVTList(VT, MVT::Other);
+    // FIXME
+    unsigned LoadOp = PPUISD::LOAD_D16_LO;
+    if (LdLo->getMemoryVT() == MVT::i8) {
+      // FIXME
+      LoadOp = LdLo->getExtensionType() == ISD::SEXTLOAD ?  PPUISD::LOAD_D16_LO_I8 : PPUISD::LOAD_D16_LO_U8;
+    } else {
+      assert(LdLo->getMemoryVT() == MVT::i16);
+    }
+
+    TiedIn = CurDAG->getNode(ISD::BITCAST, SDLoc(N), VT, TiedIn);
+
+    SDValue Ops[] = {
+      LdLo->getChain(), LdLo->getBasePtr(), TiedIn
+    };
+
+    SDValue NewLoadLo =
+      CurDAG->getMemIntrinsicNode(LoadOp, SDLoc(LdLo), VTList,
+                                  Ops, LdLo->getMemoryVT(),
+                                  LdLo->getMemOperand());
+
+    CurDAG->ReplaceAllUsesOfValueWith(SDValue(N, 0), NewLoadLo);
+    CurDAG->ReplaceAllUsesOfValueWith(SDValue(LdLo, 1), NewLoadLo.getValue(1));
+    return true;
+  }
+
+  return false;
+}
+
+void PPUDAGToDAGISel::PreprocessISelDAG() {
+    /* RISCV have LH, LHU
+  if (!Subtarget->d16PreservesUnusedBits())
+    return;
+    */
+
+  SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_end();
+
+  bool MadeChange = false;
+  while (Position != CurDAG->allnodes_begin()) {
+    SDNode *N = &*--Position;
+    if (N->use_empty())
+      continue;
+
+    switch (N->getOpcode()) {
+    case ISD::BUILD_VECTOR:
+      MadeChange |= matchLoadD16FromBuildVector(N);
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (MadeChange) {
+    CurDAG->RemoveDeadNodes();
+    LLVM_DEBUG(dbgs() << "After PreProcess:\n";
+               CurDAG->dump(););
+  }
+}
+/*
+void PPUDAGToDAGISel::PostprocessISelDAG() {
+  doPeepholeLoadStoreADDI();
+}
+*/
+
+
+void PPUDAGToDAGISel::PostprocessISelDAG() {
+  const PPUTargetLowering &Lowering =
+      *static_cast<const PPUTargetLowering *>(getTargetLowering());
+  bool IsModified = false;
+  do {
+    IsModified = false;
+
+    // Go over all selected nodes and try to fold them a bit more
+    SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_begin();
+    while (Position != CurDAG->allnodes_end()) {
+      SDNode *Node = &*Position++;
+      MachineSDNode *MachineNode = dyn_cast<MachineSDNode>(Node);
+      if (!MachineNode)
+        continue;
+
+      SDNode *ResNode = Lowering.PostISelFolding(MachineNode, *CurDAG);
+      if (ResNode != Node) {
+        if (ResNode)
+          ReplaceUses(Node, ResNode);
+        IsModified = true;
+      }
+    }
+    CurDAG->RemoveDeadNodes();
+  } while (IsModified);
+  doPeepholeLoadStoreADDI();
+}
+
+
+
