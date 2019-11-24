@@ -32,6 +32,7 @@
 
 using namespace llvm;
 
+// FIXME how about PPT_ADJCALLSSTACKUP/DOWN
 PPUBaseInstrInfo::PPUBaseInstrInfo()
     : PPUGenInstrInfo(PPU::ADJCALLSTACKDOWN, PPU::ADJCALLSTACKUP) {}
 

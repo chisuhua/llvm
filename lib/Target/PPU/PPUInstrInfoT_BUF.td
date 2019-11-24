@@ -1022,10 +1022,10 @@ class MUBUF_Real_ppu <bits<7> op, MUBUF_Pseudo ps> :
   MUBUF_Real<ps>,
   Enc64,
   PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU> {
-  let AssemblerPredicate = isPPU;
+  let AssemblerPredicate = isPPT;
   let DecoderNamespace = "PPU";
 
-  // why we need below but AMD don't have
+  // FIXME why we need below but AMD don't have
   let hasSideEffects = 1;
   let mayLoad = 1;
   let mayStore = 1;
@@ -1186,8 +1186,14 @@ class MTBUF_Real_ppu <bits<4> op, MTBUF_Pseudo ps> :
   MTBUF_Real<ps>,
   Enc64,
   PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU> {
-  let AssemblerPredicate = isPPU;
+  let AssemblerPredicate = isPPT;
   let DecoderNamespace = "PPU";
+
+  // FIXME why we need below but AMD don't have
+  let hasSideEffects = 1;
+  let mayLoad = 1;
+  let mayStore = 1;
+
 
   let Inst{11-0}  = !if(ps.has_offset, offset, ?);
   let Inst{12}    = ps.offen;

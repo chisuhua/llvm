@@ -18,7 +18,7 @@ def VPRIdxMode : Operand<i32> {
 // Base pseudo class
 class SOP_Pseudo<string opName, dag outs, dag ins, string asmOps,
             list<dag> pattern=[]> :
-    PPUInst<outs, ins, "", "", pattern> ,
+    PPTInst<outs, ins, "", "", pattern> ,
     PPUMCInstr<opName, PPUEncodingFamily.NONE> {
   let isPseudo           = 1;
   let isCodeGenOnly      = 1;
@@ -51,7 +51,7 @@ class SOP1_Pseudo <string opName, dag outs, dag ins,
 }
 
 class SOP1<bits<8> op, SOP1_Pseudo ps> :
-  PPUInst <ps.OutOperandList, ps.InOperandList,
+  PPTInst <ps.OutOperandList, ps.InOperandList,
           ps.Mnemonic,  ps.AsmOperands, []>,
   Enc32 {
 
@@ -101,7 +101,7 @@ class SOP2_Pseudo<string opName, dag outs, dag ins,
 }
 
 class SOP2_Real<bits<7> op, SOP_Pseudo ps> :
-  PPUInst <ps.OutOperandList, ps.InOperandList,
+  PPTInst <ps.OutOperandList, ps.InOperandList,
           ps.Mnemonic, ps.AsmOperands, []>,
   Enc32 {
   let isPseudo = 0;
@@ -132,7 +132,7 @@ class SOP2_Real<bits<7> op, SOP_Pseudo ps> :
 
 class SOPK_Pseudo <string opName, dag outs, dag ins,
                    string asmOps, list<dag> pattern=[]> :
-  PPUInst <outs, ins, "", "", pattern> ,
+  PPTInst <outs, ins, "", "", pattern> ,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -150,7 +150,7 @@ class SOPK_Pseudo <string opName, dag outs, dag ins,
 }
 
 class SOPK_Real<bits<5> op, SOPK_Pseudo ps> :
-  PPUInst <ps.OutOperandList, ps.InOperandList,
+  PPTInst <ps.OutOperandList, ps.InOperandList,
           ps.Mnemonic , ps.AsmOperands, []> {
   let isPseudo = 0;
   let isCodeGenOnly = 0;
@@ -207,7 +207,7 @@ class SOPCe <bits<7> op> : Enc32 {
 
 class SOPC <bits<7> op, dag outs, dag ins, string asm,
             list<dag> pattern = []> :
-  PPUInst<outs, ins, asm, "", pattern>, SOPCe <op> {
+  PPTInst<outs, ins, asm, "", pattern>, SOPCe <op> {
   let mayLoad = 0;
   let mayStore = 0;
   let hasSideEffects = 0;
@@ -236,7 +236,7 @@ class SOPPe <bits<7> op> : Enc32 {
 }
 
 class SOPP <bits<7> op, dag ins, string asm, list<dag> pattern = []> :
-  PPUInst <(outs), ins, asm, "", pattern >, SOPPe <op>, Base_SOPP <asm> {
+  PPTInst <(outs), ins, asm, "", pattern >, SOPPe <op>, Base_SOPP <asm> {
 
   let mayLoad = 0;
   let mayStore = 0;

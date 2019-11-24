@@ -328,9 +328,9 @@ protected:
   bool HasIntClamp;
   */
   bool HasFmaMixInsts {false};
-  /*
   bool HasMovrel;
-  bool HasVGPRIndexMode;
+  bool HasVPRIndexMode;
+  /*
   bool HasScalarStores;
   bool HasScalarAtomics;
   bool HasSDWAOmod;
@@ -612,8 +612,8 @@ public:
 */
 
   bool useVGPRIndexMode(bool UserEnable) const {
-    return UserEnable;
-    // return !hasMovrel() || (UserEnable && hasVGPRIndexMode());
+    // return UserEnable;
+    return !hasMovrel() || (UserEnable && hasVPRIndexMode());
   }
 
 /*

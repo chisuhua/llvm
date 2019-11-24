@@ -144,7 +144,7 @@ class SMRD_Real_ppu <bits<5> op, SM_Pseudo ps>
   , PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU>
   , Enc32 {
 
-  let AssemblerPredicates = [isPPU];
+  let AssemblerPredicates = [isPPT];
   let DecoderNamespace = "PPU";
 
   let Inst{7-0}   = !if(ps.has_offset, offset{7-0}, ?);
@@ -161,7 +161,7 @@ class SMEM_Real_ppu <bits<8> op, SM_Pseudo ps>
   , Enc64 {
   bit glc;
 
-  let AssemblerPredicates = [isPPU];
+  let AssemblerPredicates = [isPPT];
   let DecoderNamespace = "PPU";
 
   let Inst{5-0}   = !if(ps.has_sbase, sbase{6-1}, ?);
@@ -375,7 +375,7 @@ class SMRD_Real_ppu <bits<5> op, SM_Pseudo ps>
   , PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU>
   , Enc32 {
 
-  let AssemblerPredicates = [isPPU];
+  let AssemblerPredicates = [isPPT];
   let DecoderNamespace = "PPU";
 
   let Inst{7-0}   = !if(ps.has_offset, offset{7-0}, ?);

@@ -7,11 +7,232 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains instruction defs  base on AMDGPUInstructions.td and AMDGPUInstrInfo.td
-// SIInstructions.td is defined in PPUInstrInfoT.td
+// SIInstructions.td 
 
 // the AMDGPUInstrInfo.td is partially reference
+// 
+// This file contains DAG node defintions for the AMDGPU target.
 //
 //===----------------------------------------------------------------------===//
+
+////////////////////////////////////////////////////////////////////
+//  below AMDGPUInstrInfo.td
+//===----------------------------------------------------------------------===//
+// PPU DAG Profiles
+//===----------------------------------------------------------------------===//
+def PPUDTIntTernaryOp : SDTypeProfile<1, 3, [
+  SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisInt<0>, SDTCisInt<3>
+]>;
+
+def PPUTrigPreOp : SDTypeProfile<1, 2,
+  [SDTCisSameAs<0, 1>, SDTCisFP<0>, SDTCisInt<2>]
+>;
+
+def PPULdExpOp : SDTypeProfile<1, 2,
+  [SDTCisSameAs<0, 1>, SDTCisFP<0>, SDTCisInt<2>]
+>;
+
+
+def PPUFPClassOp : SDTypeProfile<1, 2,
+  [SDTCisInt<0>, SDTCisFP<1>, SDTCisInt<2>]
+>;
+
+def PPUFPPackOp : SDTypeProfile<1, 2,
+  [SDTCisFP<1>, SDTCisSameAs<1, 2>]
+>;
+
+def PPUIntPackOp : SDTypeProfile<1, 2,
+  [SDTCisInt<1>, SDTCisSameAs<1, 2>]
+>;
+
+def PPUDivScaleOp : SDTypeProfile<2, 3,
+  [SDTCisFP<0>, SDTCisInt<1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisSameAs<0, 4>]
+>;
+
+// float, float, float, vcc
+def PPUFmasOp : SDTypeProfile<1, 4,
+  [SDTCisFP<0>, SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisInt<4>]
+>;
+
+def PPUKillSDT : SDTypeProfile<0, 1, [SDTCisInt<0>]>;
+
+def PPUIfOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, OtherVT>]
+>;
+
+def PPUElseOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, OtherVT>]
+>;
+
+def PPULoopOp : SDTypeProfile<0, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, OtherVT>]
+>;
+
+def PPUIfBreakOp : SDTypeProfile<1, 2,
+  [SDTCisVT<0, i1>, SDTCisVT<1, i1>, SDTCisVT<2, i1>]
+>;
+
+
+// AMDGPU DAG Nodes
+//
+def PPUif : SDNode<"PPUISD::IF", PPUIfOp, [SDNPHasChain]>;
+def PPUelse : SDNode<"PPUISD::ELSE", PPUElseOp, [SDNPHasChain]>;
+def PPUloop : SDNode<"PPUISD::LOOP", PPULoopOp, [SDNPHasChain]>;
+/*
+def callseq_start : SDNode<"ISD::CALLSEQ_START",
+  SDCallSeqStart<[ SDTCisVT<0, i32>, SDTCisVT<1, i32> ]>,
+  [SDNPHasChain, SDNPOutGlue]
+>;
+
+def callseq_end : SDNode<"ISD::CALLSEQ_END",
+ SDCallSeqEnd<[ SDTCisVT<0, i32>, SDTCisVT<1, i32> ]>,
+  [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]
+>;
+*/
+
+def PPUcall : SDNode<"PPUISD::CALL",
+  SDTypeProfile<0, -1, [SDTCisPtrTy<0>]>,
+  [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+  SDNPVariadic]
+>;
+
+def PPUtc_return: SDNode<"PPUISD::TC_RETURN",
+  SDTypeProfile<0, 3, [SDTCisPtrTy<0>]>,
+  [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]
+>;
+
+def PPUtrap : SDNode<"PPUISD::TRAP",
+  SDTypeProfile<0, -1, [SDTCisVT<0, i16>]>,
+    [SDNPHasChain, SDNPVariadic, SDNPSideEffect, SDNPInGlue]
+>;
+
+def PPUconstdata_ptr : SDNode<
+  "PPUISD::CONST_DATA_PTR", SDTypeProfile <1, 1, [SDTCisVT<0, iPTR>,
+                                                     SDTCisVT<0, iPTR>]>
+>;
+
+
+def PPUcos : SDNode<"PPUISD::COS_HW", SDTFPUnaryOp>;
+def PPUsin : SDNode<"PPUISD::SIN_HW", SDTFPUnaryOp>;
+
+// out = a - floor(a)
+def PPUfract : SDNode<"PPUISD::FRACT", SDTFPUnaryOp>;
+
+// out = 1.0 / a
+def PPUrcp : SDNode<"PPUISD::RCP", SDTFPUnaryOp>;
+
+// out = 1.0 / sqrt(a)
+def PPUrsq : SDNode<"PPUISD::RSQ", SDTFPUnaryOp>;
+
+def PPUrcp_iflag : SDNode<"PPUISD::RCP_IFLAG", SDTFPUnaryOp>;
+
+// out = 1.0 / sqrt(a) result clamped to +/- max_float.
+def PPUrsq_clamp : SDNode<"PPUISD::RSQ_CLAMP", SDTFPUnaryOp>;
+
+def PPUpkrtz_f16_f32 : SDNode<"PPUISD::CVT_PKRTZ_F16_F32", PPUFPPackOp>;
+def PPUpknorm_i16_f32 : SDNode<"PPUISD::CVT_PKNORM_I16_F32", PPUFPPackOp>;
+def PPUpknorm_u16_f32 : SDNode<"PPUISD::CVT_PKNORM_U16_F32", PPUFPPackOp>;
+def PPUpk_i16_i32 : SDNode<"PPUISD::CVT_PK_I16_I32", PPUIntPackOp>;
+def PPUpk_u16_u32 : SDNode<"PPUISD::CVT_PK_U16_U32", PPUIntPackOp>;
+def PPUfp_to_f16 : SDNode<"PPUISD::FP_TO_FP16" , SDTFPToIntOp>;
+def PPUfp16_zext : SDNode<"PPUISD::FP16_ZEXT" , SDTFPToIntOp>;
+
+def PPUfp_class : SDNode<"PPUISD::FP_CLASS", PPUFPClassOp>;
+
+// FIXME: TableGen doesn't like commutative instructions with more
+// than 2 operands.
+// out = max(a, b, c) a, b and c are floats
+def PPUfmax3 : SDNode<"PPUISD::FMAX3", SDTFPTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = max(a, b, c) a, b, and c are signed ints
+def PPUsmax3 : SDNode<"PPUISD::SMAX3", PPUDTIntTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = max(a, b, c) a, b and c are unsigned ints
+def PPUumax3 : SDNode<"PPUISD::UMAX3", PPUDTIntTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = min(a, b, c) a, b and c are floats
+def PPUfmin3 : SDNode<"PPUISD::FMIN3", SDTFPTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = min(a, b, c) a, b and c are signed ints
+def PPUsmin3 : SDNode<"PPUISD::SMIN3", PPUDTIntTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = min(a, b) a and b are unsigned ints
+def PPUumin3 : SDNode<"PPUISD::UMIN3", PPUDTIntTernaryOp,
+  [/*SDNPCommutative, SDNPAssociative*/]
+>;
+
+// out = (src0 + src1 > 0xFFFFFFFF) ? 1 : 0
+def PPUcarry : SDNode<"PPUISD::CARRY", SDTIntBinOp, []>;
+
+// out = (src1 > src0) ? 1 : 0
+def PPUborrow : SDNode<"PPUISD::BORROW", SDTIntBinOp, []>;
+
+def PPUSetCCOp : SDTypeProfile<1, 3, [        // setcc
+  SDTCisInt<0>, SDTCisSameAs<1, 2>, SDTCisVT<3, OtherVT>
+]>;
+
+def PPUsetcc : SDNode<"PPUISD::SETCC", PPUSetCCOp>;
+
+def PPUSetRegOp :  SDTypeProfile<0, 2, [
+  SDTCisInt<0>, SDTCisInt<1>
+]>;
+
+def PPUsetreg : SDNode<"PPUISD::SETREG", PPUSetRegOp, [
+  SDNPHasChain, SDNPSideEffect, SDNPOptInGlue, SDNPOutGlue]>;
+
+def PPUfma : SDNode<"PPUISD::FMA_W_CHAIN", SDTFPTernaryOp, [
+   SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+
+def PPUmul : SDNode<"PPUISD::FMUL_W_CHAIN", SDTFPBinOp, [
+  SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
+
+def PPUcvt_f32_ubyte0 : SDNode<"PPUISD::CVT_F32_UBYTE0",
+  SDTIntToFPOp, []>;
+def PPUcvt_f32_ubyte1 : SDNode<"PPUISD::CVT_F32_UBYTE1",
+  SDTIntToFPOp, []>;
+def PPUcvt_f32_ubyte2 : SDNode<"PPUISD::CVT_F32_UBYTE2",
+  SDTIntToFPOp, []>;
+def PPUcvt_f32_ubyte3 : SDNode<"PPUISD::CVT_F32_UBYTE3",
+  SDTIntToFPOp, []>;
+
+// urecip - This operation is a helper for integer division, it returns the
+// result of 1 / a as a fractional unsigned integer.
+// out = (2^32 / a) + e
+// e is rounding error
+def PPUurecip : SDNode<"PPUISD::URECIP", SDTIntUnaryOp>;
+
+// Special case divide preop and flags.
+def PPUdiv_scale : SDNode<"PPUISD::DIV_SCALE", PPUDivScaleOp>;
+
+//  Special case divide FMA with scale and flags (src0 = Quotient,
+//  src1 = Denominator, src2 = Numerator).
+def PPUdiv_fmas : SDNode<"PPUISD::DIV_FMAS", PPUFmasOp,
+                            [SDNPOptInGlue]>;
+
+// Single or double precision division fixup.
+// Special case divide fixup and flags(src0 = Quotient, src1 =
+// Denominator, src2 = Numerator).
+def PPUdiv_fixup : SDNode<"PPUISD::DIV_FIXUP", SDTFPTernaryOp>;
+
+def PPUfmad_ftz : SDNode<"PPUISD::FMAD_FTZ", SDTFPTernaryOp>;
+
+// Look Up 2.0 / pi src0 with segment select src1[4:0]
+def PPUtrig_preop : SDNode<"PPUISD::TRIG_PREOP", PPUTrigPreOp>;
+
+
+
+
+
 
 // MSKOR instructions are atomic memory instructions used mainly for storing
 // 8-bit and 16-bit values.  The definition is:
@@ -26,7 +247,18 @@ def PPUstore_mskor : SDNode<"PPUISD::STORE_MSKOR",
 // This argument to this node is a dword address.
 def PPUdwordaddr : SDNode<"PPUISD::DWORDADDR", SDTIntUnaryOp>;
 
+def PPUround : SDNode<"ISD::FROUND",
+                         SDTypeProfile<1, 1, [SDTCisFP<0>, SDTCisSameAs<0,1>]>>;
+
+def PPUbfe_u32 : SDNode<"PPUISD::BFE_U32", PPUDTIntTernaryOp>;
+def PPUbfe_i32 : SDNode<"PPUISD::BFE_I32", PPUDTIntTernaryOp>;
+def PPUbfi : SDNode<"PPUISD::BFI", PPUDTIntTernaryOp>;
 def PPUbfm : SDNode<"PPUISD::BFM", SDTIntBinOp>;
+
+def PPUffbh_u32 : SDNode<"PPUISD::FFBH_U32", SDTIntUnaryOp>;
+def PPUffbh_i32 : SDNode<"PPUISD::FFBH_I32", SDTIntUnaryOp>;
+
+def PPUffbl_b32 : SDNode<"PPUISD::FFBL_B32", SDTIntUnaryOp>;
 
 // Signed and unsigned 24-bit multiply. The highest 8-bits are ignore
 // when performing the mulitply. The result is a 32-bit value.
@@ -38,16 +270,72 @@ def PPUmul_i24 : SDNode<"PPUISD::MUL_I24", SDTIntBinOp,
   [SDNPCommutative, SDNPAssociative]
 >;
 
-// out = 1.0 / a
-def PPUrcp : SDNode<"PPUISD::RCP", SDTFPUnaryOp>;
+def PPUmulhi_u24 : SDNode<"PPUISD::MULHI_U24", SDTIntBinOp,
+  [SDNPCommutative, SDNPAssociative]
+>;
+def PPUmulhi_i24 : SDNode<"PPUISD::MULHI_I24", SDTIntBinOp,
+  [SDNPCommutative, SDNPAssociative]
+>;
+
+def PPUmad_u24 : SDNode<"PPUISD::MAD_U24", PPUDTIntTernaryOp,
+  []
+>;
+def PPUmad_i24 : SDNode<"PPUISD::MAD_I24", PPUDTIntTernaryOp,
+  []
+>;
+
+def PPUsmed3 : SDNode<"PPUISD::SMED3", PPUDTIntTernaryOp,
+  []
+>;
+
+def PPUumed3 : SDNode<"PPUISD::UMED3", PPUDTIntTernaryOp,
+  []
+>;
+
+def PPUfmed3 : SDNode<"PPUISD::FMED3", SDTFPTernaryOp, []>;
+
+def PPUfdot2 : SDNode<"PPUISD::FDOT2",
+                  SDTypeProfile<1, 4, [SDTCisSameAs<0, 3>, SDTCisSameAs<1, 2>,
+                                       SDTCisFP<0>, SDTCisVec<1>,
+                                       SDTCisInt<4>]>,
+                  []>;
+
+def PPUperm : SDNode<"PPUISD::PERM", PPUDTIntTernaryOp, []>;
+
+def PPUinit_exec : SDNode<"PPUISD::INIT_EXEC",
+                      SDTypeProfile<0, 1, [SDTCisInt<0>]>,
+                      [SDNPHasChain, SDNPInGlue]>;
+
+def PPUinit_exec_from_input : SDNode<"PPUISD::INIT_EXEC_FROM_INPUT",
+                                 SDTypeProfile<0, 2,
+                                 [SDTCisInt<0>, SDTCisInt<1>]>,
+                                 [SDNPHasChain, SDNPInGlue]>;
 
 
+def PPUkill : SDNode<"PPUISD::KILL", PPUKillSDT,
+  [SDNPHasChain, SDNPSideEffect]>;
 
-// TODO 
+//===----------------------------------------------------------------------===//
+// Flow Control Profile Types
+//===----------------------------------------------------------------------===//
+// def IL_brcond      : SDNode<"PPUISD::BRANCH_COND", SDTIL_BRCond, [SDNPHasChain]>;
+
+//===----------------------------------------------------------------------===//
+// Call/Return DAG Nodes
+//===----------------------------------------------------------------------===//
+def PPUendpgm : SDNode<"PPUISD::ENDPGM", SDTNone,
+    [SDNPHasChain, SDNPOptInGlue]>;
+
+def PPUreturn_to_epilog : SDNode<"PPUISD::RETURN_TO_EPILOG", SDTNone,
+    [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+// TODO
 def PPUret_flag : SDNode<"PPUISD::RET_FLAG", SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>,
   [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]
 >;
 
+///////////////////////////////////////////////////////////////////////
+// below is base on AMDGPUInstructions.td
 
 class AddressSpacesImpl {
   int Flat = 0;

@@ -3709,8 +3709,8 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return BB;
   }
-  case PPU::ADJCALLSTACKUP:
-  case PPU::ADJCALLSTACKDOWN: {
+  case PPU::PPT_ADJCALLSTACKUP:  // FIXME
+  case PPU::PPT_ADJCALLSTACKDOWN: {
     const PPUMachineFunctionInfo *Info = MF->getInfo<PPUMachineFunctionInfo>();
     MachineInstrBuilder MIB(*MF, &MI);
 
@@ -3722,7 +3722,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
         .addReg(Info->getFrameOffsetReg(), RegState::Implicit);
     return BB;
   }
-  case PPU::SI_CALL_ISEL: {
+  /*case PPU::SI_CALL_ISEL: {
     const PPUInstrInfo *TII = getSubtarget()->getInstrInfo();
     const DebugLoc &DL = MI.getDebugLoc();
 
@@ -3738,6 +3738,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return BB;
   }
+  */
   case PPU::V_ADD_I32_e32:
   case PPU::V_SUB_I32_e32:
   case PPU::V_SUBREV_I32_e32: {

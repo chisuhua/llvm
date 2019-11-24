@@ -86,8 +86,12 @@ def FeatureRelax
 def EnableReconvergeCFG
     : SubtargetFeature<"r", "EnableReconvergeCFG", "true",
                        "'R' (ReconvergeCFG)">;
-def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG">,
-                            AssemblerPredicate<"EnableReconvergeCFG">;
+
+def EnableLateCFGStructurize : Predicate<"EnableLateStructurizeCFG">;
+
+
+def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG || EnableLateCFGStructurize">,
+                            AssemblerPredicate<"EnableReconvergeCFG || EnableLateCFGStructurize">;
 
 
 //===----------------------------------------------------------------------===//
@@ -139,9 +143,16 @@ def NullALU : InstrItinClass;
 
 
 
+def HasAddNoCarryInsts : Predicate<"Subtarget->hasAddNoCarry()">,
+  AssemblerPredicate<"FeatureAddNoCarryInsts">;
+
+def NotHasAddNoCarryInsts : Predicate<"!Subtarget->hasAddNoCarry()">;
 
 def Has16BitInsts : Predicate<"Subtarget->has16BitInsts()">,
   AssemblerPredicate<"Feature16BitInsts">;
+
+def HasVOP3PInsts : Predicate<"Subtarget->hasVOP3PInsts()">,
+  AssemblerPredicate<"FeatureVOP3P">;
 
 def HasSdstCMPX : Predicate<"!Subtarget->hasNoSdstCMPX()">,
   AssemblerPredicate<"!FeatureNoSdstCMPX">;
@@ -168,6 +179,9 @@ def HasPackedD16VMem : Predicate<"!Subtarget->hasUnpackedD16VMem()">,
 def HasVPRIndexMode : Predicate<"Subtarget->hasVPRIndexMode()">,
   AssemblerPredicate<"FeatureVPRIndexMode">;
 
+def HasMovrel : Predicate<"Subtarget->hasMovrel()">,
+                AssemblerPredicate<"FeatureMovrel">;
+
 def HasD16LoadStore : Predicate<"subtarget->hasd16loadstore()">,
   AssemblerPredicate<"featuregfx9insts">;
 
@@ -177,6 +191,28 @@ def D16PreservesUnusedBits : Predicate<"Subtarget->d16PreservesUnusedBits()">,
 def isGFX10Plus :
   Predicate<"Subtarget->getGeneration() >= AMDGPUSubtarget::GFX10">,
   AssemblerPredicate<"FeatureGFX10Insts">;
+
+def HasPkFmacF16Inst : Predicate<"Subtarget->hasPkFmacF16Inst()">,
+  AssemblerPredicate<"FeaturePkFmacF16Inst">;
+
+
+def HasDot1Insts : Predicate<"Subtarget->hasDot1Insts()">,
+  AssemblerPredicate<"FeatureDot1Insts">;
+
+def HasDot2Insts : Predicate<"Subtarget->hasDot2Insts()">,
+  AssemblerPredicate<"FeatureDot2Insts">;
+
+def HasDot3Insts : Predicate<"Subtarget->hasDot3Insts()">,
+  AssemblerPredicate<"FeatureDot3Insts">;
+
+def HasDot4Insts : Predicate<"Subtarget->hasDot4Insts()">,
+  AssemblerPredicate<"FeatureDot4Insts">;
+
+def HasDot5Insts : Predicate<"Subtarget->hasDot5Insts()">,
+  AssemblerPredicate<"FeatureDot5Insts">;
+
+def HasDot6Insts : Predicate<"Subtarget->hasDot6Insts()">,
+  AssemblerPredicate<"FeatureDot6Insts">;
 
 
 

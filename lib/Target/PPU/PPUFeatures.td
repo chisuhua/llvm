@@ -50,3 +50,9 @@ def FeatureUnpackedD16VMem : SubtargetFeature<"unpacked-d16-vmem",
   "Has unpacked d16 vmem instructions"
 >;
 
+def FeatureMovrel : SubtargetFeature<"movrel",
+  "HasMovrel",
+  "true",
+  "Has v_movrel*_b32 instructions"
+>;
+

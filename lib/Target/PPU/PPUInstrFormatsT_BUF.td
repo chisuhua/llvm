@@ -48,7 +48,7 @@ class MTBUFAddr64Table <bit is_addr64, string Name> {
 
 class MTBUF_Pseudo <string opName, dag outs, dag ins,
                     string asmOps, list<dag> pattern=[]> :
-  PPUInst<outs, ins, "", "", pattern>,
+  PPTInst<outs, ins, "", "", pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
 
   let isPseudo = 1;
@@ -84,7 +84,7 @@ class MTBUF_Pseudo <string opName, dag outs, dag ins,
   bits<1> has_tfe     = 1;
 }
 class MTBUF_Real <MTBUF_Pseudo ps> :
-  PPUInst <ps.OutOperandList, ps.InOperandList, ps.Mnemonic , ps.AsmOperands, []> {
+  PPTInst <ps.OutOperandList, ps.InOperandList, ps.Mnemonic , ps.AsmOperands, []> {
 
   let isPseudo = 0;
   let isCodeGenOnly = 0;
@@ -275,7 +275,7 @@ class MUBUFGetBaseOpcode<string Op> {
 
 class MUBUF_Pseudo <string opName, dag outs, dag ins,
                     string asmOps, list<dag> pattern=[]> :
-  PPUInst<outs, ins, "", "", pattern>,
+  PPTInst<outs, ins, "", "", pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
 
   let isPseudo = 1;
@@ -317,7 +317,7 @@ class MUBUF_Pseudo <string opName, dag outs, dag ins,
 }
 
 class MUBUF_Real <MUBUF_Pseudo ps> :
-  PPUInst <ps.OutOperandList, ps.InOperandList, ps.Mnemonic , ps.AsmOperands, []> {
+  PPTInst <ps.OutOperandList, ps.InOperandList, ps.Mnemonic , ps.AsmOperands, []> {
 
   let isPseudo = 0;
   let isCodeGenOnly = 0;

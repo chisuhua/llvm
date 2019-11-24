@@ -260,7 +260,7 @@ def : Pat<(int_ppu_vsw GPR:$rs1, TPR:$rs2, VLR:$vl),
           (VSW GPR:$rs1, TPR:$rs2, VLR:$vl, 0)>;
 
 def : Pat<(PPUSETVL GPR:$rs1), (VSETVL GPR:$rs1)>;
-
+/*
 let isTerminator = 1 in {
 let Uses = [TMSK], Defs = [TMSK],
     OtherPredicates = [EnableNonUniformMIBranchPseudo] in {
@@ -337,7 +337,8 @@ def SI_MASK_BRANCH : VPseudoInst <
   // let FixedSize = 1;
   let Size = 0;
 }
-
+*/
+/*
 def CBRANCH_VCCZ: VPseudoInst <
   (outs), (ins brtarget:$target)> {
   let isBranch = 0;
@@ -370,6 +371,7 @@ def CBRANCH_TMSKNZ: VPseudoInst <
   // let FixedSize = 1;
   let Size = 0;
 }
+*/
 
 } // Predicates = [HasStdExtV]
 

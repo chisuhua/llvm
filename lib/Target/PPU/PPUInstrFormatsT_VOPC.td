@@ -44,7 +44,7 @@ class VOPC_NoSdst_Profile<list<SchedReadWrite> sched, ValueType vt0,
 
 class VOPC_Pseudo <string opName, VOPC_Profile P, list<dag> pattern=[],
                    bit DefVcc = 1> :
-  PPUInst<(outs), P.Ins32, "", "", pattern>,
+  PPTInst<(outs), P.Ins32, "", "", pattern>,
   VOP <opName> ,
   PPUMCInstr<opName#"_e32", PPUEncodingFamily.NONE> {
 
@@ -69,7 +69,7 @@ class VOPC_Pseudo <string opName, VOPC_Profile P, list<dag> pattern=[],
 }
 
 class VOPC_Real <VOPC_Pseudo ps, int EncodingFamily> :
-  PPUInst <ps.OutOperandList, ps.InOperandList, ps.PseudoInstr ,  ps.AsmOperands, []>,
+  PPTInst <ps.OutOperandList, ps.InOperandList, ps.PseudoInstr ,  ps.AsmOperands, []>,
   PPUMCInstr <ps.PseudoInstr, EncodingFamily> {
 
   let isPseudo = 0;
@@ -139,7 +139,7 @@ multiclass VOPCXInstAliases <string OpName, string Arch> {
   def : VOPCInstAlias <!cast<VOP3_Pseudo>(OpName#"_e64"),
                        !cast<Instruction>(OpName#"_e32_"#Arch)>;
 }
-/*
+
 class getVOPCPat64 <SDPatternOperator cond, VOPProfile P> : LetDummies {
   list<dag> ret = !if(P.HasModifiers,
       [(set i1:$sdst,
@@ -151,7 +151,7 @@ class getVOPCPat64 <SDPatternOperator cond, VOPProfile P> : LetDummies {
                cond))],
       [(set i1:$sdst, (setcc P.Src0VT:$src0, P.Src1VT:$src1, cond))]);
 }
-*/
+
 
 class VCMPXNoSDstTable <bit has_sdst, string Name> {
   bit HasSDst = has_sdst;
@@ -173,7 +173,7 @@ multiclass VOPC_Pseudos <string opName,
     let isCompare = 1;
     let isCommutable = 1;
   }
-/*
+
   def _e64 : VOP3_Pseudo<opName, P, getVOPCPat64<cond, P>.ret>,
     Commutable_REV<revOp#"_e64", !eq(revOp, opName)>,
     VCMPXNoSDstTable<1, opName#"_e64"> {
@@ -182,7 +182,7 @@ multiclass VOPC_Pseudos <string opName,
     let isCompare = 1;
     let isCommutable = 1;
   }
-  */
+
 }
 let SubtargetPredicate = HasSdstCMPX in {
 multiclass VOPCX_Pseudos <string opName,

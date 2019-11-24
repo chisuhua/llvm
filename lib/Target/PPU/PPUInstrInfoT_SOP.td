@@ -413,7 +413,7 @@ class SOPP_w_nop_e <bits<7> op> : Enc64 {
 }
 
 class SOPP_w_nop <bits<7> op, dag ins, string asm, list<dag> pattern = []> :
-  PPUInst <(outs), ins, asm, "", pattern >, SOPP_w_nop_e <op>, Base_SOPP <asm> {
+  PPTInst <(outs), ins, asm, "", pattern >, SOPP_w_nop_e <op>, Base_SOPP <asm> {
 
   let mayLoad = 0;
   let mayStore = 0;

@@ -106,9 +106,9 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 }
 
 
-def isPPU : Predicate<"Subtarget->getGeneration() "
-                      ">= PPUSubtarget::PPU">,
-            AssemblerPredicate<"FeaturePPU">;
+def isPPT : Predicate<"Subtarget->getGeneration() "
+                      ">= PPUSubtarget::PPT">,
+            AssemblerPredicate<"FeaturePPT">;
 
 
 class Enc32 {
@@ -122,9 +122,9 @@ class Enc64 {
 }
 
 
-class PPUInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
+class PPTInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
   list<dag> pattern = []> : PPUBaseInst<outs, ins, opcodestr # " " # argstr, pattern>, PredicateControl {
-  let SubtargetPredicate = isPPU;
+  let SubtargetPredicate = isPPT;
   field bit isRegisterLoad = 0;
   field bit isRegisterStore = 0;
 
@@ -308,17 +308,23 @@ class PPUInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
   let TSFlags{62} = isRegisterStore;
 
   // let SchedRW = [Write32Bit];
+  // FIXME schi why need this
+  let mayLoad = 0;
+  let mayStore = 0;
+  let hasSideEffects = 0;
 }
 
 
 // Pseudo instructions
-class PPUPseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string argstr = "">
-    : PPUInst<outs, ins, opcodestr, argstr, pattern> {
+class PPTPseudo<dag outs, dag ins, list<dag> pattern = [], string opcodestr = "", string argstr = "">
+    : PPTInst<outs, ins, opcodestr, argstr, pattern> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
+  /*
   let hasSideEffects = 0;
   let mayLoad = 0;
   let mayStore = 0;
+  */
 }
 
 

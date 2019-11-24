@@ -251,26 +251,6 @@ def int_ppu_init_exec_from_input : Intrinsic<[],
    llvm_i32_ty],      // bit offset of the thread count
   [IntrConvergent]>;
 
-// Copies the active channels of the source value to the destination value,
-// with the guarantee that the source value is computed as if the entire
-// program were executed in Whole Wavefront Mode, i.e. with all channels
-// enabled, with a few exceptions: - Phi nodes with require WWM return an
-// undefined value.
-def int_ppu_wwm : Intrinsic<[llvm_any_ty],
-  [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable, IntrConvergent]
->;
-
-// Given a value, copies it while setting all the inactive lanes to a given
-// value. Note that OpenGL helper lanes are considered active, so if the
-// program ever uses WQM, then the instruction and the first source will be
-// computed in WQM.
-def int_ppu_set_inactive :
-  Intrinsic<[llvm_anyint_ty],
-            [LLVMMatchType<0>, // value to be copied
-             LLVMMatchType<0>], // value for the inactive lanes to take
-            [IntrNoMem, IntrConvergent]>;
-
-
 //===----------------------------------------------------------------------===//
 // Instruction Intrinsics
 //===----------------------------------------------------------------------===//
@@ -296,6 +276,60 @@ def int_ppu_wave_barrier : GCCBuiltin<"__builtin_ppu_wave_barrier">,
 
 def int_ppu_waitcnt : GCCBuiltin<"__builtin_ppu_waitcnt">,
   Intrinsic<[], [llvm_i32_ty], []>;
+
+def int_ppu_lerp :
+  GCCBuiltin<"__builtin_ppu_lerp">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_sad_u8 :
+  GCCBuiltin<"__builtin_ppu_sad_u8">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_msad_u8 :
+  GCCBuiltin<"__builtin_ppu_msad_u8">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_sad_hi_u8 :
+  GCCBuiltin<"__builtin_ppu_sad_hi_u8">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_sad_u16 :
+  GCCBuiltin<"__builtin_ppu_sad_u16">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_qsad_pk_u16_u8 :
+  GCCBuiltin<"__builtin_ppu_qsad_pk_u16_u8">,
+  Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i32_ty, llvm_i64_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_mqsad_pk_u16_u8 :
+  GCCBuiltin<"__builtin_ppu_mqsad_pk_u16_u8">,
+  Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i32_ty, llvm_i64_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_mqsad_u32_u8 :
+  GCCBuiltin<"__builtin_ppu_mqsad_u32_u8">,
+  Intrinsic<[llvm_v4i32_ty], [llvm_i64_ty, llvm_i32_ty, llvm_v4i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_cvt_pk_u8_f32 :
+  GCCBuiltin<"__builtin_ppu_cvt_pk_u8_f32">,
+  Intrinsic<[llvm_i32_ty], [llvm_float_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
 
 def int_ppu_icmp :
   Intrinsic<[llvm_anyint_ty], [llvm_anyint_ty, LLVMMatchType<1>, llvm_i32_ty],
@@ -327,6 +361,227 @@ def int_ppu_writelane :
   ],
   [IntrNoMem, IntrConvergent]
 >;
+
+def int_ppu_alignbit :
+  GCCBuiltin<"__builtin_ppu_alignbit">, Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_alignbyte : GCCBuiltin<"__builtin_ppu_alignbyte">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_mul_i24 : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_mul_u24 : Intrinsic<[llvm_i32_ty],
+  [llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+// Copies the source value to the destination value, with the guarantee that
+// the source value is computed as if the entire program were executed in WQM.
+def int_ppu_wqm : Intrinsic<[llvm_any_ty],
+  [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]
+>;
+
+// Copies the source value to the destination value, such that the source
+// is computed as if the entire program were executed in WQM if any other
+// program code executes in WQM.
+def int_ppu_softwqm : Intrinsic<[llvm_any_ty],
+  [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]
+>;
+
+// Return true if at least one thread within the pixel quad passes true into
+// the function.
+def int_ppu_wqm_vote : Intrinsic<[llvm_i1_ty],
+  [llvm_i1_ty], [IntrNoMem, IntrConvergent]
+>;
+
+// If false, set TMSK=0 for the current thread until the end of program.
+def int_ppu_kill : Intrinsic<[], [llvm_i1_ty], []>;
+
+// Copies the active channels of the source value to the destination value,
+// with the guarantee that the source value is computed as if the entire
+// program were executed in Whole Wavefront Mode, i.e. with all channels
+// enabled, with a few exceptions: - Phi nodes with require WWM return an
+// undefined value.
+def int_ppu_wwm : Intrinsic<[llvm_any_ty],
+  [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable, IntrConvergent]
+>;
+
+// Given a value, copies it while setting all the inactive lanes to a given
+// value. Note that OpenGL helper lanes are considered active, so if the
+// program ever uses WQM, then the instruction and the first source will be
+// computed in WQM.
+def int_ppu_set_inactive :
+  Intrinsic<[llvm_anyint_ty],
+            [LLVMMatchType<0>, // value to be copied
+             LLVMMatchType<0>], // value for the inactive lanes to take
+            [IntrNoMem, IntrConvergent]>;
+
+def int_ppu_s_dcache_inv_vol :
+  GCCBuiltin<"__builtin_ppu_s_dcache_inv_vol">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_buffer_wbinvl1_vol :
+  GCCBuiltin<"__builtin_ppu_buffer_wbinvl1_vol">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_s_dcache_wb :
+  GCCBuiltin<"__builtin_ppu_s_dcache_wb">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_s_dcache_wb_vol :
+  GCCBuiltin<"__builtin_ppu_s_dcache_wb_vol">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_s_memrealtime :
+  GCCBuiltin<"__builtin_ppu_s_memrealtime">,
+  Intrinsic<[llvm_i64_ty]>;
+
+// llvm.ppu.ds.permute <index> <src>
+def int_ppu_ds_permute :
+  GCCBuiltin<"__builtin_ppu_ds_permute">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem, IntrConvergent]>;
+
+// llvm.ppu.ds.bpermute <index> <src>
+def int_ppu_ds_bpermute :
+  GCCBuiltin<"__builtin_ppu_ds_bpermute">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem, IntrConvergent]>;
+
+// llvm.ppu.permlane16 <old> <src0> <src1> <src2> <fi> <bound_control>
+def int_ppu_permlane16 : GCCBuiltin<"__builtin_ppu_permlane16">,
+  Intrinsic<[llvm_i32_ty],
+            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<4>, ImmArg<5>]>;
+
+// llvm.amdgcn.permlanex16 <old> <src0> <src1> <src2> <fi> <bound_control>
+def int_ppu_permlanex16 : GCCBuiltin<"__builtin_ppu_permlanex16">,
+  Intrinsic<[llvm_i32_ty],
+            [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<4>, ImmArg<5>]>;
+
+
+def int_ppu_s_get_waveid_in_workgroup :
+  GCCBuiltin<"__builtin_ppu_s_get_waveid_in_workgroup">,
+  Intrinsic<[llvm_i32_ty], [], [IntrReadMem, IntrInaccessibleMemOnly]>;
+
+//===----------------------------------------------------------------------===//
+// Deep learning intrinsics.
+//===----------------------------------------------------------------------===//
+
+// f32 %r = llvm.ppu.fdot2(v2f16 %a, v2f16 %b, f32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %c
+def int_ppu_fdot2 :
+  GCCBuiltin<"__builtin_ppu_fdot2">,
+  Intrinsic<
+    [llvm_float_ty], // %r
+    [
+      llvm_v2f16_ty, // %a
+      llvm_v2f16_ty, // %b
+      llvm_float_ty, // %c
+      llvm_i1_ty     // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// i32 %r = llvm.ppu.sdot2(v2i16 %a, v2i16 %b, i32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %c
+def int_ppu_sdot2 :
+  GCCBuiltin<"__builtin_ppu_sdot2">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_v2i16_ty, // %a
+      llvm_v2i16_ty, // %b
+      llvm_i32_ty,   // %c
+      llvm_i1_ty     // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// u32 %r = llvm.ppu.udot2(v2u16 %a, v2u16 %b, u32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %c
+def int_ppu_udot2 :
+  GCCBuiltin<"__builtin_ppu_udot2">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_v2i16_ty, // %a
+      llvm_v2i16_ty, // %b
+      llvm_i32_ty,   // %c
+      llvm_i1_ty     // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// i32 %r = llvm.ppu.sdot4(v4i8 (as i32) %a, v4i8 (as i32) %b, i32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %a[2] * %b[2] + %a[3] * %b[3] + %c
+def int_ppu_sdot4 :
+  GCCBuiltin<"__builtin_ppu_sdot4">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_i32_ty, // %a
+      llvm_i32_ty, // %b
+      llvm_i32_ty, // %c
+      llvm_i1_ty   // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// u32 %r = llvm.ppu.udot4(v4u8 (as u32) %a, v4u8 (as u32) %b, u32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %a[2] * %b[2] + %a[3] * %b[3] + %c
+def int_ppu_udot4 :
+  GCCBuiltin<"__builtin_ppu_udot4">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_i32_ty, // %a
+      llvm_i32_ty, // %b
+      llvm_i32_ty, // %c
+      llvm_i1_ty   // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// i32 %r = llvm.ppu.sdot8(v8i4 (as i32) %a, v8i4 (as i32) %b, i32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %a[2] * %b[2] + %a[3] * %b[3] +
+//        %a[4] * %b[4] + %a[5] * %b[5] + %a[6] * %b[6] + %a[7] * %b[7] + %c
+def int_ppu_sdot8 :
+  GCCBuiltin<"__builtin_ppu_sdot8">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_i32_ty, // %a
+      llvm_i32_ty, // %b
+      llvm_i32_ty, // %c
+      llvm_i1_ty   // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
+// u32 %r = llvm.ppu.udot8(v8u4 (as u32) %a, v8u4 (as u32) %b, u32 %c, i1 %clamp)
+//   %r = %a[0] * %b[0] + %a[1] * %b[1] + %a[2] * %b[2] + %a[3] * %b[3] +
+//        %a[4] * %b[4] + %a[5] * %b[5] + %a[6] * %b[6] + %a[7] * %b[7] + %c
+def int_ppu_udot8 :
+  GCCBuiltin<"__builtin_ppu_udot8">,
+  Intrinsic<
+    [llvm_i32_ty], // %r
+    [
+      llvm_i32_ty, // %a
+      llvm_i32_ty, // %b
+      llvm_i32_ty, // %c
+      llvm_i1_ty   // %clamp
+    ],
+    [IntrNoMem, IntrSpeculatable, ImmArg<3>]
+  >;
+
 
 //===----------------------------------------------------------------------===//
 // Special Intrinsics for backend internal use only. No frontend

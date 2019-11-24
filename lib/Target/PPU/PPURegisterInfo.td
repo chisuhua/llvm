@@ -577,7 +577,7 @@ def LDS_DIRECT_CLASS : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 
 }
 
 
-def SReg_32 : RegisterClass<"PPU", [i32, f32, i1, v2i16, v2f16], 32,
+def SReg_32 : RegisterClass<"PPU", [i32, f32, i16, f16, i1, v2i16, v2f16], 32,
   (add GPR, SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC, TMSK, M0_CLASS)> {
   let CopyCost = 1;
   let AllocationPriority = 13;

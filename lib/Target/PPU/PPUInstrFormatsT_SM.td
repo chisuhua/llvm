@@ -15,7 +15,7 @@ def smrd_offset_20 : NamedOperandU32<"SMRDOffset20",
 //===----------------------------------------------------------------------===//
 
 class SM_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> pattern=[]> :
-  PPUInst <outs, ins, "", "", pattern>,
+  PPTInst <outs, ins, "", "", pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -40,7 +40,7 @@ class SM_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> patt
 }
 
 class SM_Real <SM_Pseudo ps>
-  : PPUInst<ps.OutOperandList, ps.InOperandList, ps.Mnemonic, ps.AsmOperands, []> {
+  : PPTInst<ps.OutOperandList, ps.InOperandList, ps.Mnemonic, ps.AsmOperands, []> {
 
   let isPseudo = 0;
   let isCodeGenOnly = 0;
