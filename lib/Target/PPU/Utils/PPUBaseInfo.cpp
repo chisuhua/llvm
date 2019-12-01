@@ -378,6 +378,25 @@ unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs,
 
 } // end namespace IsaInfo
 
+
+
+bool isGroupSegment(const GlobalValue *GV) {
+  return GV->getType()->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
+}
+
+bool isGlobalSegment(const GlobalValue *GV) {
+  return GV->getType()->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
+}
+
+bool isReadOnlySegment(const GlobalValue *GV) {
+  return GV->getType()->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS ||
+         GV->getType()->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS_32BIT;
+}
+
+bool shouldEmitConstantsToTextSection(const Triple &TT) {
+  return TT.getOS() != Triple::PPS;
+}
+
 int getIntegerAttribute(const Function &F, StringRef Name, int Default) {
   Attribute A = F.getFnAttribute(Name);
   int Result = Default;

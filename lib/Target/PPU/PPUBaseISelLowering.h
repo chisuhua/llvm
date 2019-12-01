@@ -59,6 +59,7 @@ enum NodeType : unsigned {
 
   // AMD
   TC_RETURN,
+  TRAP,
 
   // Masked control flow nodes.
   IF,
@@ -71,22 +72,92 @@ enum NodeType : unsigned {
   // Return to a shader part's epilog code.
   RETURN_TO_EPILOG,
 
+  DWORDADDR,
+  FRACT,
+  /// CLAMP value between 0.0 and 1.0. NaN clamped to 0, following clamp output
+  /// modifier behavior with dx10_enable.
+  CLAMP,
+
   // This is SETCC with the full mask result which is used for a compare with a
   // result bit per item in the wavefront.
   SETCC,
   SETREG,
 
+  DENORM_MODE,
+
+  FMAX3,
+  SMAX3,
+  UMAX3,
+  FMIN3,
+  SMIN3,
+  UMIN3,
+  FMED3,
+  SMED3,
+  UMED3,
+  FDOT2,
+
+  URECIP,
+  // For emitting ISD::FMAD when f32 denormals are enabled because mac/mad is
+  // treated as an illegal operation.
+  FMAD_FTZ,
+
   // RCP, RSQ - For f32, 1 ULP max error, no denormal handling.
   //            For f64, max error 2^29 ULP, handles denormals.
   RCP,
+  RSQ,
+  LDEXP,
+  FP_CLASS,
+  CARRY,
+  BORROW,
+  DOT4,
   BFE_U32, // Extract range of bits with zero extension to 32-bits.
   BFE_I32, // Extract range of bits with sign extension to 32-bits.
   BFI, // (src0 & src1) | (~src0 & src2)
   BFM, // Insert a range of bits into a 32-bit word.
+  FFBH_U32, // ctlz with -1 if input is zero.
+  FFBH_I32,
+  FFBL_B32, // cttz with -1 if input is zero.
+  MUL_U24,
+  MUL_I24,
+  MULHI_U24,
+  MULHI_I24,
+  MAD_U24,
+  MAD_I24,
+  MAD_U64_U32,
+  MAD_I64_I32,
+  MUL_LOHI_I24,
+  MUL_LOHI_U24,
+
+  // These cvt_f32_ubyte* nodes need to remain consecutive and in order.
+  CVT_F32_UBYTE0,
+  CVT_F32_UBYTE1,
+  CVT_F32_UBYTE2,
+  CVT_F32_UBYTE3,
+
+  // Convert two float 32 numbers into a single register holding two packed f16
+  // with round to zero.
+  CVT_PKRTZ_F16_F32,
+  CVT_PKNORM_I16_F32,
+  CVT_PKNORM_U16_F32,
+  CVT_PK_I16_I32,
+  CVT_PK_U16_U32,
+
+  // Same as the standard node, except the high bits of the resulting integer
+  // are known 0.
+  FP_TO_FP16,
+
+  // Wrapper around fp16 results that are known to zero the high bits.
+  FP16_ZEXT,
+
+
+
+
 
   INIT_TMSK,
   INIT_TMSK_FROM_INPUT,
 
+  PC_ADD_REL_OFFSET,
+  LDS,
   KILL,
   DUMMY_CHAIN,
 
@@ -113,6 +184,7 @@ enum NodeType : unsigned {
   BUFFER_LOAD_SHORT,
   BUFFER_LOAD_FORMAT,
   BUFFER_LOAD_FORMAT_D16,
+  SBUFFER_LOAD,
   BUFFER_STORE,
   BUFFER_STORE_BYTE,
   BUFFER_STORE_SHORT,
@@ -288,8 +360,148 @@ private:
                                    Value *NewVal, Value *Mask,
                                    AtomicOrdering Ord) const override;
 
- // from AMDGPUISelLowering
+
+
+
+  // from AMDGPUISelLowering
+  void PPUBaseTargetLowering_compute();
+
+  /// \returns AMDGPUISD::FFBH_U32 node if the incoming \p Op may have been
+  /// legalized from a smaller type VT. Need to match pre-legalized type because
+  /// the generic legalization inserts the add/sub between the select and
+  /// compare.
+  SDValue getFFBX_U32(SelectionDAG &DAG, SDValue Op, const SDLoc &DL, unsigned Opc) const;
+
 public:
+  static unsigned numBitsUnsigned(SDValue Op, SelectionDAG &DAG);
+  static unsigned numBitsSigned(SDValue Op, SelectionDAG &DAG);
+
+protected:
+  SDValue LowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const;
+  /// Split a vector store into multiple scalar stores.
+  /// \returns The resulting chain.
+
+  SDValue LowerFREM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFCEIL(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFTRUNC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFRINT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFNEARBYINT(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerFROUND32_16(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFROUND64(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFROUND(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOG(SDValue Op, SelectionDAG &DAG,
+                    double Log2BaseInverted) const;
+  SDValue lowerFEXP(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerCTLZ_CTTZ(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerINT_TO_FP32(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+  SDValue LowerINT_TO_FP64(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+  SDValue LowerUINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerFP64_TO_INT(SDValue Op, SelectionDAG &DAG, bool Signed) const;
+  SDValue LowerFP_TO_FP16(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFP_TO_UINT(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFP_TO_SINT(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerSIGN_EXTEND_INREG(SDValue Op, SelectionDAG &DAG) const;
+
+protected:
+  bool shouldCombineMemoryType(EVT VT) const;
+  SDValue performLoadCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performStoreCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performAssertSZExtCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performIntrinsicWOChainCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  SDValue splitBinaryBitConstantOpImpl(DAGCombinerInfo &DCI, const SDLoc &SL,
+                                       unsigned Opc, SDValue LHS,
+                                       uint32_t ValLo, uint32_t ValHi) const;
+  SDValue performShlCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performSraCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performSrlCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performTruncateCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performMulCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performMulhsCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performMulhuCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performMulLoHi24Combine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performCtlz_CttzCombine(const SDLoc &SL, SDValue Cond, SDValue LHS,
+                             SDValue RHS, DAGCombinerInfo &DCI) const;
+  SDValue performSelectCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  bool isConstantCostlierToNegate(SDValue N) const;
+  SDValue performFNegCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performFAbsCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue performRcpCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
+  static EVT getEquivalentMemType(LLVMContext &Context, EVT VT);
+
+  virtual SDValue LowerGlobalAddress_compute(PPUMachineFunction *MFI, SDValue Op,
+                                     SelectionDAG &DAG) const;
+
+  /// Return 64-bit value Op as two 32-bit integers.
+  std::pair<SDValue, SDValue> split64BitValue(SDValue Op,
+                                              SelectionDAG &DAG) const;
+  SDValue getLoHalf64(SDValue Op, SelectionDAG &DAG) const;
+  SDValue getHiHalf64(SDValue Op, SelectionDAG &DAG) const;
+
+  /// Split a vector type into two parts. The first part is a power of two
+  /// vector. The second part is whatever is left over, and is a scalar if it
+  /// would otherwise be a 1-vector.
+  std::pair<EVT, EVT> getSplitDestVTs(const EVT &VT, SelectionDAG &DAG) const;
+
+  /// Split a vector value into two parts of types LoVT and HiVT. HiVT could be
+  /// scalar.
+  std::pair<SDValue, SDValue> splitVector(const SDValue &N, const SDLoc &DL,
+                                          const EVT &LoVT, const EVT &HighVT,
+                                          SelectionDAG &DAG) const;
+
+  /// Split a vector load into 2 loads of half the vector.
+  SDValue SplitVectorLoad(SDValue Op, SelectionDAG &DAG) const;
+
+  /// Widen a vector load from vec3 to vec4.
+  SDValue WidenVectorLoad(SDValue Op, SelectionDAG &DAG) const;
+
+  /// Split a vector store into 2 stores of half the vector.
+  SDValue SplitVectorStore(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSDIVREM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerUDIVREM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerDIVREM24(SDValue Op, SelectionDAG &DAG, bool sign) const;
+  void LowerUDIVREM64(SDValue Op, SelectionDAG &DAG,
+                                    SmallVectorImpl<SDValue> &Results) const;
+
+  void analyzeFormalArgumentsCompute(
+    CCState &State,
+    const SmallVectorImpl<ISD::InputArg> &Ins) const;
+
+public:
+
+
+  bool mayIgnoreSignedZero(SDValue Op) const {
+    if (getTargetMachine().Options.NoSignedZerosFPMath)
+      return true;
+
+    const auto Flags = Op.getNode()->getFlags();
+    if (Flags.isDefined())
+      return Flags.hasNoSignedZeros();
+
+    return false;
+  }
+
+  static inline SDValue stripBitcast(SDValue Val) {
+    return Val.getOpcode() == ISD::BITCAST ? Val.getOperand(0) : Val;
+  }
+
+
+  static bool allUsesHaveSourceMods(const SDNode *N,
+                                    unsigned CostThreshold = 4);
+
+
   SDValue LowerReturn_compute(SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
@@ -307,6 +519,10 @@ public:
   SDValue LowerCall_compute(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
 */
+
+  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op,
+                                  SelectionDAG &DAG) const;
+
   SDValue LowerOperation_compute(SDValue Op, SelectionDAG &DAG) const ;
   SDValue PerformDAGCombine_compute(SDNode *N, DAGCombinerInfo &DCI) const ;
   /*
@@ -314,34 +530,26 @@ public:
                           SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
 */
+  SDValue combineFMinMaxLegacy(const SDLoc &DL, EVT VT, SDValue LHS,
+                               SDValue RHS, SDValue True, SDValue False,
+                               SDValue CC, DAGCombinerInfo &DCI) const;
 
 
-  virtual SDValue LowerGlobalAddress(PPUMachineFunction *MFI, SDValue Op,
-                                     SelectionDAG &DAG) const;
 
 
   static CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg);
   static CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool IsVarArg);
-  void analyzeFormalArgumentsCompute(
-    CCState &State,
-    const SmallVectorImpl<ISD::InputArg> &Ins) const;
-  bool mayIgnoreSignedZero(SDValue Op) const {
-    if (getTargetMachine().Options.NoSignedZerosFPMath)
-      return true;
 
-    const auto Flags = Op.getNode()->getFlags();
-    if (Flags.isDefined())
-      return Flags.hasNoSignedZeros();
 
-    return false;
-  }
 
-  static inline SDValue stripBitcast(SDValue Val) {
-    return Val.getOpcode() == ISD::BITCAST ? Val.getOperand(0) : Val;
-  }
 
   virtual SDNode *PostISelFolding(MachineSDNode *N,
                                   SelectionDAG &DAG) const = 0;
+
+
+
+
+
 
   /// Helper function that adds Reg to the LiveIn list of the DAG's
   /// MachineFunction.

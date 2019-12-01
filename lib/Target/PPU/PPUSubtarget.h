@@ -55,7 +55,7 @@ protected:
   bool HasMulU24 {true};
   bool HasInv2PiInlineImm {false};
 
-  bool HasFminFmaxLegacy {true};
+  bool HasFminFmaxLegacy {false};
 
 
   // Used as options.
@@ -114,6 +114,11 @@ public:
     return TargetTriple.getOS() == Triple::PPS;
   }
 
+  bool isPPSOS(const Function &F) const {
+    return isPPSOS(); //  || isMesaKernel(F);
+  }
+
+
   bool has16BitInsts() const { return Has16BitInsts;
   }
 
@@ -130,6 +135,8 @@ public:
   bool hasMulI24() const { return HasMulI24; }
 
   bool hasMulU24() const { return HasMulU24; }
+
+  bool hasInv2PiInlineImm() const { return HasInv2PiInlineImm; }
 
   bool hasFminFmaxLegacy() const { return HasFminFmaxLegacy; }
 
@@ -277,6 +284,26 @@ public:
 
 // FIXME
 // Below is copied from AMDGPUSubTarget.h
+  enum TrapHandlerAbi {
+    TrapHandlerAbiNone = 0,
+    TrapHandlerAbiHsa = 1
+  };
+
+  enum TrapID {
+    TrapIDHardwareReserved = 0,
+    TrapIDHSADebugTrap = 1,
+    TrapIDLLVMTrap = 2,
+    TrapIDLLVMDebugTrap = 3,
+    TrapIDDebugBreakpoint = 7,
+    TrapIDDebugReserved8 = 8,
+    TrapIDDebugReservedFE = 0xfe,
+    TrapIDDebugReservedFF = 0xff
+  };
+
+  enum TrapRegValues {
+    LLVMTrapHandlerRegValue = 1
+  };
+
 protected:
   // unsigned Gen;
   // TODO InstrItineraryData InstrItins;
@@ -297,10 +324,11 @@ protected:
   bool EnableXNACK;
   bool DoesNotSupportXNACK;
   bool EnableCuMode;
-  bool TrapHandler;
+  */
+  bool TrapHandler {false};
 
   // Used as options.
-
+/*
   bool EnableLoadStoreOpt;
   bool EnableUnsafeDSOffsetFolding;
   */
@@ -329,7 +357,7 @@ protected:
   */
   bool HasFmaMixInsts {false};
   bool HasMovrel;
-  bool HasVPRIndexMode;
+  bool HasVPRIndexMode {true};
   /*
   bool HasScalarStores;
   bool HasScalarAtomics;
@@ -367,7 +395,9 @@ protected:
   bool FlatScratchInsts;
   bool ScalarFlatScratchInsts;
   bool AddNoCarryInsts;
+  */
   bool HasUnpackedD16VMem;
+  /*
   bool R600ALUInst;
   bool CaymanISA;
   bool CFALUBug;
@@ -473,9 +503,13 @@ public:
   bool hasCARRY() const { return true; }
 
   bool hasFMA() const { return FMA; }
+*/
+
   TrapHandlerAbi getTrapHandlerAbi() const {
-    return isAmdHsaOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
+    return isPPSOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
   }
+
+  /*
   bool unsafeDSOffsetFoldingEnabled() const {
     return EnableUnsafeDSOffsetFolding;
   }
@@ -509,9 +543,7 @@ public:
   bool hasUnalignedScratchAccess() const { return UnalignedScratchAccess; }
   bool hasApertureRegs() const { return HasApertureRegs; }
 
-/*
   bool isTrapHandlerEnabled() const { return TrapHandler; }
-  */
 
   bool hasMAIInsts() const { return HasMAIInsts; }
 
@@ -533,9 +565,9 @@ public:
   bool hasFlatLgkmVMemCountInOrder() const { return false; }
 
   bool hasAddNoCarry() const { return AddNoCarryInsts; }
-
+*/
   bool hasUnpackedD16VMem() const { return HasUnpackedD16VMem; }
-
+/*
   bool hasMad64_32() const { return false; }
 
   bool hasSDWAOutModsVOPC() const { return HasSDWAOutModsVOPC; }
@@ -613,7 +645,7 @@ public:
 
   bool useVGPRIndexMode(bool UserEnable) const {
     // return UserEnable;
-    return !hasMovrel() || (UserEnable && hasVPRIndexMode());
+    return UserEnable && HasVPRIndexMode;
   }
 
 /*

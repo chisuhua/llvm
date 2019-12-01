@@ -3274,7 +3274,7 @@ static bool setM0ToIndexFromSGPR(const PPUInstrInfo *TII,
 
       SetOn->getOperand(3).setIsUndef();
     } else {
-      Register Tmp = MRI.createVirtualRegister(&PPU::SReg_32_XM0RegClass);
+      Register Tmp = MRI.createVirtualRegister(&PPU::SReg_32RegClass);
       BuildMI(*MBB, I, DL, TII->get(PPU::S_ADD_I32), Tmp)
           .add(*Idx)
           .addImm(Offset);
@@ -3322,6 +3322,8 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
 
   bool UseGPRIdxMode = ST.useVGPRIndexMode(EnableVGPRIndexMode);
 
+  assert(UseGPRIdxMode); // , "only support GPRIdx mode");
+
   if (setM0ToIndexFromSGPR(TII, MRI, MI, Offset, UseGPRIdxMode, true)) {
     MachineBasicBlock::iterator I(&MI);
     const DebugLoc &DL = MI.getDebugLoc();
@@ -3335,10 +3337,6 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
         .addReg(SrcReg, RegState::Implicit)
         .addReg(PPU::M0, RegState::Implicit);
       BuildMI(MBB, I, DL, TII->get(PPU::S_SET_GPR_IDX_OFF));
-    } else {
-      BuildMI(MBB, I, DL, TII->get(PPU::V_MOVRELS_B32_e32), Dst)
-        .addReg(SrcReg, RegState::Undef, SubReg)
-        .addReg(SrcReg, RegState::Implicit);
     }
 
     MI.eraseFromParent();
@@ -3349,8 +3347,8 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
   const DebugLoc &DL = MI.getDebugLoc();
   MachineBasicBlock::iterator I(&MI);
 
-  Register PhiReg = MRI.createVirtualRegister(&PPU::VGPR_32RegClass);
-  Register InitReg = MRI.createVirtualRegister(&PPU::VGPR_32RegClass);
+  Register PhiReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
+  Register InitReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
 
   BuildMI(MBB, I, DL, TII->get(TargetOpcode::IMPLICIT_DEF), InitReg);
 
@@ -3364,17 +3362,13 @@ static MachineBasicBlock *emitIndirectSrc(MachineInstr &MI,
       .addReg(SrcReg, RegState::Implicit)
       .addReg(PPU::M0, RegState::Implicit);
     BuildMI(*LoopBB, InsPt, DL, TII->get(PPU::S_SET_GPR_IDX_OFF));
-  } else {
-    BuildMI(*LoopBB, InsPt, DL, TII->get(PPU::V_MOVRELS_B32_e32), Dst)
-      .addReg(SrcReg, RegState::Undef, SubReg)
-      .addReg(SrcReg, RegState::Implicit);
   }
 
   MI.eraseFromParent();
 
   return LoopBB;
 }
-
+/*
 static unsigned getMOVRELDPseudo(const PPURegisterInfo &TRI,
                                  const TargetRegisterClass *VecRC) {
   switch (TRI.getRegSizeInBits(*VecRC)) {
@@ -3392,6 +3386,7 @@ static unsigned getMOVRELDPseudo(const PPURegisterInfo &TRI,
     llvm_unreachable("unsupported size for MOVRELD pseudos");
   }
 }
+*/
 
 static MachineBasicBlock *emitIndirectDst(MachineInstr &MI,
                                           MachineBasicBlock &MBB,
@@ -3446,6 +3441,7 @@ static MachineBasicBlock *emitIndirectDst(MachineInstr &MI,
 
       BuildMI(MBB, I, DL, TII->get(PPU::S_SET_GPR_IDX_OFF));
     } else {
+        /*
       const MCInstrDesc &MovRelDesc = TII->get(getMOVRELDPseudo(TRI, VecRC));
 
       BuildMI(MBB, I, DL, MovRelDesc)
@@ -3453,6 +3449,7 @@ static MachineBasicBlock *emitIndirectDst(MachineInstr &MI,
           .addReg(SrcVec->getReg())
           .add(*Val)
           .addImm(SubReg - PPU::sub0);
+          */
     }
 
     MI.eraseFromParent();
@@ -3479,6 +3476,7 @@ static MachineBasicBlock *emitIndirectDst(MachineInstr &MI,
         .addReg(PPU::M0, RegState::Implicit);
     BuildMI(*LoopBB, InsPt, DL, TII->get(PPU::S_SET_GPR_IDX_OFF));
   } else {
+      /*
     const MCInstrDesc &MovRelDesc = TII->get(getMOVRELDPseudo(TRI, VecRC));
 
     BuildMI(*LoopBB, InsPt, DL, MovRelDesc)
@@ -3486,6 +3484,7 @@ static MachineBasicBlock *emitIndirectDst(MachineInstr &MI,
         .addReg(PhiReg)
         .add(*Val)
         .addImm(SubReg - PPU::sub0);
+        */
   }
 
   MI.eraseFromParent();
@@ -3523,22 +3522,22 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MachineOperand &Src0 = MI.getOperand(1);
     MachineOperand &Src1 = MI.getOperand(2);
 
-    Register DestSub0 = MRI.createVirtualRegister(&PPU::SReg_32_XM0RegClass);
-    Register DestSub1 = MRI.createVirtualRegister(&PPU::SReg_32_XM0RegClass);
+    Register DestSub0 = MRI.createVirtualRegister(&PPU::SReg_32RegClass);
+    Register DestSub1 = MRI.createVirtualRegister(&PPU::SReg_32RegClass);
 
     MachineOperand Src0Sub0 = TII->buildExtractSubRegOrImm(MI, MRI,
      Src0, BoolRC, PPU::sub0,
-     &PPU::SReg_32_XM0RegClass);
+     &PPU::SReg_32RegClass);
     MachineOperand Src0Sub1 = TII->buildExtractSubRegOrImm(MI, MRI,
       Src0, BoolRC, PPU::sub1,
-      &PPU::SReg_32_XM0RegClass);
+      &PPU::SReg_32RegClass);
 
     MachineOperand Src1Sub0 = TII->buildExtractSubRegOrImm(MI, MRI,
       Src1, BoolRC, PPU::sub0,
-      &PPU::SReg_32_XM0RegClass);
+      &PPU::SReg_32RegClass);
     MachineOperand Src1Sub1 = TII->buildExtractSubRegOrImm(MI, MRI,
       Src1, BoolRC, PPU::sub1,
-      &PPU::SReg_32_XM0RegClass);
+      &PPU::SReg_32RegClass);
 
     bool IsAdd = (MI.getOpcode() == PPU::S_ADD_U64_PSEUDO);
 
@@ -3565,6 +3564,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return BB;
   }
+  /*
   case PPU::SI_INIT_EXEC:
     // This should be before all vector instructions.
     BuildMI(*BB, &*BB->begin(), MI.getDebugLoc(), TII->get(PPU::S_MOV_B64),
@@ -3572,16 +3572,16 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
         .addImm(MI.getOperand(0).getImm());
     MI.eraseFromParent();
     return BB;
-
-  case PPU::SI_INIT_EXEC_LO:
+  */
+  case PPU::SI_INIT_TMSK:
     // This should be before all vector instructions.
     BuildMI(*BB, &*BB->begin(), MI.getDebugLoc(), TII->get(PPU::S_MOV_B32),
-            PPU::EXEC_LO)
+            PPU::TMSK)
         .addImm(MI.getOperand(0).getImm());
     MI.eraseFromParent();
     return BB;
 
-  case PPU::SI_INIT_EXEC_FROM_INPUT: {
+  case PPU::SI_INIT_TMSK_FROM_INPUT: {
     // Extract the thread count from an SGPR input and set EXEC accordingly.
     // Since BFM can't shift by 64, handle that case with CMP + CMOV.
     //
@@ -3592,7 +3592,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MachineInstr *FirstMI = &*BB->begin();
     MachineRegisterInfo &MRI = MF->getRegInfo();
     Register InputReg = MI.getOperand(0).getReg();
-    Register CountReg = MRI.createVirtualRegister(&PPU::SGPR_32RegClass);
+    Register CountReg = MRI.createVirtualRegister(&PPU::SPR_32RegClass);
     bool Found = false;
 
     // Move the COPY of the input reg to the beginning, so that we can use it.
@@ -3615,13 +3615,14 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
 
     // This should be before all vector instructions.
     unsigned Mask = (getSubtarget()->getWavefrontSize() << 1) - 1;
-    bool isWave32 = getSubtarget()->isWave32();
-    unsigned Exec = isWave32 ? PPU::EXEC_LO : PPU::EXEC;
+    // bool isWave32 = getSubtarget()->isWave32();
+    // unsigned Exec = isWave32 ? PPU::EXEC_LO : PPU::EXEC;
+    unsigned Exec = PPU::TMSK;
     BuildMI(*BB, FirstMI, DebugLoc(), TII->get(PPU::S_BFE_U32), CountReg)
         .addReg(InputReg)
         .addImm((MI.getOperand(1).getImm() & Mask) | 0x70000);
     BuildMI(*BB, FirstMI, DebugLoc(),
-            TII->get(isWave32 ? PPU::S_BFM_B32 : PPU::S_BFM_B64),
+            TII->get(PPU::S_BFM_B32),
             Exec)
         .addReg(CountReg)
         .addImm(0);
@@ -3629,14 +3630,14 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
         .addReg(CountReg, RegState::Kill)
         .addImm(getSubtarget()->getWavefrontSize());
     BuildMI(*BB, FirstMI, DebugLoc(),
-            TII->get(isWave32 ? PPU::S_CMOV_B32 : PPU::S_CMOV_B64),
+            TII->get(PPU::S_CMOV_B32), //  : PPU::S_CMOV_B64),
             Exec)
         .addImm(-1);
     MI.eraseFromParent();
     return BB;
   }
 
-  case PPU::GET_GROUPSTATICSIZE: {
+/*  case PPU::GET_GROUPSTATICSIZE: {
     assert(getTargetMachine().getTargetTriple().getOS() == Triple::AMDHSA ||
            getTargetMachine().getTargetTriple().getOS() == Triple::AMDPAL);
     DebugLoc DL = MI.getDebugLoc();
@@ -3645,18 +3646,18 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
         .addImm(MFI->getLDSSize());
     MI.eraseFromParent();
     return BB;
-  }
+  }*/
   case PPU::SI_INDIRECT_SRC_V1:
   case PPU::SI_INDIRECT_SRC_V2:
-  case PPU::SI_INDIRECT_SRC_V4:
-  case PPU::SI_INDIRECT_SRC_V8:
-  case PPU::SI_INDIRECT_SRC_V16:
+  // case PPU::SI_INDIRECT_SRC_V4:
+  // case PPU::SI_INDIRECT_SRC_V8:
+  // case PPU::SI_INDIRECT_SRC_V16:
     return emitIndirectSrc(MI, *BB, *getSubtarget());
   case PPU::SI_INDIRECT_DST_V1:
   case PPU::SI_INDIRECT_DST_V2:
-  case PPU::SI_INDIRECT_DST_V4:
-  case PPU::SI_INDIRECT_DST_V8:
-  case PPU::SI_INDIRECT_DST_V16:
+  // case PPU::SI_INDIRECT_DST_V4:
+  // case PPU::SI_INDIRECT_DST_V8:
+  // case PPU::SI_INDIRECT_DST_V16:
     return emitIndirectDst(MI, *BB, *getSubtarget());
   case PPU::SI_KILL_F32_COND_IMM_PSEUDO:
   case PPU::SI_KILL_I1_PSEUDO:
@@ -3672,9 +3673,9 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     const DebugLoc &DL = MI.getDebugLoc();
     Register SrcCond = MI.getOperand(3).getReg();
 
-    Register DstLo = MRI.createVirtualRegister(&PPU::VGPR_32RegClass);
-    Register DstHi = MRI.createVirtualRegister(&PPU::VGPR_32RegClass);
-    const auto *CondRC = TRI->getRegClass(PPU::SReg_1_XEXECRegClassID);
+    Register DstLo = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
+    Register DstHi = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
+    const auto *CondRC = TRI->getRegClass(PPU::SReg_1RegClassID);
     Register SrcCondCopy = MRI.createVirtualRegister(CondRC);
 
     BuildMI(*BB, MI, DL, TII->get(PPU::COPY), SrcCondCopy)
@@ -3748,7 +3749,8 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
 
     bool NeedClampOperand = false;
     if (TII->pseudoToMCOpcode(Opc) == -1) {
-      Opc = PPU::getVOPe64(Opc);
+      assert("FIXME in for PPU::getVOPe64");
+      // FIXME schi Opc = PPU::getVOPe64(Opc);
       NeedClampOperand = true;
     }
 
@@ -3768,6 +3770,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     MI.eraseFromParent();
     return BB;
   }
+/*
   case PPU::DS_GWS_INIT:
   case PPU::DS_GWS_SEMA_V:
   case PPU::DS_GWS_SEMA_BR:
@@ -3781,6 +3784,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
     }
 
     return emitGWSMemViolTestLoop(MI, BB);
+*/
   default:
     return PPUBaseTargetLowering::EmitInstrWithCustomInserter(MI, BB);
   }
@@ -3829,7 +3833,7 @@ MVT PPUTargetLowering::getScalarShiftAmountTy(const DataLayout &, EVT VT) const 
 // rate. Therefore, we lie and report that it is not faster for f32. v_mad_f32
 // however does not support denormals, so we do report fma as faster if we have
 // a fast fma device and require denormals.
-//
+/*
 bool PPUTargetLowering::isFMAFasterThanFMulAndFAdd(EVT VT) const {
   VT = VT.getScalarType();
 
@@ -3855,6 +3859,7 @@ bool PPUTargetLowering::isFMAFasterThanFMulAndFAdd(EVT VT) const {
 
   return false;
 }
+*/
 
 //===----------------------------------------------------------------------===//
 // Custom DAG Lowering Operations
@@ -3928,7 +3933,7 @@ SDValue PPUTargetLowering::splitTernaryVectorOp(SDValue Op,
 
 
 SDValue PPUTargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
-  if (!isCompute(DAG.getMachineFunction().getFunction().getCallingConv())) {
+  if (!PPU::isCompute(DAG.getMachineFunction().getFunction().getCallingConv())) {
       return PPUBaseTargetLowering::LowerOperation(Op, DAG);
   }
 
@@ -4171,7 +4176,7 @@ void PPUTargetLowering::ReplaceNodeResults(SDNode *N,
                                           SmallVectorImpl<SDValue> &Results,
                                           SelectionDAG &DAG) const {
 
-  if (!isCompute(DAG.getMachineFunction().getFunction().getCallingConv())) {
+  if (!PPU::isCompute(DAG.getMachineFunction().getFunction().getCallingConv())) {
         return PPUBaseTargetLowering::ReplaceNodeResults(N, Results, DAG);
   }
 
@@ -4539,7 +4544,7 @@ SDValue PPUTargetLowering::lowerTRAP(SDValue Op, SelectionDAG &DAG) const {
   assert(UserSGPR != PPU::NoRegister);
   SDValue QueuePtr = CreateLiveInRegister(
     DAG, &PPU::SReg_64RegClass, UserSGPR, MVT::i64);
-  SDValue SGPR01 = DAG.getRegister(PPU::SGPR0_SGPR1, MVT::i64);
+  SDValue SGPR01 = DAG.getRegister(PPU::SPR0_SPR1, MVT::i64);
   SDValue ToReg = DAG.getCopyToReg(Chain, SL, SGPR01,
                                    QueuePtr, SDValue());
   SDValue Ops[] = {
@@ -4574,6 +4579,7 @@ SDValue PPUTargetLowering::lowerDEBUGTRAP(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getNode(PPUISD::TRAP, SL, MVT::Other, Ops);
 }
 
+/* FIXME schi
 SDValue PPUTargetLowering::getSegmentAperture(unsigned AS, const SDLoc &DL,
                                              SelectionDAG &DAG) const {
   // FIXME: Use inline constants (src_{shared, private}_base) instead.
@@ -4622,6 +4628,7 @@ SDValue PPUTargetLowering::getSegmentAperture(unsigned AS, const SDLoc &DL,
                      MachineMemOperand::MODereferenceable |
                          MachineMemOperand::MOInvariant);
 }
+*/
 
 SDValue PPUTargetLowering::lowerADDRSPACECAST(SDValue Op,
                                              SelectionDAG &DAG) const {
@@ -4997,8 +5004,7 @@ SDValue PPUTargetLowering::LowerGlobalAddress(PPUMachineFunction *MFI,
   const GlobalValue *GV = GSD->getGlobal();
   if ((GSD->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS &&
        (!GV->hasExternalLinkage() ||
-        getTargetMachine().getTargetTriple().getOS() == Triple::AMDHSA ||
-        getTargetMachine().getTargetTriple().getOS() == Triple::AMDPAL)) ||
+        getTargetMachine().getTargetTriple().getOS() == Triple::PPS)) ||
       GSD->getAddressSpace() == AMDGPUAS::REGION_ADDRESS ||
       GSD->getAddressSpace() == AMDGPUAS::PRIVATE_ADDRESS)
     return PPUBaseTargetLowering::LowerGlobalAddress(MFI, Op, DAG);
@@ -5241,6 +5247,7 @@ static bool parseTexFail(SDValue TexFailCtrl, SelectionDAG &DAG, SDValue *TFE,
   return Value == 0;
 }
 
+/* TODO
 SDValue PPUTargetLowering::lowerImage(SDValue Op,
                                      const PPU::ImageDimIntrinsicInfo *Intr,
                                      SelectionDAG &DAG) const {
@@ -5563,6 +5570,7 @@ SDValue PPUTargetLowering::lowerImage(SDValue Op,
 
   return SDValue(NewNode, 0);
 }
+*/
 
 SDValue PPUTargetLowering::lowerSBuffer(EVT VT, SDLoc DL, SDValue Rsrc,
                                        SDValue Offset, SDValue GLC, SDValue DLC,
@@ -5642,15 +5650,17 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   // TODO: Should this propagate fast-math-flags?
 
   switch (IntrinsicID) {
+      /*
   case Intrinsic::ppu_implicit_buffer_ptr: {
     if (getSubtarget()->isAmdHsaOrMesa(MF.getFunction()))
       return emitNonHSAIntrinsicError(DAG, DL, VT);
     return getPreloadedValue(DAG, *MFI, VT,
                              PPUFunctionArgInfo::IMPLICIT_BUFFER_PTR);
   }
+  */
   case Intrinsic::ppu_dispatch_ptr:
   case Intrinsic::ppu_queue_ptr: {
-    if (!Subtarget->isAmdHsaOrMesa(MF.getFunction())) {
+    if (!Subtarget->isPPSOS(MF.getFunction())) {
       DiagnosticInfoUnsupported BadIntrin(
           MF.getFunction(), "unsupported hsa intrinsic without hsa target",
           DL.getDebugLoc());
@@ -5679,6 +5689,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return DAG.getNode(PPUISD::RCP, DL, VT, Op.getOperand(1));
   case Intrinsic::ppu_rsq:
     return DAG.getNode(PPUISD::RSQ, DL, VT, Op.getOperand(1));
+  /*
   case Intrinsic::ppu_rsq_legacy:
     if (Subtarget->getGeneration() >= PPUSubtarget::VOLCANIC_ISLANDS)
       return emitRemovedIntrinsicError(DAG, DL, VT);
@@ -5702,6 +5713,8 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return DAG.getNode(ISD::FMAXNUM, DL, VT, Tmp,
                        DAG.getConstantFP(Min, DL, VT));
   }
+  */
+  /*
   case Intrinsic::r600_read_ngroups_x:
     if (Subtarget->isAmdHsaOS())
       return emitNonHSAIntrinsicError(DAG, DL, VT);
@@ -5756,30 +5769,31 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
     return lowerImplicitZextParam(DAG, Op, MVT::i16,
                                   SI::KernelInputOffsets::LOCAL_SIZE_Z);
+  */
   case Intrinsic::ppu_workgroup_id_x:
-  case Intrinsic::r600_read_tgid_x:
+  // case Intrinsic::r600_read_tgid_x:
     return getPreloadedValue(DAG, *MFI, VT,
                              PPUFunctionArgInfo::WORKGROUP_ID_X);
   case Intrinsic::ppu_workgroup_id_y:
-  case Intrinsic::r600_read_tgid_y:
+  // case Intrinsic::r600_read_tgid_y:
     return getPreloadedValue(DAG, *MFI, VT,
                              PPUFunctionArgInfo::WORKGROUP_ID_Y);
   case Intrinsic::ppu_workgroup_id_z:
-  case Intrinsic::r600_read_tgid_z:
+  // case Intrinsic::r600_read_tgid_z:
     return getPreloadedValue(DAG, *MFI, VT,
                              PPUFunctionArgInfo::WORKGROUP_ID_Z);
   case Intrinsic::ppu_workitem_id_x:
-  case Intrinsic::r600_read_tidig_x:
+  // case Intrinsic::r600_read_tidig_x:
     return loadInputValue(DAG, &PPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDX);
   case Intrinsic::ppu_workitem_id_y:
-  case Intrinsic::r600_read_tidig_y:
+  // case Intrinsic::r600_read_tidig_y:
     return loadInputValue(DAG, &PPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDY);
   case Intrinsic::ppu_workitem_id_z:
-  case Intrinsic::r600_read_tidig_z:
+  // case Intrinsic::r600_read_tidig_z:
     return loadInputValue(DAG, &PPU::VGPR_32RegClass, MVT::i32,
                           SDLoc(DAG.getEntryNode()),
                           MFI->getArgInfo().WorkItemIDZ);
@@ -5796,6 +5810,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return lowerSBuffer(VT, DL, Op.getOperand(1), Op.getOperand(2), GLC, DLC,
                         DAG);
   }
+  /*
   case Intrinsic::ppu_fdiv_fast:
     return lowerFDIV_FAST(Op, DAG);
   case Intrinsic::ppu_interp_mov: {
@@ -5875,12 +5890,12 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
   case Intrinsic::ppu_cos:
     return DAG.getNode(PPUISD::COS_HW, DL, VT, Op.getOperand(1));
-
+  */
   case Intrinsic::ppu_mul_u24:
     return DAG.getNode(PPUISD::MUL_U24, DL, VT, Op.getOperand(1), Op.getOperand(2));
   case Intrinsic::ppu_mul_i24:
     return DAG.getNode(PPUISD::MUL_I24, DL, VT, Op.getOperand(1), Op.getOperand(2));
-
+/*
   case Intrinsic::ppu_log_clamp: {
     if (Subtarget->getGeneration() < PPUSubtarget::VOLCANIC_ISLANDS)
       return SDValue();
@@ -5931,6 +5946,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
     return DAG.getNode(PPUISD::DIV_SCALE, DL, Op->getVTList(), Src0,
                        Denominator, Numerator);
   }
+*/
   case Intrinsic::ppu_icmp: {
     // There is a Pat that handles this variant, so return it as-is.
     if (Op.getOperand(1).getValueType() == MVT::i1 &&
@@ -5942,6 +5958,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::ppu_fcmp: {
     return lowerFCMPIntrinsic(*this, Op.getNode(), DAG);
   }
+/*
   case Intrinsic::ppu_fmed3:
     return DAG.getNode(PPUISD::FMED3, DL, VT,
                        Op.getOperand(1), Op.getOperand(2), Op.getOperand(3));
@@ -5954,6 +5971,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                        Op.getOperand(1), Op.getOperand(2));
   case Intrinsic::ppu_sffbh:
     return DAG.getNode(PPUISD::FFBH_I32, DL, VT, Op.getOperand(1));
+*/
   case Intrinsic::ppu_sbfe:
     return DAG.getNode(PPUISD::BFE_I32, DL, VT,
                        Op.getOperand(1), Op.getOperand(2), Op.getOperand(3));
@@ -5987,10 +6005,11 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                                Op.getOperand(1), Op.getOperand(2));
     return DAG.getNode(ISD::BITCAST, DL, VT, Node);
   }
+/*
   case Intrinsic::ppu_fmad_ftz:
     return DAG.getNode(PPUISD::FMAD_FTZ, DL, VT, Op.getOperand(1),
                        Op.getOperand(2), Op.getOperand(3));
-
+*/
   case Intrinsic::ppu_if_break:
     return SDValue(DAG.getMachineNode(PPU::SI_IF_BREAK, DL, VT,
                                       Op->getOperand(1), Op->getOperand(2)), 0);

@@ -252,6 +252,28 @@ class SOPP <bits<7> op, dag ins, string asm, list<dag> pattern = []> :
 
 //===----------------------------------------------------------------------===//
 // SOP1
+class SOP1_Real<bits<8> op, SOP1_Pseudo ps> :
+  PPTInst <ps.OutOperandList, ps.InOperandList,
+          ps.Mnemonic , ps.AsmOperands, []>,
+  Enc32 {
+
+  let isPseudo = 0;
+  let isCodeGenOnly = 0;
+  let Size = 4;
+
+  // copy relevant pseudo op flags
+  let SubtargetPredicate = ps.SubtargetPredicate;
+  let AsmMatchConverter  = ps.AsmMatchConverter;
+
+  // encoding
+  bits<7> sdst;
+  bits<8> src0;
+
+  let Inst{7-0} = !if(ps.has_src0, src0, ?);
+  let Inst{15-8} = op;
+  let Inst{22-16} = !if(ps.has_sdst, sdst, ?);
+  let Inst{31-23} = 0x17d; //encoding;
+}
 
 
 // 32-bit output, 32-bit input

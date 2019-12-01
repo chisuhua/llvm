@@ -39,10 +39,10 @@ public:
                  CallLoweringInfo &Info) const override;
 
 // below is from AMDGPU
-  Register lowerParameterPtr(MachineIRBuilder &MIRBuilder, Type *ParamTy,
+  Register lowerParameterPtr_compute(MachineIRBuilder &MIRBuilder, Type *ParamTy,
                              uint64_t Offset) const;
 
-  void lowerParameter(MachineIRBuilder &MIRBuilder, Type *ParamTy,
+  void lowerParameter_compute(MachineIRBuilder &MIRBuilder, Type *ParamTy,
                       uint64_t Offset, unsigned Align,
                       Register DstReg) const;
 
@@ -54,7 +54,7 @@ public:
                          const DataLayout &DL, MachineRegisterInfo &MRI,
                          CallingConv::ID CallConv,
                          SplitArgTy SplitArg) const;
-  bool lowerReturnVal(MachineIRBuilder &MIRBuilder,
+  bool lowerReturnVal_compute(MachineIRBuilder &MIRBuilder,
                       const Value *Val, ArrayRef<Register> VRegs,
                       MachineInstrBuilder &Ret) const;
 

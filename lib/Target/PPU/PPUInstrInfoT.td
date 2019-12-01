@@ -1953,7 +1953,7 @@ def SI_INIT_TMSK_FROM_INPUT : SPseudoInst <
   let Defs = [TMSK];
   let usesCustomInserter = 1;
 }
-/*
+
 // Return for returning shaders to a shader variant epilog.
 def SI_RETURN_TO_EPILOG : SPseudoInst <
   (outs), (ins variable_ops), [(AMDGPUreturn_to_epilog)]> {
@@ -1964,7 +1964,7 @@ def SI_RETURN_TO_EPILOG : SPseudoInst <
   let DisableWQM = 1;
   let FixedSize = 1;
 }
-*/
+
 
 // Return for returning function calls.
 def SI_RETURN : SPseudoInst <

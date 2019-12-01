@@ -14,11 +14,13 @@
 
 #include "PPUCallLowering.h"
 #include "PPU.h"
+#include "PPUBaseISelLowering.h"
 #include "PPUISelLowering.h"
 #include "PPURegisterInfo.h"
 #include "PPUMachineFunctionInfo.h"
 #include "PPUSubtarget.h"
 #include "PPURegisterInfo.h"
+#include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -26,6 +28,9 @@
 #include "llvm/Support/LowLevelTypeImpl.h"
 
 using namespace llvm;
+
+#include "PPUGenCallingConv.inc"
+
 
 PPUCallLowering::PPUCallLowering(const PPUTargetLowering &TLI)
     : CallLowering(&TLI) {}
@@ -36,7 +41,7 @@ bool PPUCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
 
   CallingConv::ID CC = MIRBuilder.getMF().getFunction().getCallingConv();
   if (PPU::isCompute(CC))
-      return lowerReturn_compute(MIBuilder, Val, VRegs);
+      return lowerReturn_compute(MIRBuilder, Val, VRegs);
 
   MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(PPU::PseudoRET);
 
@@ -53,7 +58,7 @@ bool PPUCallLowering::lowerFormalArguments(
 
   CallingConv::ID CC = F.getCallingConv();
   if (PPU::isCompute(CC))
-      return lowerFormalArguments_compute(MIBuilder, Val, VRegs);
+      return lowerFormalArguments_compute(MIRBuilder, F, VRegs);
 
 
   if (F.arg_empty())
@@ -290,7 +295,7 @@ static void unpackRegsToOrigType(MachineIRBuilder &MIRBuilder,
 
 /// Lower the return value for the already existing \p Ret. This assumes that
 /// \p MIRBuilder's insertion point is correct.
-bool PPUCallLowering::lowerReturnVal(MachineIRBuilder &MIRBuilder,
+bool PPUCallLowering::lowerReturnVal_compute(MachineIRBuilder &MIRBuilder,
                                         const Value *Val, ArrayRef<Register> VRegs,
                                         MachineInstrBuilder &Ret) const {
   if (!Val)
@@ -335,7 +340,7 @@ bool PPUCallLowering::lowerReturn_compute(MachineIRBuilder &MIRBuilder,
   const bool IsKernel = PPU::isKernel(CC);
   const bool IsCompute = PPU::isCompute(CC);
 
-  const bool IsWaveEnd = IsKernel || (isCompute && MFI->returnsVoid());
+  const bool IsWaveEnd = IsKernel || (IsCompute && MFI->returnsVoid());
   if (IsWaveEnd) {
     MIRBuilder.buildInstr(PPU::ENDPGM)
       .addImm(0);
@@ -344,15 +349,23 @@ bool PPUCallLowering::lowerReturn_compute(MachineIRBuilder &MIRBuilder,
 
   auto const &ST = MIRBuilder.getMF().getSubtarget<PPUSubtarget>();
 
-  unsigned ReturnOpc = PPU::RETURN_TO_EPILOG;
+  unsigned ReturnOpc = PPU::S_SETPC_B64_return;
 
   // delete some some from original code
 
   auto Ret = MIRBuilder.buildInstrNoInsert(ReturnOpc);
   Register ReturnAddrVReg;
 
-  if (!lowerReturnVal(MIRBuilder, Val, VRegs, Ret))
+  ReturnAddrVReg = MRI.createVirtualRegister(&PPU::CCR_SPR_64RegClass);
+  Ret.addUse(ReturnAddrVReg);
+
+  if (!lowerReturnVal_compute(MIRBuilder, Val, VRegs, Ret))
     return false;
+
+  const PPURegisterInfo *TRI = ST.getRegisterInfo();
+  Register LiveInReturn = MF.addLiveIn(TRI->getReturnAddressReg(MF),
+                                         &PPU::SPR_64RegClass);
+  MIRBuilder.buildCopy(ReturnAddrVReg, LiveInReturn);
 
   // TODO: Handle CalleeSavedRegsViaCopy.
 
@@ -360,7 +373,7 @@ bool PPUCallLowering::lowerReturn_compute(MachineIRBuilder &MIRBuilder,
   return true;
 }
 
-Register PPUCallLowering::lowerParameterPtr(MachineIRBuilder &MIRBuilder,
+Register PPUCallLowering::lowerParameterPtr_compute(MachineIRBuilder &MIRBuilder,
                                                Type *ParamTy,
                                                uint64_t Offset) const {
 
@@ -384,7 +397,7 @@ Register PPUCallLowering::lowerParameterPtr(MachineIRBuilder &MIRBuilder,
   return DstReg;
 }
 
-void PPUCallLowering::lowerParameter(MachineIRBuilder &MIRBuilder,
+void PPUCallLowering::lowerParameter_compute(MachineIRBuilder &MIRBuilder,
                                         Type *ParamTy, uint64_t Offset,
                                         unsigned Align,
                                         Register DstReg) const {
@@ -394,7 +407,7 @@ void PPUCallLowering::lowerParameter(MachineIRBuilder &MIRBuilder,
   PointerType *PtrTy = PointerType::get(ParamTy, AMDGPUAS::CONSTANT_ADDRESS);
   MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
   unsigned TypeSize = DL.getTypeStoreSize(ParamTy);
-  Register PtrReg = lowerParameterPtr(MIRBuilder, ParamTy, Offset);
+  Register PtrReg = lowerParameterPtr_compute(MIRBuilder, ParamTy, Offset);
 
   MachineMemOperand *MMO =
       MF.getMachineMemOperand(PtrInfo, MachineMemOperand::MOLoad |
@@ -498,7 +511,7 @@ bool PPUCallLowering::lowerFormalArgumentsKernel(
       : MRI.createGenericVirtualRegister(getLLTForType(*ArgTy, DL));
     unsigned Align = MinAlign(KernArgBaseAlign, ArgOffset);
     ArgOffset = alignTo(ArgOffset, DL.getABITypeAlignment(ArgTy));
-    lowerParameter(MIRBuilder, ArgTy, ArgOffset, Align, ArgReg);
+    lowerParameter_compute(MIRBuilder, ArgTy, ArgOffset, Align, ArgReg);
     if (OrigArgRegs.size() > 1)
       unpackRegs(OrigArgRegs, ArgReg, ArgTy, MIRBuilder);
     ++i;
@@ -599,14 +612,14 @@ bool PPUCallLowering::lowerFormalArguments_compute(
   if (!IsEntryFunc) {
     Register ReturnAddrReg = TRI->getReturnAddressReg(MF);
     Register LiveInReturn = MF.addLiveIn(ReturnAddrReg,
-                                         &PPU::SGPR_64RegClass);
+                                         &PPU::SPR_64RegClass);
     MBB.addLiveIn(ReturnAddrReg);
     MIRBuilder.buildCopy(LiveInReturn, ReturnAddrReg);
   }
 
   if (Info->hasImplicitBufferPtr()) {
     Register ImplicitBufferPtrReg = Info->addImplicitBufferPtr(*TRI);
-    MF.addLiveIn(ImplicitBufferPtrReg, &PPU::SGPR_64RegClass);
+    MF.addLiveIn(ImplicitBufferPtrReg, &PPU::SPR_64RegClass);
     CCInfo.AllocateReg(ImplicitBufferPtrReg);
   }
 
@@ -679,12 +692,12 @@ CCAssignFn *PPUCallLowering::CCAssignFnForCall(CallingConv::ID CC,
                                                   bool IsVarArg) {
   switch (CC) {
   case CallingConv::AMDGPU_CS:
-    return CC_AMDGPU;
+    return CC_PPT;
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
     report_fatal_error("Unsupported calling convention for call");
-    return CC_AMDGPU_Func;
+    return CC_PPT_Func;
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
   default:
@@ -699,12 +712,12 @@ CCAssignFn *PPUCallLowering::CCAssignFnForReturn(CallingConv::ID CC,
   case CallingConv::SPIR_KERNEL:
     llvm_unreachable("kernels should not be handled here");
   case CallingConv::AMDGPU_CS:
-    return RetCC_SI_Shader;
+    return RetCC_PPT_Compute;
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
     report_fatal_error("Unsupported calling convention.");
-    return RetCC_AMDGPU_Func;
+    return RetCC_PPT_Func;
   default:
     report_fatal_error("Unsupported calling convention.");
   }

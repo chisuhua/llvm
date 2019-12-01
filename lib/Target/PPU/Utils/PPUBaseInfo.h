@@ -23,6 +23,7 @@ namespace llvm {
 
 class FeatureBitset;
 class Function;
+class GlobalValue;
 
 // PPUII - This namespace holds all of the target specific flags that
 // instruction info tracks. All definitions must match PPUInstrFormats.td.
@@ -446,6 +447,7 @@ void initDefaultAMDKernelCodeT(amd_kernel_code_t &Header,
 
 amdhsa::kernel_descriptor_t getDefaultAmdhsaKernelDescriptor(
     const MCSubtargetInfo *STI);
+*/
 
 bool isGroupSegment(const GlobalValue *GV);
 bool isGlobalSegment(const GlobalValue *GV);
@@ -454,7 +456,6 @@ bool isReadOnlySegment(const GlobalValue *GV);
 /// \returns True if constants should be emitted to .text section for given
 /// target triple \p TT, false otherwise.
 bool shouldEmitConstantsToTextSection(const Triple &TT);
-*/
 
 /// \returns Integer value requested using \p F's \p Name attribute.
 ///
