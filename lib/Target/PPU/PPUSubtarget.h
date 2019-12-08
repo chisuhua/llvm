@@ -37,7 +37,8 @@ class StringRef;
 class PPUBaseSubtarget : public PPUGenSubtargetInfo {
 public:
   enum Generation {
-    PPU = 1,
+    PPU = 0,
+    PPT = 1,
   };
 
 private:
@@ -65,7 +66,7 @@ protected:
   bool DumpCode {false};
   */
 
-  // bool HasTrigReducedRange {false};
+  bool HasTrigReducedRange {false};
   unsigned MaxWavesPerEU {10};
   int LocalMemorySize {0};
   unsigned WavefrontSize {32};
@@ -128,7 +129,7 @@ public:
 
   bool hasFPExceptions() const { return FPExceptions; }
 
-//   bool hasSDWA() const { return HasSDWA; }
+  bool hasSDWA() const { return HasSDWA; }
 
   bool hasVOP3PInsts() const { return HasVOP3PInsts; }
 
@@ -140,6 +141,7 @@ public:
 
   bool hasFminFmaxLegacy() const { return HasFminFmaxLegacy; }
 
+  bool hasTrigReducedRange() const { return HasTrigReducedRange; }
 
   unsigned getWavefrontSize() const { return WavefrontSize; }
 
@@ -305,7 +307,7 @@ public:
   };
 
 protected:
-  // unsigned Gen;
+  unsigned Gen;
   // TODO InstrItineraryData InstrItins;
   int LDSBankCount {0};
   unsigned MaxPrivateElementSize {0};
@@ -330,8 +332,9 @@ protected:
   // Used as options.
 /*
   bool EnableLoadStoreOpt;
-  bool EnableUnsafeDSOffsetFolding;
   */
+  bool EnableUnsafeDSOffsetFolding {false};
+  bool DenormModeInst {true};
   bool FlatForGlobal {false};
   bool CodeObjectV3 {false};
   bool EnablePromoteAlloca {false};
@@ -366,11 +369,14 @@ protected:
   bool HasSDWASdst;
   bool HasSDWAMac;
   bool HasSDWAOutModsVOPC;
+  */
   bool HasDPP;
+  /*
   bool HasDPP8;
   bool HasR128A16;
   bool HasNSAEncoding;
   bool HasDLInsts;
+  */
   bool HasDot1Insts;
   bool HasDot2Insts;
   bool HasDot3Insts;
@@ -378,6 +384,7 @@ protected:
   bool HasDot5Insts;
   bool HasDot6Insts;
   bool HasPkFmacF16Inst;
+  /*
   bool HasAtomicFaddInsts;
   bool EnableSRAMECC;
   bool DoesNotSupportSRAMECC;
@@ -394,8 +401,8 @@ protected:
   /*
   bool FlatScratchInsts;
   bool ScalarFlatScratchInsts;
-  bool AddNoCarryInsts;
   */
+  bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
   /*
   bool R600ALUInst;
@@ -456,7 +463,7 @@ public:
   }
 */
 
-  // Generation getGeneration() const { return (Generation)Gen; }
+  Generation getGeneration() const { return (Generation)Gen; }
 
   unsigned getWavefrontSizeLog2() const { return Log2_32(WavefrontSize); }
 
@@ -468,6 +475,9 @@ public:
   int getLDSBankCount() const { return LDSBankCount; }
 
   unsigned getMaxPrivateElementSize() const { return MaxPrivateElementSize; }
+
+  // FIXME
+  unsigned getConstantBusLimit(unsigned Opcode) const { return 1; }
 /*
   bool hasIntClamp() const { return HasIntClamp; }
 
@@ -509,11 +519,16 @@ public:
     return isPPSOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
   }
 
-  /*
+  /// True if the offset field of DS instructions works as expected. On SI, the
+  /// offset uses a 16-bit adder and does not always wrap properly.
+  bool hasUsableDSOffset() const {
+    // return getGeneration() >= SEA_ISLANDS;
+    return true;
+  }
+
   bool unsafeDSOffsetFoldingEnabled() const {
     return EnableUnsafeDSOffsetFolding;
   }
-  */
 
   bool isPromoteAllocaEnabled() const { return EnablePromoteAlloca; }
 
@@ -521,11 +536,11 @@ public:
 
   bool hasFP16Denormals() const { return FP64FP16Denormals; }
 
-  /*
   bool hasFP64Denormals() const { return FP64FP16Denormals; }
 
   bool supportsMinMaxDenormModes() const { false; }
-*/
+
+  bool hasDenormModeInst() const { return DenormModeInst; }
 
   bool useFlatForGlobal() const { return FlatForGlobal; }
 
@@ -564,12 +579,24 @@ public:
 
   bool hasFlatLgkmVMemCountInOrder() const { return false; }
 
-  bool hasAddNoCarry() const { return AddNoCarryInsts; }
 */
+
+  bool hasD16LoadStore() const { return true; }
+
+  bool d16PreservesUnusedBits() const { return hasD16LoadStore(); }
+
+  /// Return if most LDS instructions have an m0 use that require m0 to be
+  /// iniitalized.
+  bool ldsRequiresM0Init() const {
+    // return getGeneration() < GFX9;
+    return false;
+  }
+
+  bool hasAddNoCarry() const { return AddNoCarryInsts; }
   bool hasUnpackedD16VMem() const { return HasUnpackedD16VMem; }
-/*
   bool hasMad64_32() const { return false; }
 
+/*
   bool hasSDWAOutModsVOPC() const { return HasSDWAOutModsVOPC; }
 
   bool hasDLInsts() const { return HasDLInsts; }
@@ -648,11 +675,42 @@ public:
     return UserEnable && HasVPRIndexMode;
   }
 
-/*
-  bool hasDPP() const {
-    return HasDPP;
+  bool hasLDSFPAtomics() const {
+    // return GFX8Insts;
+    return false;
   }
-*/
+
+  bool hasDPP() const { return HasDPP; }
+
+
+
+
+  bool hasDot1Insts() const {
+    return HasDot1Insts;
+  }
+
+  bool hasDot2Insts() const {
+    return HasDot2Insts;
+  }
+
+  bool hasDot3Insts() const {
+    return HasDot3Insts;
+  }
+
+  bool hasDot4Insts() const {
+    return HasDot4Insts;
+  }
+
+  bool hasDot5Insts() const {
+    return HasDot5Insts;
+  }
+
+  bool hasDot6Insts() const {
+    return HasDot6Insts;
+  }
+
+
+
   bool hasMadF16() const;
 
   bool enablePPUScheduler() const {

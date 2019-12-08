@@ -2507,15 +2507,15 @@ const char *PPUBaseTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(RETURN_TO_EPILOG)
   NODE_NAME_CASE(ENDPGM)
   // NODE_NAME_CASE(DWORDADDR)
-  // NODE_NAME_CASE(FRACT)
+  NODE_NAME_CASE(FRACT)
   NODE_NAME_CASE(SETCC)
   NODE_NAME_CASE(SETREG)
-  // NODE_NAME_CASE(DENORM_MODE)
-  // NODE_NAME_CASE(FMA_W_CHAIN)
-  // NODE_NAME_CASE(FMUL_W_CHAIN)
+  NODE_NAME_CASE(DENORM_MODE)
+  NODE_NAME_CASE(FMA_W_CHAIN)
+  NODE_NAME_CASE(FMUL_W_CHAIN)
   NODE_NAME_CASE(CLAMP)
-  // NODE_NAME_CASE(COS_HW)
-  // NODE_NAME_CASE(SIN_HW)
+  NODE_NAME_CASE(COS_HW)
+  NODE_NAME_CASE(SIN_HW)
   // NODE_NAME_CASE(FMAX_LEGACY)
   // NODE_NAME_CASE(FMIN_LEGACY)
   NODE_NAME_CASE(FMAX3)
@@ -2529,16 +2529,16 @@ const char *PPUBaseTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(UMED3)
   NODE_NAME_CASE(FDOT2)
   // NODE_NAME_CASE(URECIP)
-  // NODE_NAME_CASE(DIV_SCALE)
-  // NODE_NAME_CASE(DIV_FMAS)
-  // NODE_NAME_CASE(DIV_FIXUP)
+  NODE_NAME_CASE(DIV_SCALE)
+  NODE_NAME_CASE(DIV_FMAS)
+  NODE_NAME_CASE(DIV_FIXUP)
   // NODE_NAME_CASE(FMAD_FTZ)
   // NODE_NAME_CASE(TRIG_PREOP)
   NODE_NAME_CASE(RCP)
   NODE_NAME_CASE(RSQ)
-  // NODE_NAME_CASE(RCP_IFLAG)
-  // NODE_NAME_CASE(RSQ_CLAMP)
-  // NODE_NAME_CASE(LDEXP)
+  NODE_NAME_CASE(RCP_IFLAG)
+  NODE_NAME_CASE(RSQ_CLAMP)
+  NODE_NAME_CASE(LDEXP)
   NODE_NAME_CASE(FP_CLASS)
   NODE_NAME_CASE(DOT4)
   NODE_NAME_CASE(CARRY)
@@ -2560,7 +2560,7 @@ const char *PPUBaseTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(MAD_I24)
   NODE_NAME_CASE(MAD_I64_I32)
   NODE_NAME_CASE(MAD_U64_U32)
-  // NODE_NAME_CASE(PERM)
+  NODE_NAME_CASE(PERM)
   // NODE_NAME_CASE(TEXTURE_FETCH)
   // NODE_NAME_CASE(EXPORT)
   // NODE_NAME_CASE(EXPORT_DONE)
@@ -2604,11 +2604,11 @@ const char *PPUBaseTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(TBUFFER_LOAD_FORMAT)
   NODE_NAME_CASE(TBUFFER_LOAD_FORMAT_D16)
   // NODE_NAME_CASE(DS_ORDERED_COUNT)
-  // NODE_NAME_CASE(ATOMIC_CMP_SWAP)
-  // NODE_NAME_CASE(ATOMIC_INC)
-  // NODE_NAME_CASE(ATOMIC_DEC)
-  // NODE_NAME_CASE(ATOMIC_LOAD_FMIN)
-  // NODE_NAME_CASE(ATOMIC_LOAD_FMAX)
+  NODE_NAME_CASE(ATOMIC_CMP_SWAP)
+  NODE_NAME_CASE(ATOMIC_INC)
+  NODE_NAME_CASE(ATOMIC_DEC)
+  NODE_NAME_CASE(ATOMIC_LOAD_FMIN)
+  NODE_NAME_CASE(ATOMIC_LOAD_FMAX)
   NODE_NAME_CASE(BUFFER_LOAD)
   NODE_NAME_CASE(BUFFER_LOAD_UBYTE)
   NODE_NAME_CASE(BUFFER_LOAD_USHORT)
@@ -2622,23 +2622,23 @@ const char *PPUBaseTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_STORE_SHORT)
   NODE_NAME_CASE(BUFFER_STORE_FORMAT)
   NODE_NAME_CASE(BUFFER_STORE_FORMAT_D16)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_SWAP)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_ADD)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_SUB)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_SMIN)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_UMIN)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_SMAX)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_UMAX)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_AND)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_OR)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_XOR)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_INC)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_DEC)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_CMPSWAP)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_FADD)
-  // NODE_NAME_CASE(BUFFER_ATOMIC_PK_FADD)
-  // NODE_NAME_CASE(ATOMIC_FADD)
-  // NODE_NAME_CASE(ATOMIC_PK_FADD)
+  NODE_NAME_CASE(BUFFER_ATOMIC_SWAP)
+  NODE_NAME_CASE(BUFFER_ATOMIC_ADD)
+  NODE_NAME_CASE(BUFFER_ATOMIC_SUB)
+  NODE_NAME_CASE(BUFFER_ATOMIC_SMIN)
+  NODE_NAME_CASE(BUFFER_ATOMIC_UMIN)
+  NODE_NAME_CASE(BUFFER_ATOMIC_SMAX)
+  NODE_NAME_CASE(BUFFER_ATOMIC_UMAX)
+  NODE_NAME_CASE(BUFFER_ATOMIC_AND)
+  NODE_NAME_CASE(BUFFER_ATOMIC_OR)
+  NODE_NAME_CASE(BUFFER_ATOMIC_XOR)
+  NODE_NAME_CASE(BUFFER_ATOMIC_INC)
+  NODE_NAME_CASE(BUFFER_ATOMIC_DEC)
+  NODE_NAME_CASE(BUFFER_ATOMIC_CMPSWAP)
+  NODE_NAME_CASE(BUFFER_ATOMIC_FADD)
+  NODE_NAME_CASE(BUFFER_ATOMIC_PK_FADD)
+  NODE_NAME_CASE(ATOMIC_FADD)
+  NODE_NAME_CASE(ATOMIC_PK_FADD)
 
   case PPUISD::LAST_PPU_ISD_NUMBER: break;
 
@@ -3888,7 +3888,7 @@ static bool hasDefinedInitializer(const GlobalValue *GV) {
   return !isa<UndefValue>(GVar->getInitializer());
 }
 
-SDValue PPUBaseTargetLowering::LowerGlobalAddress_compute(PPUMachineFunction* MFI,
+SDValue PPUBaseTargetLowering::LowerGlobalAddress(PPUMachineFunction* MFI,
                                                  SDValue Op,
                                                  SelectionDAG &DAG) const {
 
@@ -5579,7 +5579,7 @@ static MemSDNode* findMemSDNode(SDNode *N) {
   llvm_unreachable("cannot find MemSDNode in the pattern!");
 }
 
-/*
+
 bool PPUBaseTargetLowering::SelectFlatOffset(bool IsSigned,
                                             SelectionDAG &DAG,
                                             SDNode *N,
@@ -5587,19 +5587,19 @@ bool PPUBaseTargetLowering::SelectFlatOffset(bool IsSigned,
                                             SDValue &VAddr,
                                             SDValue &Offset,
                                             SDValue &SLC) const {
-  const GCNSubtarget &ST =
-        DAG.getMachineFunction().getSubtarget<GCNSubtarget>();
+  const PPUSubtarget &ST =
+        DAG.getMachineFunction().getSubtarget<PPUSubtarget>();
   int64_t OffsetVal = 0;
 
   if (ST.hasFlatInstOffsets() &&
-      (!ST.hasFlatSegmentOffsetBug() ||
+      (/*!ST.hasFlatSegmentOffsetBug() ||*/
        findMemSDNode(N)->getAddressSpace() != AMDGPUAS::FLAT_ADDRESS) &&
       DAG.isBaseWithConstantOffset(Addr)) {
     SDValue N0 = Addr.getOperand(0);
     SDValue N1 = Addr.getOperand(1);
     int64_t COffsetVal = cast<ConstantSDNode>(N1)->getSExtValue();
 
-    const SIInstrInfo *TII = ST.getInstrInfo();
+    const PPUInstrInfo *TII = ST.getInstrInfo();
     if (TII->isLegalFLATOffset(COffsetVal, findMemSDNode(N)->getAddressSpace(),
                                IsSigned)) {
       Addr = N0;
@@ -5613,7 +5613,7 @@ bool PPUBaseTargetLowering::SelectFlatOffset(bool IsSigned,
 
   return true;
 }
-*/
+
 
 // Replace load of an illegal type with a store of a bitcast to a friendlier
 // type.

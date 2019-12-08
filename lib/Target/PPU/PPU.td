@@ -87,12 +87,12 @@ def EnableReconvergeCFG
     : SubtargetFeature<"r", "EnableReconvergeCFG", "true",
                        "'R' (ReconvergeCFG)">;
 
-def EnableLateCFGStructurize : Predicate<"EnableLateStructurizeCFG">;
+// def EnableLateCFGStructurize : Predicate<"EnableLateStructurizeCFG">;
+// def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG || EnableLateCFGStructurize">,
+//                             AssemblerPredicate<"EnableReconvergeCFG || EnableLateCFGStructurize">;
 
-
-def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG || EnableLateCFGStructurize">,
-                            AssemblerPredicate<"EnableReconvergeCFG || EnableLateCFGStructurize">;
-
+def EnableNonUniformMIBranchPseudo : Predicate<"EnableReconvergeCFG">,
+                             AssemblerPredicate<"EnableReconvergeCFG">;
 
 //===----------------------------------------------------------------------===//
 // Named operands for CSR instructions.
@@ -189,7 +189,7 @@ def D16PreservesUnusedBits : Predicate<"Subtarget->d16PreservesUnusedBits()">,
   AssemblerPredicate<"FeatureGFX9Insts,!FeatureSRAMECC">;
 
 def isGFX10Plus :
-  Predicate<"Subtarget->getGeneration() >= AMDGPUSubtarget::GFX10">,
+  Predicate<"Subtarget->getGeneration() >= PPUSubtarget::PPU">,
   AssemblerPredicate<"FeatureGFX10Insts">;
 
 def HasPkFmacF16Inst : Predicate<"Subtarget->hasPkFmacF16Inst()">,

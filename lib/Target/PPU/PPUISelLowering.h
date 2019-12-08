@@ -54,7 +54,7 @@ private:
                             EVT VT,
                             PPUFunctionArgInfo::PreloadedValue) const;
 
-  SDValue LowerGlobalAddress_compute(PPUMachineFunction *MFI, SDValue Op,
+  SDValue LowerGlobalAddress(PPUMachineFunction *MFI, SDValue Op,
                              SelectionDAG &DAG) const override;
   SDValue lowerImplicitZextParam(SelectionDAG &DAG, SDValue Op,
                                  MVT VT, unsigned Offset) const;

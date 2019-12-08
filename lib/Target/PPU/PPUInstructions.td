@@ -302,11 +302,11 @@ def PPUfdot2 : SDNode<"PPUISD::FDOT2",
 
 def PPUperm : SDNode<"PPUISD::PERM", PPUDTIntTernaryOp, []>;
 
-def PPUinit_exec : SDNode<"PPUISD::INIT_EXEC",
+def PPUinit_exec : SDNode<"PPUISD::INIT_TMSK",
                       SDTypeProfile<0, 1, [SDTCisInt<0>]>,
                       [SDNPHasChain, SDNPInGlue]>;
 
-def PPUinit_exec_from_input : SDNode<"PPUISD::INIT_EXEC_FROM_INPUT",
+def PPUinit_exec_from_input : SDNode<"PPUISD::INIT_TMSK_FROM_INPUT",
                                  SDTypeProfile<0, 2,
                                  [SDTCisInt<0>, SDTCisInt<1>]>,
                                  [SDNPHasChain, SDNPInGlue]>;

@@ -588,7 +588,7 @@ class MUBUF_Pseudo_Store_Lds<string opName>
   let Uses = [TMSK, M0];
   let AsmMatchConverter = "cvtMubufLds";
 }
-/*
+
 class getMUBUFAtomicInsDA<RegisterClass vdataClass, bit vdata_in,
                           list<RegisterClass> vaddrList=[]> {
   RegisterClass vaddrClass = !if(!empty(vaddrList), ?, !head(vaddrList));
@@ -717,14 +717,14 @@ multiclass MUBUF_Pseudo_Atomics_RTN <string opName,
   let FPAtomic = isFP in
   def _OFFSET_RTN : MUBUF_AtomicRet_Pseudo <opName, BUFAddrKind.Offset, vdataClass,
     [(set vdataType:$vdata,
-     (atomic (MUBUFOffsetAtomic v4i32:$srsrc, i32:$soffset, i16:$offset, i1:$slc),
+     (atomic (MUBUFOffsetAtomic v2i32:$srsrc, i32:$soffset, i16:$offset, i1:$slc),
              vdataType:$vdata_in))]>,
     MUBUFAddr64Table <0, NAME # "_RTN">;
 
   let FPAtomic = isFP in
   def _ADDR64_RTN : MUBUF_AtomicRet_Pseudo <opName, BUFAddrKind.Addr64, vdataClass,
     [(set vdataType:$vdata,
-     (atomic (MUBUFAddr64Atomic v4i32:$srsrc, i64:$vaddr, i32:$soffset, i16:$offset, i1:$slc),
+     (atomic (MUBUFAddr64Atomic v2i32:$srsrc, i64:$vaddr, i32:$soffset, i16:$offset, i1:$slc),
              vdataType:$vdata_in))]>,
     MUBUFAddr64Table <1, NAME # "_RTN">;
 
@@ -745,4 +745,3 @@ multiclass MUBUF_Pseudo_Atomics <string opName,
   MUBUF_Pseudo_Atomics_NO_RTN<opName, vdataClass, vdataType, atomic>,
   MUBUF_Pseudo_Atomics_RTN<opName, vdataClass, vdataType, atomic>;
 
-*/

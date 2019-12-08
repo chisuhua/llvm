@@ -84,6 +84,14 @@ enum NodeType : unsigned {
   SETREG,
 
   DENORM_MODE,
+  // FP ops with input and output chain.
+  FMA_W_CHAIN,
+  FMUL_W_CHAIN,
+
+  // SIN_HW, COS_HW - f32 for SI, 1 ULP max error, valid from -100 pi to 100 pi.
+  // Denormals handled on some parts.
+  COS_HW,
+  SIN_HW,
 
   FMAX3,
   SMAX3,
@@ -97,6 +105,9 @@ enum NodeType : unsigned {
   FDOT2,
 
   URECIP,
+  DIV_SCALE,
+  DIV_FMAS,
+  DIV_FIXUP,
   // For emitting ISD::FMAD when f32 denormals are enabled because mac/mad is
   // treated as an illegal operation.
   FMAD_FTZ,
@@ -104,7 +115,9 @@ enum NodeType : unsigned {
   // RCP, RSQ - For f32, 1 ULP max error, no denormal handling.
   //            For f64, max error 2^29 ULP, handles denormals.
   RCP,
+  RCP_IFLAG,
   RSQ,
+  RSQ_CLAMP,
   LDEXP,
   FP_CLASS,
   CARRY,
@@ -127,6 +140,7 @@ enum NodeType : unsigned {
   MAD_I64_I32,
   MUL_LOHI_I24,
   MUL_LOHI_U24,
+  PERM,
 
   // These cvt_f32_ubyte* nodes need to remain consecutive and in order.
   CVT_F32_UBYTE0,
@@ -152,7 +166,7 @@ enum NodeType : unsigned {
 
 
 
-
+  CONST_DATA_PTR,
   INIT_TMSK,
   INIT_TMSK_FROM_INPUT,
 
@@ -170,12 +184,19 @@ enum NodeType : unsigned {
   LOAD_D16_LO_I8,
   LOAD_D16_LO_U8,
 
-  CONST_DATA_PTR,
+  STORE_MSKOR,
   LOAD_CONSTANT,
   TBUFFER_STORE_FORMAT,
   TBUFFER_STORE_FORMAT_D16,
   TBUFFER_LOAD_FORMAT,
   TBUFFER_LOAD_FORMAT_D16,
+
+  DS_ORDERED_COUNT,
+  ATOMIC_CMP_SWAP,
+  ATOMIC_INC,
+  ATOMIC_DEC,
+  ATOMIC_LOAD_FMIN,
+  ATOMIC_LOAD_FMAX,
 
   BUFFER_LOAD,
   BUFFER_LOAD_UBYTE,
@@ -190,6 +211,24 @@ enum NodeType : unsigned {
   BUFFER_STORE_SHORT,
   BUFFER_STORE_FORMAT,
   BUFFER_STORE_FORMAT_D16,
+  BUFFER_ATOMIC_SWAP,
+  BUFFER_ATOMIC_ADD,
+  BUFFER_ATOMIC_SUB,
+  BUFFER_ATOMIC_SMIN,
+  BUFFER_ATOMIC_UMIN,
+  BUFFER_ATOMIC_SMAX,
+  BUFFER_ATOMIC_UMAX,
+  BUFFER_ATOMIC_AND,
+  BUFFER_ATOMIC_OR,
+  BUFFER_ATOMIC_XOR,
+  BUFFER_ATOMIC_INC,
+  BUFFER_ATOMIC_DEC,
+  BUFFER_ATOMIC_CMPSWAP,
+  BUFFER_ATOMIC_FADD,
+  BUFFER_ATOMIC_PK_FADD,
+  ATOMIC_FADD,
+  ATOMIC_PK_FADD,
+
 
   LAST_PPU_ISD_NUMBER
 };
@@ -311,7 +350,7 @@ protected:
                       const SmallVectorImpl<ISD::OutputArg> &Outs,
                       const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
                       SelectionDAG &DAG) const override;
-private:
+protected:
   SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
@@ -439,7 +478,7 @@ protected:
 
   static EVT getEquivalentMemType(LLVMContext &Context, EVT VT);
 
-  virtual SDValue LowerGlobalAddress_compute(PPUMachineFunction *MFI, SDValue Op,
+  virtual SDValue LowerGlobalAddress(PPUMachineFunction *MFI, SDValue Op,
                                      SelectionDAG &DAG) const;
 
   /// Return 64-bit value Op as two 32-bit integers.
@@ -603,6 +642,16 @@ public:
   /// type of implicit parameter.
   uint32_t getImplicitParameterOffset(const MachineFunction &MF,
                                       const ImplicitParameter Param) const;
+
+  MVT getFenceOperandTy(const DataLayout &DL) const override {
+    return MVT::i32;
+  }
+
+  // AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
+
+  bool SelectFlatOffset(bool IsSigned, SelectionDAG &DAG, SDNode *N,
+                        SDValue Addr, SDValue &VAddr, SDValue &Offset,
+                        SDValue &SLC) const;
 
 };
 

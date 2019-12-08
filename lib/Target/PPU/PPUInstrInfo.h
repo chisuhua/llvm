@@ -1143,10 +1143,12 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
 
   LLVM_READONLY
   int getAtomicRetOp(uint16_t Opcode);
+  */
 
   LLVM_READONLY
   int getAtomicNoRetOp(uint16_t Opcode);
 
+  /*
   LLVM_READONLY
   int getSOPKOp(uint16_t Opcode);
 

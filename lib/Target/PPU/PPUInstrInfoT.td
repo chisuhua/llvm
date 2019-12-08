@@ -330,7 +330,7 @@ def si_setcc_uniform : PatFrag <
       return false;
 
     unsigned Reg = cast<RegisterSDNode>(Use->getOperand(1))->getReg();
-    if (Reg != AMDGPU::SCC)
+    if (Reg != PPU::SCC)
       return false;
   }
   return true;
@@ -1954,6 +1954,7 @@ def SI_INIT_TMSK_FROM_INPUT : SPseudoInst <
   let usesCustomInserter = 1;
 }
 
+/*
 // Return for returning shaders to a shader variant epilog.
 def SI_RETURN_TO_EPILOG : SPseudoInst <
   (outs), (ins variable_ops), [(AMDGPUreturn_to_epilog)]> {
@@ -1964,6 +1965,7 @@ def SI_RETURN_TO_EPILOG : SPseudoInst <
   let DisableWQM = 1;
   let FixedSize = 1;
 }
+*/
 
 
 // Return for returning function calls.

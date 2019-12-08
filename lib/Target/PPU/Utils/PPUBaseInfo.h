@@ -18,9 +18,12 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/CodeGen/SelectionDAG.h"
 
 namespace llvm {
 
+class Argument;
+class PPUSubtarget;
 class FeatureBitset;
 class Function;
 class GlobalValue;
@@ -667,6 +670,9 @@ LLVM_READNONE
 bool isCompute(CallingConv::ID CC);
 
 LLVM_READNONE
+bool isCompute(SelectionDAG *DAG);
+
+LLVM_READNONE
 bool isEntryFunctionCC(CallingConv::ID CC);
 
 // FIXME: Remove this when calling conventions cleaned up
@@ -782,6 +788,7 @@ bool isInlinableLiteral16(int16_t Literal, bool HasInv2Pi);
 LLVM_READNONE
 bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
+*/
 bool isArgPassedInSGPR(const Argument *Arg);
 
 /// \returns The encoding that will be used for \p ByteOffset in the SMRD
@@ -794,8 +801,7 @@ int64_t getSMRDEncodedOffset(const MCSubtargetInfo &ST, int64_t ByteOffset);
 bool isLegalSMRDImmOffset(const MCSubtargetInfo &ST, int64_t ByteOffset);
 
 bool splitMUBUFOffset(uint32_t Imm, uint32_t &SOffset, uint32_t &ImmOffset,
-                      const GCNSubtarget *Subtarget, uint32_t Align = 4);
-*/
+                      const PPUSubtarget *Subtarget, uint32_t Align = 4);
 
 /// \returns true if the intrinsic is divergent
 bool isIntrinsicSourceOfDivergence(unsigned IntrID);

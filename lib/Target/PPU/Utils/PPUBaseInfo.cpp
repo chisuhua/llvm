@@ -448,6 +448,10 @@ bool isCompute(CallingConv::ID CC) {
   }
 }
 
+bool isCompute(SelectionDAG &DAG) {
+  return isCompute(DAG.getMachineFunction().getFunction().getCallingConv());
+}
+
 bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
@@ -459,7 +463,9 @@ bool isEntryFunctionCC(CallingConv::ID CC) {
 }
 
 bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
-    return true;
+  const MCRegisterClass SGPRClass = TRI->getRegClass(PPU::SReg_32RegClassID);
+  const unsigned FirstSubReg = TRI->getSubReg(Reg, 1);
+  return SGPRClass.contains(FirstSubReg != 0 ? FirstSubReg : Reg);
     /* FIXME
   const MCRegisterClass SGPRClass = TRI->getRegClass(PPU::Reg_32RegClassID);
   const unsigned FirstSubReg = TRI->getSubReg(Reg, 1);
@@ -469,8 +475,91 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
 }
 
 bool isArgPassedInSGPR(const Argument *A) {
+  const Function *F = A->getParent();
+
+  // Arguments to compute shaders are never a source of divergence.
+  CallingConv::ID CC = F->getCallingConv();
+  switch (CC) {
+  case CallingConv::AMDGPU_KERNEL:
+  case CallingConv::SPIR_KERNEL:
     return true;
+  case CallingConv::AMDGPU_CS:
+    // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
+    // Everything else is in VGPRs.
+    return F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::InReg) ||
+           F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::ByVal);
+  default:
+    // TODO: Should calls support inreg for SGPR inputs?
+    return false;
+  }
 }
+
+static bool hasSMEMByteOffset(const MCSubtargetInfo &ST) {
+  // return isGCN3Encoding(ST) || isGFX10(ST);
+  return true;
+}
+
+int64_t getSMRDEncodedOffset(const MCSubtargetInfo &ST, int64_t ByteOffset) {
+  if (hasSMEMByteOffset(ST))
+    return ByteOffset;
+  return ByteOffset >> 2;
+}
+
+// FIXME
+bool isLegalSMRDImmOffset(const MCSubtargetInfo &ST, int64_t ByteOffset) {
+  int64_t EncodedOffset = getSMRDEncodedOffset(ST, ByteOffset);
+  return (hasSMEMByteOffset(ST)) ?
+    isUInt<20>(EncodedOffset) : isUInt<8>(EncodedOffset);
+}
+
+// Given Imm, split it into the values to put into the SOffset and ImmOffset
+// fields in an MUBUF instruction. Return false if it is not possible (due to a
+// hardware bug needing a workaround).
+//
+// The required alignment ensures that individual address components remain
+// aligned if they are aligned to begin with. It also ensures that additional
+// offsets within the given alignment can be added to the resulting ImmOffset.
+bool splitMUBUFOffset(uint32_t Imm, uint32_t &SOffset, uint32_t &ImmOffset,
+                      const PPUSubtarget *Subtarget, uint32_t Align) {
+  const uint32_t MaxImm = alignDown(4095, Align);
+  uint32_t Overflow = 0;
+
+  if (Imm > MaxImm) {
+    if (Imm <= MaxImm + 64) {
+      // Use an SOffset inline constant for 4..64
+      Overflow = Imm - MaxImm;
+      Imm = MaxImm;
+    } else {
+      // Try to keep the same value in SOffset for adjacent loads, so that
+      // the corresponding register contents can be re-used.
+      //
+      // Load values with all low-bits (except for alignment bits) set into
+      // SOffset, so that a larger range of values can be covered using
+      // s_movk_i32.
+      //
+      // Atomic operations fail to work correctly when individual address
+      // components are unaligned, even if their sum is aligned.
+      uint32_t High = (Imm + Align) & ~4095;
+      uint32_t Low = (Imm + Align) & 4095;
+      Imm = Low;
+      Overflow = High - Align;
+    }
+  }
+
+  // There is a hardware bug in SI and CI which prevents address clamping in
+  // MUBUF instructions from working correctly with SOffsets. The immediate
+  // offset is unaffected.
+  /*
+  if (Overflow > 0 &&
+      Subtarget->getGeneration() <= AMDGPUSubtarget::SEA_ISLANDS)
+    return false;
+    */
+
+  ImmOffset = Imm;
+  SOffset = Overflow;
+  return true;
+}
+
 
 PPUModeRegisterDefaults::PPUModeRegisterDefaults(const Function &F) {
   *this = getDefaultForCallingConv(F.getCallingConv());
