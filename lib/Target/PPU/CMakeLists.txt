@@ -88,8 +88,9 @@ add_llvm_target(PPUCodeGen
 # PPUNSAReassign.cpp
 # PPUIntrinsicInfo.cpp
 
+# FIXME
 add_subdirectory(AsmParser)
-add_subdirectory(Disassembler)
+#add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)

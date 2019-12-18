@@ -1079,6 +1079,9 @@ void PPUFrameLowering::emitFlatScratchInit(const PPUSubtarget &ST,
     */
 }
 
+
+// FIXME AllSPR128 for Rsrc? or AllSPR64
+
 unsigned PPUFrameLowering::getReservedPrivateSegmentBufferReg(
   const PPUSubtarget &ST,
   const PPUInstrInfo *TII,

@@ -19,6 +19,9 @@
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/SubtargetFeature.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/Support/PPUKernelDescriptor.h"
+#include "PPUDefines.h"
+#include "PPUKernelCodeT.h"
 
 namespace llvm {
 
@@ -179,6 +182,7 @@ enum ABI {
   ABI_LP64,
   ABI_LP64F,
   ABI_LP64D,
+  ABI_PPT,
   ABI_Unknown
 };
 
@@ -322,8 +326,8 @@ unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match
 /// the ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-// unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
-//                                Optional<bool> EnableWavefrontSize32 = None);
+unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
+                                Optional<bool> EnableWavefrontSize32 = None);
 
 /// \returns Total number of VGPRs for given subtarget \p STI.
 unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI);
@@ -344,9 +348,12 @@ unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU);
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match the
 /// ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs);
+unsigned getNumVPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs,
+                          Optional<bool> EnableWavefrontSize32 = None);
 
 } // end namespace IsaInfo
+
+using namespace IsaInfo;
 LLVM_READONLY
 int16_t getNamedOperandIdx(uint16_t Opcode, uint16_t NamedIdx);
 
@@ -445,12 +452,12 @@ bool getMUBUFHasSoffset(unsigned Opc);
 LLVM_READONLY
 int getMCOpcode(uint16_t Opcode, unsigned Gen);
 
-void initDefaultAMDKernelCodeT(amd_kernel_code_t &Header,
+*/
+void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
                                const MCSubtargetInfo *STI);
 
-amdhsa::kernel_descriptor_t getDefaultAmdhsaKernelDescriptor(
+amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
     const MCSubtargetInfo *STI);
-*/
 
 bool isGroupSegment(const GlobalValue *GV);
 bool isGlobalSegment(const GlobalValue *GV);
@@ -481,7 +488,6 @@ std::pair<int, int> getIntegerPairAttribute(const Function &F,
                                             StringRef Name,
                                             std::pair<int, int> Default,
                                             bool OnlyFirstRequired = false);
-/*
 /// Represents the counter values to wait for in an s_waitcnt instruction.
 ///
 /// Large values (including the maximum possible integer) can be used to
@@ -610,6 +616,7 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width);
 
 } // namespace Hwreg
 
+/*
 namespace SendMsg {
 
 LLVM_READONLY
@@ -703,7 +710,6 @@ bool isGFX10(const MCSubtargetInfo &STI);
 /// Is Reg - scalar register
 bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI);
 
-/*
 /// Is there any intersection between registers
 bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI);
 
@@ -737,32 +743,32 @@ unsigned getRegOperandSize(const MCRegisterInfo *MRI, const MCInstrDesc &Desc,
 LLVM_READNONE
 inline unsigned getOperandSize(const MCOperandInfo &OpInfo) {
   switch (OpInfo.OperandType) {
-  case AMDGPU::OPERAND_REG_IMM_INT32:
-  case AMDGPU::OPERAND_REG_IMM_FP32:
-  case AMDGPU::OPERAND_REG_INLINE_C_INT32:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP32:
-  case AMDGPU::OPERAND_REG_INLINE_AC_INT32:
-  case AMDGPU::OPERAND_REG_INLINE_AC_FP32:
+  case PPU::OPERAND_REG_IMM_INT32:
+  case PPU::OPERAND_REG_IMM_FP32:
+  case PPU::OPERAND_REG_INLINE_C_INT32:
+  case PPU::OPERAND_REG_INLINE_C_FP32:
+  case PPU::OPERAND_REG_INLINE_AC_INT32:
+  case PPU::OPERAND_REG_INLINE_AC_FP32:
     return 4;
 
-  case AMDGPU::OPERAND_REG_IMM_INT64:
-  case AMDGPU::OPERAND_REG_IMM_FP64:
-  case AMDGPU::OPERAND_REG_INLINE_C_INT64:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP64:
+  case PPU::OPERAND_REG_IMM_INT64:
+  case PPU::OPERAND_REG_IMM_FP64:
+  case PPU::OPERAND_REG_INLINE_C_INT64:
+  case PPU::OPERAND_REG_INLINE_C_FP64:
     return 8;
 
-  case AMDGPU::OPERAND_REG_IMM_INT16:
-  case AMDGPU::OPERAND_REG_IMM_FP16:
-  case AMDGPU::OPERAND_REG_INLINE_C_INT16:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP16:
-  case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
-  case AMDGPU::OPERAND_REG_INLINE_C_V2FP16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_INT16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_FP16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_V2FP16:
-  case AMDGPU::OPERAND_REG_IMM_V2INT16:
-  case AMDGPU::OPERAND_REG_IMM_V2FP16:
+  case PPU::OPERAND_REG_IMM_INT16:
+  case PPU::OPERAND_REG_IMM_FP16:
+  case PPU::OPERAND_REG_INLINE_C_INT16:
+  case PPU::OPERAND_REG_INLINE_C_FP16:
+  case PPU::OPERAND_REG_INLINE_C_V2INT16:
+  case PPU::OPERAND_REG_INLINE_C_V2FP16:
+  case PPU::OPERAND_REG_INLINE_AC_INT16:
+  case PPU::OPERAND_REG_INLINE_AC_FP16:
+  case PPU::OPERAND_REG_INLINE_AC_V2INT16:
+  case PPU::OPERAND_REG_INLINE_AC_V2FP16:
+  case PPU::OPERAND_REG_IMM_V2INT16:
+  case PPU::OPERAND_REG_IMM_V2FP16:
     return 2;
 
   default:
@@ -788,7 +794,7 @@ bool isInlinableLiteral16(int16_t Literal, bool HasInv2Pi);
 LLVM_READNONE
 bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi);
 
-*/
+
 bool isArgPassedInSGPR(const Argument *Arg);
 
 /// \returns The encoding that will be used for \p ByteOffset in the SMRD

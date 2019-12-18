@@ -1,3 +1,35 @@
+def FeatureFP64 : SubtargetFeature<"fp64",
+  "FP64",
+  "true",
+  "Enable double precision operations"
+>;
+
+def FeatureFMA : SubtargetFeature<"fmaf",
+  "FMA",
+  "true",
+  "Enable single precision FMA (not as fast as mul+add, but fused)"
+>;
+
+// Some instructions do not support denormals despite this flag. Using
+// fp32 denormals also causes instructions to run at the double
+// precision rate for the device.
+def FeatureFP32Denormals : SubtargetFeature<"fp32-denormals",
+  "FP32Denormals",
+  "true",
+  "Enable single precision denormal handling"
+>;
+
+class SubtargetFeatureLocalMemorySize <int Value> : SubtargetFeature<
+  "localmemorysize"#Value,
+  "LocalMemorySize",
+  !cast<string>(Value),
+  "The size of local memory in bytes"
+>;
+
+def FeatureLocalMemorySize0 : SubtargetFeatureLocalMemorySize<0>;
+def FeatureLocalMemorySize32768 : SubtargetFeatureLocalMemorySize<32768>;
+def FeatureLocalMemorySize65536 : SubtargetFeatureLocalMemorySize<65536>;
+
 
 def FeaturePromoteAlloca : SubtargetFeature <"promote-alloca",
   "EnablePromoteAlloca",
@@ -5,11 +37,6 @@ def FeaturePromoteAlloca : SubtargetFeature <"promote-alloca",
   "Enable promote alloca pass"
 >;
 
-def FeatureEnablePPUScheduler : SubtargetFeature<"ppu-scheduler",
-  "EnablePPUScheduler",
-  "true",
-  "Enable PPU Machine Scheduler"
->;
 
 def FeatureFlatForGlobal : SubtargetFeature<"flat-for-global",
   "FlatForGlobal",
@@ -17,23 +44,6 @@ def FeatureFlatForGlobal : SubtargetFeature<"flat-for-global",
   "Force to generate flat instruction for global"
 >;
 
-def FeatureCodeObjectV3 : SubtargetFeature <"code-object-v3",
-  "CodeObjectV3",
-  "true",
-  "Generate code object version 3"
->;
-
-def FeatureDumpCode : SubtargetFeature <"DumpCode",
-  "DumpCode",
-  "true",
-  "Dump MachineInstrs in the CodeEmitter"
->;
-
-def FeatureDumpCodeLower : SubtargetFeature <"dumpcode",
-  "DumpCode",
-  "true",
-  "Dump MachineInstrs in the CodeEmitter"
->;
 
 //===----------------------------------------------------------------------===//
 // feature base on AMDGPU.td

@@ -280,9 +280,10 @@ unsigned PPURegisterInfo::reservedPrivateSegmentBufferReg(
 
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   unsigned BaseIdx = alignDown(ST.getMaxNumSGPRs(MF), 4) - 4;
-  unsigned BaseReg(PPU::GPRRegClass.getRegister(BaseIdx));
+  unsigned BaseReg(PPU::SPR_32RegClass.getRegister(BaseIdx));
+  return getMatchingSuperReg(BaseReg, PPU::sub0, &PPU::SReg_64RegClass);
   // return getMatchingSuperReg(BaseReg, PPU::sub0, &PPU::SReg_128RegClass);
-  return getMatchingSuperReg(BaseReg, PPU::X0, &PPU::GPRRegClass);
+  // return getMatchingSuperReg(BaseReg, PPU::X0, &PPU::GPRRegClass);
 }
 
 static unsigned findPrivateSegmentWaveByteOffsetRegIndex(unsigned RegCount) {
@@ -306,8 +307,8 @@ unsigned PPURegisterInfo::reservedPrivateSegmentWaveByteOffsetReg(
   const MachineFunction &MF) const {
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   unsigned Reg = findPrivateSegmentWaveByteOffsetRegIndex(ST.getMaxNumSGPRs(MF));
-  // return PPU::SGPR_32RegClass.getRegister(Reg);
-  return PPU::GPRRegClass.getRegister(Reg);
+  return PPU::SPR_32RegClass.getRegister(Reg);
+  // return PPU::GPRRegClass.getRegister(Reg);
 }
 
 BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
@@ -1533,9 +1534,9 @@ bool PPURegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
   switch (Size) {
   case 32:
     return getCommonSubClass(&PPU::VPR_32RegClass, RC) != nullptr;
-    /*
   case 64:
     return getCommonSubClass(&PPU::VReg_64RegClass, RC) != nullptr;
+    /*
   case 96:
     return getCommonSubClass(&PPU::VReg_96RegClass, RC) != nullptr;
   case 128:
@@ -1558,10 +1559,10 @@ const TargetRegisterClass *PPURegisterInfo::getEquivalentVGPRClass(
                                          const TargetRegisterClass *SRC) const {
   switch (getRegSizeInBits(*SRC)) {
   case 32:
-    return &PPU::VPR_RegClass;
-    /*
+    return &PPU::VPR_32RegClass;
   case 64:
     return &PPU::VReg_64RegClass;
+    /*
   case 96:
     return &PPU::VReg_96RegClass;
   case 128:

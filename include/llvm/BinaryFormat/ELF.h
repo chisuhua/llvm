@@ -635,13 +635,16 @@ enum {
 
 // PPU Specific e_flags
 enum : unsigned {
+  EF_PPU_NONE = 0x0000,
   EF_PPU_RVC = 0x0001,
   EF_PPU_FLOAT_ABI = 0x0006,
   EF_PPU_FLOAT_ABI_SOFT = 0x0000,
   EF_PPU_FLOAT_ABI_SINGLE = 0x0002,
   EF_PPU_FLOAT_ABI_DOUBLE = 0x0004,
   EF_PPU_FLOAT_ABI_QUAD = 0x0006,
-  EF_PPU_RVE = 0x0008
+  EF_PPU_RVE = 0x0008,
+  EF_PPU_PPT = 0x0010,
+  EF_PPU_MACH = 0x00ff
 };
 
 // ELF Relocation types for RISC-V

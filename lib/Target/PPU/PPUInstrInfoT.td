@@ -1662,6 +1662,7 @@ include "PPUInstrFormatsT_VOPC.td"
 include "PPUInstrFormatsT_SM.td"
 // include "PPUInstrFormatsT_FLAT.td"
 include "PPUInstrFormatsT_BUF.td"
+include "PPUInstrFormatsT_LDS.td"
 
 
 
@@ -1676,6 +1677,7 @@ include "PPUInstrInfoT_VOPC.td"
 include "PPUInstrInfoT_SM.td"
 // include "PPUInstrInfoT_FLAT.td"
 include "PPUInstrInfoT_BUF.td"
+include "PPUInstrInfoT_LDS.td"
 
 //===----------------------------------------------------------------------===//
 // EXP Instructions

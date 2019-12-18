@@ -44,10 +44,12 @@ ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
                        .Case("lp64", ABI_LP64)
                        .Case("lp64f", ABI_LP64F)
                        .Case("lp64d", ABI_LP64D)
+                       .Case("ppt", ABI_PPT)
                        .Default(ABI_Unknown);
 
   bool IsRV64 = false; // TT.isArch64Bit();
   bool IsRV32E = false; // FeatureBits[PPU::FeatureRV32E];
+  bool IsPPT = false; // FeatureBits[PPU::FeaturePPT];
 
   if (!ABIName.empty() && TargetABI == ABI_Unknown) {
     errs()
@@ -88,6 +90,8 @@ ABI computeTargetABI(const Triple &TT, FeatureBitset FeatureBits,
     return ABI_ILP32E;
   if (IsRV64)
     return ABI_LP64;
+  if (IsPPT)
+    return ABI_PPT;
   return ABI_ILP32;
 }
 } // namespace PPUABI
@@ -309,25 +313,25 @@ unsigned getNumExtraSGPRs(const MCSubtargetInfo *STI, bool VCCUsed,
   return getNumExtraSGPRs(STI, VCCUsed, FlatScrUsed,
                           STI->getFeatureBits().test(AMDGPU::FeatureXNACK));
 }
+*/
 
 unsigned getNumSGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs) {
   NumSGPRs = alignTo(std::max(1u, NumSGPRs), getSGPREncodingGranule(STI));
   // SGPRBlocks is actual number of SGPR blocks minus 1.
   return NumSGPRs / getSGPREncodingGranule(STI) - 1;
 }
-*/
 
 unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
                              Optional<bool> EnableWavefrontSize32) {
   bool IsWave32 = true;
   return IsWave32 ? 8 : 4;
 }
-/*
+
 unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
                                 Optional<bool> EnableWavefrontSize32) {
   return getVGPRAllocGranule(STI, EnableWavefrontSize32);
 }
-*/
+
 
 unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI) {
     /*
@@ -366,18 +370,82 @@ unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU) {
   */
   return 32;
 }
-/*
-unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs,
+
+unsigned getNumVPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs,
                           Optional<bool> EnableWavefrontSize32) {
   NumVGPRs = alignTo(std::max(1u, NumVGPRs),
                      getVGPREncodingGranule(STI, EnableWavefrontSize32));
   // VGPRBlocks is actual number of VGPR blocks minus 1.
   return NumVGPRs / getVGPREncodingGranule(STI, EnableWavefrontSize32) - 1;
 }
-*/
+
 
 } // end namespace IsaInfo
 
+void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
+                               const MCSubtargetInfo *STI) {
+  IsaVersion Version = getIsaVersion(STI->getCPU());
+
+  memset(&Header, 0, sizeof(Header));
+
+  Header.amd_kernel_code_version_major = 1;
+  Header.amd_kernel_code_version_minor = 2;
+  Header.amd_machine_kind = 1; // AMD_MACHINE_KIND_AMDGPU
+  Header.amd_machine_version_major = Version.Major;
+  Header.amd_machine_version_minor = Version.Minor;
+  Header.amd_machine_version_stepping = Version.Stepping;
+  Header.kernel_code_entry_byte_offset = sizeof(Header);
+  Header.wavefront_size = 6;
+
+  // If the code object does not support indirect functions, then the value must
+  // be 0xffffffff.
+  Header.call_convention = -1;
+
+  // These alignment values are specified in powers of two, so alignment =
+  // 2^n.  The minimum alignment is 2^4 = 16.
+  Header.kernarg_segment_alignment = 4;
+  Header.group_segment_alignment = 4;
+  Header.private_segment_alignment = 4;
+
+  if (Version.Major >= 10) {
+    if (STI->getFeatureBits().test(FeatureWavefrontSize32)) {
+      Header.wavefront_size = 5;
+      Header.code_properties |= AMD_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
+    }
+    Header.compute_pgm_resource_registers |=
+      S_00B848_WGP_MODE(STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1) |
+      S_00B848_MEM_ORDERED(1);
+  }
+}
+
+amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
+    const MCSubtargetInfo *STI) {
+  IsaVersion Version = getIsaVersion(STI->getCPU());
+
+  amdhsa::kernel_descriptor_t KD;
+  memset(&KD, 0, sizeof(KD));
+
+  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+                  amdhsa::COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_16_64,
+                  amdhsa::FLOAT_DENORM_MODE_FLUSH_NONE);
+  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+                  amdhsa::COMPUTE_PGM_RSRC1_ENABLE_DX10_CLAMP, 1);
+  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+                  amdhsa::COMPUTE_PGM_RSRC1_ENABLE_IEEE_MODE, 1);
+  AMDHSA_BITS_SET(KD.compute_pgm_rsrc2,
+                  amdhsa::COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X, 1);
+  if (Version.Major >= 10) {
+    AMDHSA_BITS_SET(KD.kernel_code_properties,
+                    amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
+                    STI->getFeatureBits().test(FeatureWavefrontSize32) ? 1 : 0);
+    AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+                    amdhsa::COMPUTE_PGM_RSRC1_WGP_MODE,
+                    STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1);
+    AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+                    amdhsa::COMPUTE_PGM_RSRC1_MEM_ORDERED, 1);
+  }
+  return KD;
+}
 
 
 bool isGroupSegment(const GlobalValue *GV) {
@@ -473,6 +541,191 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
     Reg == AMDGPU::SCC;
     */
 }
+
+bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI) {
+  for (MCRegAliasIterator R(Reg0, TRI, true); R.isValid(); ++R) {
+    if (*R == Reg1) return true;
+  }
+  return false;
+}
+
+#define CASE(node) \
+  case node: return node;
+
+
+#define MAP_REG2REG \
+  using namespace AMDGPU; \
+  switch(Reg) { \
+  default: return Reg; \
+  CASE(FLAT_SCR) \
+  }
+
+unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI) {
+  MAP_REG2REG
+}
+
+unsigned mc2PseudoReg(unsigned Reg) {
+  MAP_REG2REG
+}
+
+bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo) {
+  assert(OpNo < Desc.NumOperands);
+  unsigned OpType = Desc.OpInfo[OpNo].OperandType;
+  return OpType >= AMDGPU::OPERAND_SRC_FIRST &&
+         OpType <= AMDGPU::OPERAND_SRC_LAST;
+}
+
+bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo) {
+  assert(OpNo < Desc.NumOperands);
+  unsigned OpType = Desc.OpInfo[OpNo].OperandType;
+  switch (OpType) {
+  case AMDGPU::OPERAND_REG_IMM_FP32:
+  case AMDGPU::OPERAND_REG_IMM_FP64:
+  case AMDGPU::OPERAND_REG_IMM_FP16:
+  case AMDGPU::OPERAND_REG_IMM_V2FP16:
+  case AMDGPU::OPERAND_REG_IMM_V2INT16:
+  case AMDGPU::OPERAND_REG_INLINE_C_FP32:
+  case AMDGPU::OPERAND_REG_INLINE_C_FP64:
+  case AMDGPU::OPERAND_REG_INLINE_C_FP16:
+  case AMDGPU::OPERAND_REG_INLINE_C_V2FP16:
+  case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_FP32:
+  case AMDGPU::OPERAND_REG_INLINE_AC_FP16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_V2FP16:
+  case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isSISrcInlinableOperand(const MCInstrDesc &Desc, unsigned OpNo) {
+  assert(OpNo < Desc.NumOperands);
+  unsigned OpType = Desc.OpInfo[OpNo].OperandType;
+  return OpType >= AMDGPU::OPERAND_REG_INLINE_C_FIRST &&
+         OpType <= AMDGPU::OPERAND_REG_INLINE_C_LAST;
+}
+
+// Avoid using MCRegisterClass::getSize, since that function will go away
+// (move from MC* level to Target* level). Return size in bits.
+unsigned getRegBitWidth(unsigned RCID) {
+  switch (RCID) {
+  case AMDGPU::SPR_32RegClassID:
+  case AMDGPU::VPR_32RegClassID:
+  case AMDGPU::VRegOrLds_32RegClassID:
+  case AMDGPU::VS_32RegClassID:
+  case AMDGPU::SReg_32RegClassID:
+  case AMDGPU::SRegOrLds_32RegClassID:
+    return 32;
+  case AMDGPU::SPR_64RegClassID:
+  case AMDGPU::VS_64RegClassID:
+  case AMDGPU::SReg_64RegClassID:
+  case AMDGPU::VReg_64RegClassID:
+  case AMDGPU::AReg_64RegClassID:
+    return 64;
+  default:
+    llvm_unreachable("Unexpected register class");
+  }
+}
+
+unsigned getRegBitWidth(const MCRegisterClass &RC) {
+  return getRegBitWidth(RC.getID());
+}
+
+unsigned getRegOperandSize(const MCRegisterInfo *MRI, const MCInstrDesc &Desc,
+                           unsigned OpNo) {
+  assert(OpNo < Desc.NumOperands);
+  unsigned RCID = Desc.OpInfo[OpNo].RegClass;
+  return getRegBitWidth(MRI->getRegClass(RCID)) / 8;
+}
+
+bool isInlinableLiteral64(int64_t Literal, bool HasInv2Pi) {
+  if (Literal >= -16 && Literal <= 64)
+    return true;
+
+  uint64_t Val = static_cast<uint64_t>(Literal);
+  return (Val == DoubleToBits(0.0)) ||
+         (Val == DoubleToBits(1.0)) ||
+         (Val == DoubleToBits(-1.0)) ||
+         (Val == DoubleToBits(0.5)) ||
+         (Val == DoubleToBits(-0.5)) ||
+         (Val == DoubleToBits(2.0)) ||
+         (Val == DoubleToBits(-2.0)) ||
+         (Val == DoubleToBits(4.0)) ||
+         (Val == DoubleToBits(-4.0)) ||
+         (Val == 0x3fc45f306dc9c882 && HasInv2Pi);
+}
+
+bool isInlinableLiteral32(int32_t Literal, bool HasInv2Pi) {
+  if (Literal >= -16 && Literal <= 64)
+    return true;
+
+  // The actual type of the operand does not seem to matter as long
+  // as the bits match one of the inline immediate values.  For example:
+  //
+  // -nan has the hexadecimal encoding of 0xfffffffe which is -2 in decimal,
+  // so it is a legal inline immediate.
+  //
+  // 1065353216 has the hexadecimal encoding 0x3f800000 which is 1.0f in
+  // floating-point, so it is a legal inline immediate.
+
+  uint32_t Val = static_cast<uint32_t>(Literal);
+  return (Val == FloatToBits(0.0f)) ||
+         (Val == FloatToBits(1.0f)) ||
+         (Val == FloatToBits(-1.0f)) ||
+         (Val == FloatToBits(0.5f)) ||
+         (Val == FloatToBits(-0.5f)) ||
+         (Val == FloatToBits(2.0f)) ||
+         (Val == FloatToBits(-2.0f)) ||
+         (Val == FloatToBits(4.0f)) ||
+         (Val == FloatToBits(-4.0f)) ||
+         (Val == 0x3e22f983 && HasInv2Pi);
+}
+
+bool isInlinableLiteral16(int16_t Literal, bool HasInv2Pi) {
+  if (!HasInv2Pi)
+    return false;
+
+  if (Literal >= -16 && Literal <= 64)
+    return true;
+
+  uint16_t Val = static_cast<uint16_t>(Literal);
+  return Val == 0x3C00 || // 1.0
+         Val == 0xBC00 || // -1.0
+         Val == 0x3800 || // 0.5
+         Val == 0xB800 || // -0.5
+         Val == 0x4000 || // 2.0
+         Val == 0xC000 || // -2.0
+         Val == 0x4400 || // 4.0
+         Val == 0xC400 || // -4.0
+         Val == 0x3118;   // 1/2pi
+}
+
+bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi) {
+  assert(HasInv2Pi);
+
+  if (isInt<16>(Literal) || isUInt<16>(Literal)) {
+    int16_t Trunc = static_cast<int16_t>(Literal);
+    return AMDGPU::isInlinableLiteral16(Trunc, HasInv2Pi);
+  }
+  if (!(Literal & 0xffff))
+    return AMDGPU::isInlinableLiteral16(Literal >> 16, HasInv2Pi);
+
+  int16_t Lo16 = static_cast<int16_t>(Literal);
+  int16_t Hi16 = static_cast<int16_t>(Literal >> 16);
+  return Lo16 == Hi16 && isInlinableLiteral16(Lo16, HasInv2Pi);
+}
+
+
+
+
+
+
+
+
+
+
+
 
 bool isArgPassedInSGPR(const Argument *A) {
   const Function *F = A->getParent();

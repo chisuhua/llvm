@@ -259,6 +259,7 @@ PPUSubtarget::PPUSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
     : PPUBaseSubtarget(TT, CPU, FS)
     , FrameLowering(initializeSubtargetDependencies(TT, CPU, FS, ABIName))
     , InstrInfo(*this), RegInfo(*this, getHwMode()), TLInfo(TM, *this) {
+  MaxWavesPerEU = PPU::IsaInfo::getMaxWavesPerEU(this);
   CallLoweringInfo.reset(new PPUCallLowering(*getTargetLowering()));
   Legalizer.reset(new PPULegalizerInfo(*this));
 

@@ -678,8 +678,21 @@ def int_ppu_s_getpc :
 
 
 
+// llvm.ppu.ds.swizzle src offset
+def int_ppu_ds_swizzle :
+  GCCBuiltin<"__builtin_ppu_ds_swizzle">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<1>]>;
 
+def int_ppu_ubfe : Intrinsic<[llvm_anyint_ty],
+    [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty],
+    [IntrNoMem, IntrSpeculatable]
+>;
 
+def int_ppu_sbfe : Intrinsic<[llvm_anyint_ty],
+    [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty],
+    [IntrNoMem, IntrSpeculatable]
+>;
 
 def int_ppu_lerp :
   GCCBuiltin<"__builtin_ppu_lerp">,

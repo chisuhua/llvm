@@ -448,10 +448,16 @@ def SRC_SCC : RegFile<"src_scc", 253>;
 // Should never be emitted.
 def SCC : RegFile<"scc", 0>;
 
+
 def M0 : PPUReg<0, "m0">;
 
 def SPR_NULL : RegFile<"null", 125>;
 
+def SRC_SHARED_BASE : RegFile<"src_shared_base", 235>;
+def SRC_SHARED_LIMIT : RegFile<"src_shared_limit", 236>;
+def SRC_PRIVATE_BASE : RegFile<"src_private_base", 237>;
+def SRC_PRIVATE_LIMIT : RegFile<"src_private_limit", 238>;
+def SRC_POPS_EXITING_WAVE_ID : RegFile<"src_pops_exiting_wave_id", 239>;
 
 def LDS_DIRECT : RegFile <"src_lds_direct", 254>;
 
@@ -606,7 +612,7 @@ def SPR_64 : RegisterClass<"PPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 32,
 }
 
 // CCR (call clobbered registers) SGPR 64-bit registers
-def CCR_SPR_64 : RegisterClass<"AMDGPU", SPR_64.RegTypes, 32,
+def CCR_SPR_64 : RegisterClass<"PPU", SPR_64.RegTypes, 32,
                                 (add (trunc SPR_64, 16))> {
   let CopyCost = SPR_64.CopyCost;
   let AllocationPriority = SPR_64.AllocationPriority;

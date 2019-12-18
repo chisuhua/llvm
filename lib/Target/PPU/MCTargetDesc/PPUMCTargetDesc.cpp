@@ -9,7 +9,9 @@
 /// This file provides PPU-specific target descriptions.
 ///
 //===----------------------------------------------------------------------===//
+//
 
+#include "PPUDefines.h"
 #include "PPUMCTargetDesc.h"
 #include "PPUELFStreamer.h"
 #include "PPUInstPrinter.h"
@@ -18,13 +20,18 @@
 #include "TargetInfo/PPUTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetRegistry.h"
+
 
 #define GET_INSTRINFO_MC_DESC
 #include "PPUGenInstrInfo.inc"

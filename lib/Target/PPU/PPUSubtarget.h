@@ -57,7 +57,7 @@ protected:
   bool HasInv2PiInlineImm {false};
 
   bool HasFminFmaxLegacy {false};
-
+  bool EnablePPT {true};
 
   // Used as options.
   /*
@@ -219,6 +219,7 @@ class PPUSubtarget : public PPUBaseSubtarget
   bool HasStdExtV = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
+  bool IsPPT = false;
   bool EnableLinkerRelax = false;
   bool EnableRVCHintInstrs = false;
   bool EnableReconvergeCFG = false;
@@ -264,6 +265,7 @@ public:
   bool hasStdExtV() const { return HasStdExtV; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
+  bool isPPT() const { return IsPPT; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
   bool enableRVCHintInstrs() const { return EnableRVCHintInstrs; }
   bool enableReconvergeCFG() const { return EnableReconvergeCFG; }
@@ -351,8 +353,10 @@ protected:
   bool GCN3Encoding;
   bool CIInsts;
   bool GFX8Insts;
+  */
   bool GFX9Insts;
   bool GFX10Insts;
+  /*
   bool GFX7GFX8GFX9Insts;
   bool SGPRInitBug;
   bool HasSMemRealTime;
@@ -361,9 +365,9 @@ protected:
   bool HasFmaMixInsts {false};
   bool HasMovrel;
   bool HasVPRIndexMode {true};
-  /*
   bool HasScalarStores;
   bool HasScalarAtomics;
+  /*
   bool HasSDWAOmod;
   bool HasSDWAScalar;
   bool HasSDWASdst;
@@ -386,11 +390,13 @@ protected:
   bool HasPkFmacF16Inst;
   /*
   bool HasAtomicFaddInsts;
+  */
   bool EnableSRAMECC;
-  bool DoesNotSupportSRAMECC;
+  // bool DoesNotSupportSRAMECC;
   bool HasNoSdstCMPX;
-  bool HasVscnt;
+  // bool HasVscnt;
   bool HasVOP3Literal;
+  /*
   bool HasNoDataDepHazard;
   */
   bool HasRegisterBanking;
@@ -400,8 +406,8 @@ protected:
   bool FlatGlobalInsts;
   /*
   bool FlatScratchInsts;
-  bool ScalarFlatScratchInsts;
   */
+  bool ScalarFlatScratchInsts;
   bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
   /*
@@ -456,8 +462,7 @@ public:
   const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
-  */
-/*
+
   const InstrItineraryData *getInstrItineraryData() const override {
     return &InstrItins;
   }
@@ -670,9 +675,19 @@ public:
   }
 */
 
+  bool hasVGPRIndexMode() const {
+    return HasVPRIndexMode;
+  }
+
+
   bool useVGPRIndexMode(bool UserEnable) const {
     // return UserEnable;
     return UserEnable && HasVPRIndexMode;
+  }
+
+  bool hasScalarCompareEq64() const {
+    // return getGeneration() >= VOLCANIC_ISLANDS;
+    return true;
   }
 
   bool hasLDSFPAtomics() const {
