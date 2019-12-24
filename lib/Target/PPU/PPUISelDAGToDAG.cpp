@@ -2535,6 +2535,27 @@ void PPUDAGToDAGISel::SelectINTRINSIC_WO_CHAIN(SDNode *N) {
   CurDAG->SelectNodeTo(N, Opcode, N->getVTList(), {Src});
 }
 
+void PPUDAGToDAGISel::SelectINTRINSIC_VOID(SDNode *N) {
+  unsigned IntrID = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue();
+  switch (IntrID) {
+      /*
+  case Intrinsic::amdgcn_ds_gws_init:
+  case Intrinsic::amdgcn_ds_gws_barrier:
+  case Intrinsic::amdgcn_ds_gws_sema_v:
+  case Intrinsic::amdgcn_ds_gws_sema_br:
+  case Intrinsic::amdgcn_ds_gws_sema_p:
+  case Intrinsic::amdgcn_ds_gws_sema_release_all:
+    SelectDS_GWS(N, IntrID);
+    return;
+    */
+  default:
+    break;
+  }
+
+  SelectCode(N);
+}
+
+
 bool PPUDAGToDAGISel::SelectVOP3ModsImpl(SDValue In, SDValue &Src,
                                             unsigned &Mods) const {
   Mods = 0;

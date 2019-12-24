@@ -82,13 +82,13 @@ StringRef PPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   case ELF::EF_PPU_NONE:           AK = GK_NONE;    break;
   }
 
-  StringRef GPUName = getArchNamePPU(AK);
+  StringRef GPUName = "PPU"; // getArchNamePPU(AK);
   if (GPUName != "")
     return GPUName;
 }
 
 unsigned PPUTargetStreamer::getElfMach(StringRef GPU) {
-  PPU::GPUKind AK = parseArchPPU(GPU);
+  PPU::GPUKind AK = GK_PPU; // parseArchPPU(GPU);
 
   switch (AK) {
   case GK_PPU:    return ELF::EF_PPU_PPT;

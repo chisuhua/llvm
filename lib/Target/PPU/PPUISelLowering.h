@@ -334,7 +334,7 @@ public:
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
   MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override;
-  bool isFMAFasterThanFMulAndFAdd(EVT VT) const override;
+  // bool isFMAFasterThanFMulAndFAdd(EVT VT) const override;
   SDValue splitUnaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue splitBinaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
   SDValue splitTernaryVectorOp(SDValue Op, SelectionDAG &DAG) const;
@@ -382,7 +382,7 @@ public:
                                     unsigned Depth = 0) const override;
   AtomicExpansionKind shouldExpandAtomicRMWInIR(AtomicRMWInst *) const override;
 
-  unsigned getPrefLoopAlignment(MachineLoop *ML) const override;
+  // unsigned getPrefLoopAlignment(MachineLoop *ML) const override;
 
 
   void allocateHSAUserSGPRs(CCState &CCInfo,

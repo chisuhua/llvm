@@ -222,7 +222,9 @@ struct IsaVersion {
 };
 
 /// \returns Isa version for given subtarget \p Features.
-IsaVersion getIsaVersion(const MCSubtargetInfo *STI);
+IsaVersion getIsaVersion(const MCSubtargetInfo *STI) ;
+
+IsaVersion getIsaVersion(const llvm::StringRef) ;
 
 
 /// Streams isa version string for given subtarget \p STI into \p Stream.
@@ -663,15 +665,7 @@ unsigned getInitialPSInputAddr(const Function &F);
 
 */
 LLVM_READNONE
-bool isShader(CallingConv::ID CC) {
-  switch (CC) {
-   case CallingConv::AMDGPU_CS:
-    return true;
-  default:
-    return false;
-  }
-}
-
+bool isShader(CallingConv::ID CC);
 
 LLVM_READNONE
 bool isCompute(CallingConv::ID CC);
@@ -684,16 +678,7 @@ bool isEntryFunctionCC(CallingConv::ID CC);
 
 // FIXME: Remove this when calling conventions cleaned up
 // LLVM_READNONE
-inline bool isKernel(CallingConv::ID CC) {
-  switch (CC) {
-  case CallingConv::AMDGPU_KERNEL:
-  case CallingConv::SPIR_KERNEL:
-  // case CallingConv::AMDGPU_CS:
-    return true;
-  default:
-    return false;
-  }
-}
+bool isKernel(CallingConv::ID CC) ;
 /*
 bool hasXNACK(const MCSubtargetInfo &STI);
 bool hasSRAMECC(const MCSubtargetInfo &STI);

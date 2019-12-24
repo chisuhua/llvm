@@ -1427,7 +1427,7 @@ void PPUInstPrinter::printWaitFlag(const MCInst *MI, unsigned OpNo,
   }
   */
 }
-
+/* TODO
 void PPUInstPrinter::printHwreg(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O) {
   unsigned Id;
@@ -1450,6 +1450,7 @@ void PPUInstPrinter::printHwreg(const MCInst *MI, unsigned OpNo,
   }
   O << ')';
 }
+*/
 
 void PPUInstPrinter::printEndpgm(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI,

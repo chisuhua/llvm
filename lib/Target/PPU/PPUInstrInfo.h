@@ -1128,6 +1128,7 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
 
   LLVM_READONLY
   int getCommuteOrig(uint16_t Opcode);
+  */
 
   LLVM_READONLY
   int getAddr64Inst(uint16_t Opcode);
@@ -1143,7 +1144,6 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
 
   LLVM_READONLY
   int getAtomicRetOp(uint16_t Opcode);
-  */
 
   LLVM_READONLY
   int getAtomicNoRetOp(uint16_t Opcode);

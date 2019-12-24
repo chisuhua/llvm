@@ -609,15 +609,16 @@ def S_SLEEP : SOPP <0x0000000e, (ins i32imm:$simm16),
 
 def S_SETPRIO : SOPP <0x0000000f, (ins i16imm:$simm16), "s_setprio $simm16">;
 
-let Uses = [TMSK, M0], mayLoad = 1, mayStore=1 in {
+// let Uses = [TMSK, M0], mayLoad = 1, mayStore=1 in {
+
 // FIXME: Should this be mayLoad+mayStore?
-def S_SENDMSG : SOPP <0x00000010, (ins SendMsgImm:$simm16), "s_sendmsg $simm16",
-  [(int_ppu_sendmsg (i32 imm:$simm16), M0)]>;
+// def S_SENDMSG : SOPP <0x00000010, (ins SendMsgImm:$simm16), "s_sendmsg $simm16",
+//   [(int_ppu_sendmsg (i32 imm:$simm16), M0)]>;
 
-def S_SENDMSGHALT : SOPP <0x00000011, (ins SendMsgImm:$simm16), "s_sendmsghalt $simm16",
-  [(int_ppu_sendmsghalt (i32 imm:$simm16), M0)]>;
-
-} // End Uses = [TMSK, M0]
+// def S_SENDMSGHALT : SOPP <0x00000011, (ins SendMsgImm:$simm16), "s_sendmsghalt $simm16",
+//   [(int_ppu_sendmsghalt (i32 imm:$simm16), M0)]>;
+// 
+// } // End Uses = [TMSK, M0]
 
 def S_TRAP : SOPP <0x00000012, (ins i16imm:$simm16), "s_trap $simm16"> {
   let isTrap = 1;

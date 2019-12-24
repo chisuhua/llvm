@@ -25,7 +25,10 @@
 #include "llvm/Support/MathExtras.h"
 
 #define GET_INSTRINFO_NAMED_OPS
+#define GET_INSTRMAP_INFO
 #include "PPUGenInstrInfo.inc"
+#undef GET_INSTRMAP_INFO
+#undef GET_INSTRINFO_NAMED_OPS
 
 namespace llvm {
 namespace PPUSysReg {
@@ -105,10 +108,71 @@ void validate(const Triple &TT, const FeatureBitset &FeatureBits) {
 
 } // namespace PPUFeatures
 
+namespace {
+
+/// \returns Bit mask for given bit \p Shift and bit \p Width.
+unsigned getBitMask(unsigned Shift, unsigned Width) {
+  return ((1 << Width) - 1) << Shift;
+}
+
+/// Packs \p Src into \p Dst for given bit \p Shift and bit \p Width.
+///
+/// \returns Packed \p Dst.
+unsigned packBits(unsigned Src, unsigned Dst, unsigned Shift, unsigned Width) {
+  Dst &= ~(1 << Shift) & ~getBitMask(Shift, Width);
+  Dst |= (Src << Shift) & getBitMask(Shift, Width);
+  return Dst;
+}
+
+/// Unpacks bits from \p Src for given bit \p Shift and bit \p Width.
+///
+/// \returns Unpacked bits.
+unsigned unpackBits(unsigned Src, unsigned Shift, unsigned Width) {
+  return (Src & getBitMask(Shift, Width)) >> Shift;
+}
+
+/// \returns Vmcnt bit shift (lower bits).
+unsigned getVmcntBitShiftLo() { return 0; }
+
+/// \returns Vmcnt bit width (lower bits).
+unsigned getVmcntBitWidthLo() { return 4; }
+
+/// \returns Expcnt bit shift.
+// unsigned getExpcntBitShift() { return 4; }
+
+/// \returns Expcnt bit width.
+// unsigned getExpcntBitWidth() { return 3; }
+
+/// \returns Lgkmcnt bit shift.
+unsigned getLgkmcntBitShift() { return 8; }
+
+/// \returns Lgkmcnt bit width.
+unsigned getLgkmcntBitWidth(unsigned VersionMajor) {
+  // return (VersionMajor >= 10) ? 6 : 4;
+  return 4;
+}
+
+/// \returns Vmcnt bit shift (higher bits).
+unsigned getVmcntBitShiftHi() { return 14; }
+
+/// \returns Vmcnt bit width (higher bits).
+unsigned getVmcntBitWidthHi() { return 2; }
+
+} // end namespace anonymous
+
+
 namespace PPU {
 
 namespace IsaInfo {
-/* FIXME
+
+IsaVersion getIsaVersion(const MCSubtargetInfo *STI) {
+    return {0, 0, 0};
+}
+
+IsaVersion getIsaVersion(const llvm::StringRef) {
+    return {0, 0, 0};
+}
+
 void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
   auto TargetTriple = STI->getTargetTriple();
   auto Version = getIsaVersion(STI->getCPU());
@@ -122,24 +186,23 @@ void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
          << Version.Minor
          << Version.Stepping;
 
-  if (hasXNACK(*STI))
-    Stream << "+xnack";
-  if (hasSRAMECC(*STI))
-    Stream << "+sram-ecc";
+  // if (hasXNACK(*STI))
+  //   Stream << "+xnack";
+  // if (hasSRAMECC(*STI))
+  //   Stream << "+sram-ecc";
 
   Stream.flush();
 }
 
 bool hasCodeObjectV3(const MCSubtargetInfo *STI) {
-  return STI->getTargetTriple().getOS() == Triple::AMDHSA &&
+  return STI->getTargetTriple().getOS() == Triple::PPS &&
              STI->getFeatureBits().test(FeatureCodeObjectV3);
 }
-*/
 
 unsigned getWavefrontSize(const MCSubtargetInfo *STI) {
     return 32;
 }
-/*
+
 unsigned getLocalMemorySize(const MCSubtargetInfo *STI) {
   if (STI->getFeatureBits().test(FeatureLocalMemorySize32768))
     return 32768;
@@ -149,7 +212,7 @@ unsigned getLocalMemorySize(const MCSubtargetInfo *STI) {
   return 0;
 }
 
-*/
+
 unsigned getEUsPerCU(const MCSubtargetInfo *STI) {
   return 4;
 }
@@ -283,17 +346,16 @@ unsigned getMaxNumSGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU,
   */
 }
 
-/*
 unsigned getNumExtraSGPRs(const MCSubtargetInfo *STI, bool VCCUsed,
                           bool FlatScrUsed, bool XNACKUsed) {
   unsigned ExtraSGPRs = 0;
   if (VCCUsed)
     ExtraSGPRs = 2;
 
-  IsaVersion Version = getIsaVersion(STI->getCPU());
-  if (Version.Major >= 10)
+//  IsaVersion Version = getIsaVersion(STI->getCPU());
+//  if (Version.Major >= 10)
     return ExtraSGPRs;
-
+/*
   if (Version.Major < 8) {
     if (FlatScrUsed)
       ExtraSGPRs = 4;
@@ -304,16 +366,15 @@ unsigned getNumExtraSGPRs(const MCSubtargetInfo *STI, bool VCCUsed,
     if (FlatScrUsed)
       ExtraSGPRs = 6;
   }
-
+*/
   return ExtraSGPRs;
 }
 
 unsigned getNumExtraSGPRs(const MCSubtargetInfo *STI, bool VCCUsed,
                           bool FlatScrUsed) {
-  return getNumExtraSGPRs(STI, VCCUsed, FlatScrUsed,
-                          STI->getFeatureBits().test(AMDGPU::FeatureXNACK));
+  return getNumExtraSGPRs(STI, VCCUsed, FlatScrUsed, false);
+                          // STI->getFeatureBits().test(PPU::FeatureXNACK));
 }
-*/
 
 unsigned getNumSGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs) {
   NumSGPRs = alignTo(std::max(1u, NumSGPRs), getSGPREncodingGranule(STI));
@@ -384,7 +445,8 @@ unsigned getNumVPRBlocks(const MCSubtargetInfo *STI, unsigned NumVGPRs,
 
 void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
                                const MCSubtargetInfo *STI) {
-  IsaVersion Version = getIsaVersion(STI->getCPU());
+  // IsaVersion Version = getIsaVersion(STI->getCPU());
+  IsaVersion Version = getIsaVersion(STI);
 
   memset(&Header, 0, sizeof(Header));
 
@@ -406,7 +468,7 @@ void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
   Header.kernarg_segment_alignment = 4;
   Header.group_segment_alignment = 4;
   Header.private_segment_alignment = 4;
-
+/*
   if (Version.Major >= 10) {
     if (STI->getFeatureBits().test(FeatureWavefrontSize32)) {
       Header.wavefront_size = 5;
@@ -416,6 +478,7 @@ void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
       S_00B848_WGP_MODE(STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1) |
       S_00B848_MEM_ORDERED(1);
   }
+  */
 }
 
 amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
@@ -424,7 +487,7 @@ amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
 
   amdhsa::kernel_descriptor_t KD;
   memset(&KD, 0, sizeof(KD));
-
+/*
   AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
                   amdhsa::COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_16_64,
                   amdhsa::FLOAT_DENORM_MODE_FLUSH_NONE);
@@ -444,6 +507,7 @@ amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
     AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
                     amdhsa::COMPUTE_PGM_RSRC1_MEM_ORDERED, 1);
   }
+  */
   return KD;
 }
 
@@ -505,6 +569,296 @@ std::pair<int, int> getIntegerPairAttribute(const Function &F,
   return Ints;
 }
 
+unsigned getVmcntBitMask(const IsaVersion &Version) {
+  unsigned VmcntLo = (1 << getVmcntBitWidthLo()) - 1;
+  // if (Version.Major < 9)
+    return VmcntLo;
+
+  // unsigned VmcntHi = ((1 << getVmcntBitWidthHi()) - 1) << getVmcntBitWidthLo();
+  // return VmcntLo | VmcntHi;
+}
+
+// unsigned getExpcntBitMask(const IsaVersion &Version) {
+//   return (1 << getExpcntBitWidth()) - 1;
+// }
+
+unsigned getLgkmcntBitMask(const IsaVersion &Version) {
+  return (1 << getLgkmcntBitWidth(Version.Major)) - 1;
+}
+
+unsigned getWaitcntBitMask(const IsaVersion &Version) {
+  unsigned VmcntLo = getBitMask(getVmcntBitShiftLo(), getVmcntBitWidthLo());
+  // unsigned Expcnt = getBitMask(getExpcntBitShift(), getExpcntBitWidth());
+  unsigned Lgkmcnt = getBitMask(getLgkmcntBitShift(),
+                                getLgkmcntBitWidth(Version.Major));
+  // unsigned Waitcnt = VmcntLo | Expcnt | Lgkmcnt;
+  unsigned Waitcnt = VmcntLo | Lgkmcnt;
+  //if (Version.Major < 9)
+    return Waitcnt;
+
+  // unsigned VmcntHi = getBitMask(getVmcntBitShiftHi(), getVmcntBitWidthHi());
+  // return Waitcnt | VmcntHi;
+}
+
+unsigned decodeVmcnt(const IsaVersion &Version, unsigned Waitcnt) {
+  unsigned VmcntLo =
+      unpackBits(Waitcnt, getVmcntBitShiftLo(), getVmcntBitWidthLo());
+  // if (Version.Major < 9)
+    return VmcntLo;
+/*
+  unsigned VmcntHi =
+      unpackBits(Waitcnt, getVmcntBitShiftHi(), getVmcntBitWidthHi());
+  VmcntHi <<= getVmcntBitWidthLo();
+  return VmcntLo | VmcntHi;
+  */
+}
+/*
+unsigned decodeExpcnt(const IsaVersion &Version, unsigned Waitcnt) {
+  return unpackBits(Waitcnt, getExpcntBitShift(), getExpcntBitWidth());
+}
+*/
+
+unsigned decodeLgkmcnt(const IsaVersion &Version, unsigned Waitcnt) {
+  return unpackBits(Waitcnt, getLgkmcntBitShift(),
+                    getLgkmcntBitWidth(Version.Major));
+}
+
+void decodeWaitcnt(const IsaVersion &Version, unsigned Waitcnt,
+                   unsigned &Vmcnt, unsigned &Expcnt, unsigned &Lgkmcnt) {
+  Vmcnt = decodeVmcnt(Version, Waitcnt);
+  // Expcnt = decodeExpcnt(Version, Waitcnt);
+  Lgkmcnt = decodeLgkmcnt(Version, Waitcnt);
+}
+
+Waitcnt decodeWaitcnt(const IsaVersion &Version, unsigned Encoded) {
+  Waitcnt Decoded;
+  Decoded.VmCnt = decodeVmcnt(Version, Encoded);
+  // Decoded.ExpCnt = decodeExpcnt(Version, Encoded);
+  Decoded.LgkmCnt = decodeLgkmcnt(Version, Encoded);
+  return Decoded;
+}
+
+unsigned encodeVmcnt(const IsaVersion &Version, unsigned Waitcnt,
+                     unsigned Vmcnt) {
+  Waitcnt =
+      packBits(Vmcnt, Waitcnt, getVmcntBitShiftLo(), getVmcntBitWidthLo());
+  // if (Version.Major < 9)
+    return Waitcnt;
+/*
+  Vmcnt >>= getVmcntBitWidthLo();
+  return packBits(Vmcnt, Waitcnt, getVmcntBitShiftHi(), getVmcntBitWidthHi());
+  */
+}
+/*
+unsigned encodeExpcnt(const IsaVersion &Version, unsigned Waitcnt,
+                      unsigned Expcnt) {
+  return packBits(Expcnt, Waitcnt, getExpcntBitShift(), getExpcntBitWidth());
+}
+*/
+
+unsigned encodeLgkmcnt(const IsaVersion &Version, unsigned Waitcnt,
+                       unsigned Lgkmcnt) {
+  return packBits(Lgkmcnt, Waitcnt, getLgkmcntBitShift(),
+                                    getLgkmcntBitWidth(Version.Major));
+}
+
+unsigned encodeWaitcnt(const IsaVersion &Version,
+                       unsigned Vmcnt, unsigned Expcnt, unsigned Lgkmcnt) {
+  unsigned Waitcnt = getWaitcntBitMask(Version);
+  Waitcnt = encodeVmcnt(Version, Waitcnt, Vmcnt);
+  // Waitcnt = encodeExpcnt(Version, Waitcnt, Expcnt);
+  Waitcnt = encodeLgkmcnt(Version, Waitcnt, Lgkmcnt);
+  return Waitcnt;
+}
+
+unsigned encodeWaitcnt(const IsaVersion &Version, const Waitcnt &Decoded) {
+  return encodeWaitcnt(Version, Decoded.VmCnt, Decoded.ExpCnt, Decoded.LgkmCnt);
+}
+
+//===----------------------------------------------------------------------===//
+// hwreg
+//===----------------------------------------------------------------------===//
+/*
+namespace Hwreg {
+
+int64_t getHwregId(const StringRef Name) {
+  for (int Id = ID_SYMBOLIC_FIRST_; Id < ID_SYMBOLIC_LAST_; ++Id) {
+    if (IdSymbolic[Id] && Name == IdSymbolic[Id])
+      return Id;
+  }
+  return ID_UNKNOWN_;
+}
+
+static unsigned getLastSymbolicHwreg(const MCSubtargetInfo &STI) {
+  if (isSI(STI) || isCI(STI) || isVI(STI))
+    return ID_SYMBOLIC_FIRST_GFX9_;
+  else if (isGFX9(STI))
+    return ID_SYMBOLIC_FIRST_GFX10_;
+  else
+    return ID_SYMBOLIC_LAST_;
+}
+
+bool isValidHwreg(int64_t Id, const MCSubtargetInfo &STI) {
+  return ID_SYMBOLIC_FIRST_ <= Id && Id < getLastSymbolicHwreg(STI) &&
+         IdSymbolic[Id];
+}
+
+bool isValidHwreg(int64_t Id) {
+  return 0 <= Id && isUInt<ID_WIDTH_>(Id);
+}
+
+bool isValidHwregOffset(int64_t Offset) {
+  return 0 <= Offset && isUInt<OFFSET_WIDTH_>(Offset);
+}
+
+bool isValidHwregWidth(int64_t Width) {
+  return 0 <= (Width - 1) && isUInt<WIDTH_M1_WIDTH_>(Width - 1);
+}
+
+uint64_t encodeHwreg(uint64_t Id, uint64_t Offset, uint64_t Width) {
+  return (Id << ID_SHIFT_) |
+         (Offset << OFFSET_SHIFT_) |
+         ((Width - 1) << WIDTH_M1_SHIFT_);
+}
+
+StringRef getHwreg(unsigned Id, const MCSubtargetInfo &STI) {
+  return isValidHwreg(Id, STI) ? IdSymbolic[Id] : "";
+}
+
+void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) {
+  Id = (Val & ID_MASK_) >> ID_SHIFT_;
+  Offset = (Val & OFFSET_MASK_) >> OFFSET_SHIFT_;
+  Width = ((Val & WIDTH_M1_MASK_) >> WIDTH_M1_SHIFT_) + 1;
+}
+
+} // namespace Hwreg
+*/
+
+//===----------------------------------------------------------------------===//
+// SendMsg
+//===----------------------------------------------------------------------===//
+/*
+namespace SendMsg {
+
+int64_t getMsgId(const StringRef Name) {
+  for (int i = ID_GAPS_FIRST_; i < ID_GAPS_LAST_; ++i) {
+    if (IdSymbolic[i] && Name == IdSymbolic[i])
+      return i;
+  }
+  return ID_UNKNOWN_;
+}
+
+static bool isValidMsgId(int64_t MsgId) {
+  return (ID_GAPS_FIRST_ <= MsgId && MsgId < ID_GAPS_LAST_) && IdSymbolic[MsgId];
+}
+
+bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI, bool Strict) {
+  if (Strict) {
+    if (MsgId == ID_GS_ALLOC_REQ || MsgId == ID_GET_DOORBELL)
+      return isGFX9(STI) || isGFX10(STI);
+    else
+      return isValidMsgId(MsgId);
+  } else {
+    return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
+  }
+}
+
+StringRef getMsgName(int64_t MsgId) {
+  return isValidMsgId(MsgId)? IdSymbolic[MsgId] : "";
+}
+
+int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
+  const char* const *S = (MsgId == ID_SYSMSG) ? OpSysSymbolic : OpGsSymbolic;
+  const int F = (MsgId == ID_SYSMSG) ? OP_SYS_FIRST_ : OP_GS_FIRST_;
+  const int L = (MsgId == ID_SYSMSG) ? OP_SYS_LAST_ : OP_GS_LAST_;
+  for (int i = F; i < L; ++i) {
+    if (Name == S[i]) {
+      return i;
+    }
+  }
+  return OP_UNKNOWN_;
+}
+
+bool isValidMsgOp(int64_t MsgId, int64_t OpId, bool Strict) {
+
+  if (!Strict)
+    return 0 <= OpId && isUInt<OP_WIDTH_>(OpId);
+
+  switch(MsgId)
+  {
+  case ID_GS:
+    return (OP_GS_FIRST_ <= OpId && OpId < OP_GS_LAST_) && OpId != OP_GS_NOP;
+  case ID_GS_DONE:
+    return OP_GS_FIRST_ <= OpId && OpId < OP_GS_LAST_;
+  case ID_SYSMSG:
+    return OP_SYS_FIRST_ <= OpId && OpId < OP_SYS_LAST_;
+  default:
+    return OpId == OP_NONE_;
+  }
+}
+
+StringRef getMsgOpName(int64_t MsgId, int64_t OpId) {
+  assert(msgRequiresOp(MsgId));
+  return (MsgId == ID_SYSMSG)? OpSysSymbolic[OpId] : OpGsSymbolic[OpId];
+}
+
+bool isValidMsgStream(int64_t MsgId, int64_t OpId, int64_t StreamId, bool Strict) {
+
+  if (!Strict)
+    return 0 <= StreamId && isUInt<STREAM_ID_WIDTH_>(StreamId);
+
+  switch(MsgId)
+  {
+  case ID_GS:
+    return STREAM_ID_FIRST_ <= StreamId && StreamId < STREAM_ID_LAST_;
+  case ID_GS_DONE:
+    return (OpId == OP_GS_NOP)?
+           (StreamId == STREAM_ID_NONE_) :
+           (STREAM_ID_FIRST_ <= StreamId && StreamId < STREAM_ID_LAST_);
+  default:
+    return StreamId == STREAM_ID_NONE_;
+  }
+}
+
+bool msgRequiresOp(int64_t MsgId) {
+  return MsgId == ID_GS || MsgId == ID_GS_DONE || MsgId == ID_SYSMSG;
+}
+
+bool msgSupportsStream(int64_t MsgId, int64_t OpId) {
+  return (MsgId == ID_GS || MsgId == ID_GS_DONE) && OpId != OP_GS_NOP;
+}
+
+void decodeMsg(unsigned Val,
+               uint16_t &MsgId,
+               uint16_t &OpId,
+               uint16_t &StreamId) {
+  MsgId = Val & ID_MASK_;
+  OpId = (Val & OP_MASK_) >> OP_SHIFT_;
+  StreamId = (Val & STREAM_ID_MASK_) >> STREAM_ID_SHIFT_;
+}
+
+uint64_t encodeMsg(uint64_t MsgId,
+                   uint64_t OpId,
+                   uint64_t StreamId) {
+  return (MsgId << ID_SHIFT_) |
+         (OpId << OP_SHIFT_) |
+         (StreamId << STREAM_ID_SHIFT_);
+}
+
+} // namespace SendMsg
+*/
+
+
+bool isShader(CallingConv::ID CC) {
+  switch (CC) {
+   case CallingConv::AMDGPU_CS:
+    return true;
+  default:
+    return false;
+  }
+}
+
+
 bool isCompute(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
@@ -516,14 +870,25 @@ bool isCompute(CallingConv::ID CC) {
   }
 }
 
-bool isCompute(SelectionDAG &DAG) {
-  return isCompute(DAG.getMachineFunction().getFunction().getCallingConv());
+bool isCompute(SelectionDAG *DAG) {
+  return isCompute(DAG->getMachineFunction().getFunction().getCallingConv());
 }
 
 bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool isKernel(CallingConv::ID CC) {
+  switch (CC) {
+  case CallingConv::AMDGPU_KERNEL:
+  case CallingConv::SPIR_KERNEL:
+  // case CallingConv::AMDGPU_CS:
     return true;
   default:
     return false;
@@ -538,7 +903,7 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
   const MCRegisterClass SGPRClass = TRI->getRegClass(PPU::Reg_32RegClassID);
   const unsigned FirstSubReg = TRI->getSubReg(Reg, 1);
   return SGPRClass.contains(FirstSubReg != 0 ? FirstSubReg : Reg) ||
-    Reg == AMDGPU::SCC;
+    Reg == PPU::SCC;
     */
 }
 
@@ -554,7 +919,7 @@ bool isRegIntersect(unsigned Reg0, unsigned Reg1, const MCRegisterInfo* TRI) {
 
 
 #define MAP_REG2REG \
-  using namespace AMDGPU; \
+  using namespace PPU; \
   switch(Reg) { \
   default: return Reg; \
   CASE(FLAT_SCR) \
@@ -571,28 +936,28 @@ unsigned mc2PseudoReg(unsigned Reg) {
 bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo) {
   assert(OpNo < Desc.NumOperands);
   unsigned OpType = Desc.OpInfo[OpNo].OperandType;
-  return OpType >= AMDGPU::OPERAND_SRC_FIRST &&
-         OpType <= AMDGPU::OPERAND_SRC_LAST;
+  return OpType >= PPU::OPERAND_SRC_FIRST &&
+         OpType <= PPU::OPERAND_SRC_LAST;
 }
 
 bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo) {
   assert(OpNo < Desc.NumOperands);
   unsigned OpType = Desc.OpInfo[OpNo].OperandType;
   switch (OpType) {
-  case AMDGPU::OPERAND_REG_IMM_FP32:
-  case AMDGPU::OPERAND_REG_IMM_FP64:
-  case AMDGPU::OPERAND_REG_IMM_FP16:
-  case AMDGPU::OPERAND_REG_IMM_V2FP16:
-  case AMDGPU::OPERAND_REG_IMM_V2INT16:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP32:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP64:
-  case AMDGPU::OPERAND_REG_INLINE_C_FP16:
-  case AMDGPU::OPERAND_REG_INLINE_C_V2FP16:
-  case AMDGPU::OPERAND_REG_INLINE_C_V2INT16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_FP32:
-  case AMDGPU::OPERAND_REG_INLINE_AC_FP16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_V2FP16:
-  case AMDGPU::OPERAND_REG_INLINE_AC_V2INT16:
+  case PPU::OPERAND_REG_IMM_FP32:
+  case PPU::OPERAND_REG_IMM_FP64:
+  case PPU::OPERAND_REG_IMM_FP16:
+  case PPU::OPERAND_REG_IMM_V2FP16:
+  case PPU::OPERAND_REG_IMM_V2INT16:
+  case PPU::OPERAND_REG_INLINE_C_FP32:
+  case PPU::OPERAND_REG_INLINE_C_FP64:
+  case PPU::OPERAND_REG_INLINE_C_FP16:
+  case PPU::OPERAND_REG_INLINE_C_V2FP16:
+  case PPU::OPERAND_REG_INLINE_C_V2INT16:
+  case PPU::OPERAND_REG_INLINE_AC_FP32:
+  case PPU::OPERAND_REG_INLINE_AC_FP16:
+  case PPU::OPERAND_REG_INLINE_AC_V2FP16:
+  case PPU::OPERAND_REG_INLINE_AC_V2INT16:
     return true;
   default:
     return false;
@@ -602,26 +967,26 @@ bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo) {
 bool isSISrcInlinableOperand(const MCInstrDesc &Desc, unsigned OpNo) {
   assert(OpNo < Desc.NumOperands);
   unsigned OpType = Desc.OpInfo[OpNo].OperandType;
-  return OpType >= AMDGPU::OPERAND_REG_INLINE_C_FIRST &&
-         OpType <= AMDGPU::OPERAND_REG_INLINE_C_LAST;
+  return OpType >= PPU::OPERAND_REG_INLINE_C_FIRST &&
+         OpType <= PPU::OPERAND_REG_INLINE_C_LAST;
 }
 
 // Avoid using MCRegisterClass::getSize, since that function will go away
 // (move from MC* level to Target* level). Return size in bits.
 unsigned getRegBitWidth(unsigned RCID) {
   switch (RCID) {
-  case AMDGPU::SPR_32RegClassID:
-  case AMDGPU::VPR_32RegClassID:
-  case AMDGPU::VRegOrLds_32RegClassID:
-  case AMDGPU::VS_32RegClassID:
-  case AMDGPU::SReg_32RegClassID:
-  case AMDGPU::SRegOrLds_32RegClassID:
+  case PPU::SPR_32RegClassID:
+  case PPU::VPR_32RegClassID:
+  case PPU::VRegOrLds_32RegClassID:
+  case PPU::VS_32RegClassID:
+  case PPU::SReg_32RegClassID:
+  case PPU::SRegOrLds_32RegClassID:
     return 32;
-  case AMDGPU::SPR_64RegClassID:
-  case AMDGPU::VS_64RegClassID:
-  case AMDGPU::SReg_64RegClassID:
-  case AMDGPU::VReg_64RegClassID:
-  case AMDGPU::AReg_64RegClassID:
+  case PPU::SPR_64RegClassID:
+  case PPU::VS_64RegClassID:
+  case PPU::SReg_64RegClassID:
+  case PPU::VReg_64RegClassID:
+  // case PPU::AReg_64RegClassID:
     return 64;
   default:
     llvm_unreachable("Unexpected register class");
@@ -706,10 +1071,10 @@ bool isInlinableLiteralV216(int32_t Literal, bool HasInv2Pi) {
 
   if (isInt<16>(Literal) || isUInt<16>(Literal)) {
     int16_t Trunc = static_cast<int16_t>(Literal);
-    return AMDGPU::isInlinableLiteral16(Trunc, HasInv2Pi);
+    return PPU::isInlinableLiteral16(Trunc, HasInv2Pi);
   }
   if (!(Literal & 0xffff))
-    return AMDGPU::isInlinableLiteral16(Literal >> 16, HasInv2Pi);
+    return PPU::isInlinableLiteral16(Literal >> 16, HasInv2Pi);
 
   int16_t Lo16 = static_cast<int16_t>(Literal);
   int16_t Hi16 = static_cast<int16_t>(Literal >> 16);

@@ -97,7 +97,34 @@ PPUInstructionSelector::PPUInstructionSelector(
 {
 }
 
-static const char *getName() { return DEBUG_TYPE; }
+/*
+bool PPUInstructionSelector::select(MachineInstr &I) {
+
+  if (!isPreISelGenericOpcode(I.getOpcode())) {
+    // Certain non-generic instructions also need some special handling.
+    return true;
+  }
+
+  if (selectImpl(I, *CoverageInfo))
+    return true;
+
+  return false;
+}
+*/
+
+namespace llvm {
+InstructionSelector *
+createPPUInstructionSelector(const PPUTargetMachine &TM,
+                               PPUSubtarget &Subtarget,
+                               PPURegisterBankInfo &RBI) {
+  return new PPUInstructionSelector(TM, Subtarget, RBI);
+}
+} // end namespace llvm
+
+// end RISCV
+//////////////////////////////////////////////////////////////////
+
+const char *PPUInstructionSelector::getName() { return DEBUG_TYPE; }
 
 static bool isSCC(Register Reg, const MachineRegisterInfo &MRI) {
   if (Register::isPhysicalRegister(Reg))
@@ -1802,28 +1829,4 @@ PPUInstructionSelector::selectDS1Addr1Offset(MachineOperand &Root) const {
 }
 
 
-//////////////////////////////////////////////////////////////////
-// RISCV
-/*
-bool PPUInstructionSelector::select(MachineInstr &I) {
 
-  if (!isPreISelGenericOpcode(I.getOpcode())) {
-    // Certain non-generic instructions also need some special handling.
-    return true;
-  }
-
-  if (selectImpl(I, *CoverageInfo))
-    return true;
-
-  return false;
-}
-*/
-
-namespace llvm {
-InstructionSelector *
-createPPUInstructionSelector(const PPUTargetMachine &TM,
-                               PPUSubtarget &Subtarget,
-                               PPURegisterBankInfo &RBI) {
-  return new PPUInstructionSelector(TM, Subtarget, RBI);
-}
-} // end namespace llvm

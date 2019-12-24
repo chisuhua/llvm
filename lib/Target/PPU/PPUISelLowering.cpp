@@ -9357,8 +9357,8 @@ unsigned PPUTargetLowering::getFusedOpcode(const SelectionDAG &DAG,
   const TargetOptions &Options = DAG.getTarget().Options;
   if ((Options.AllowFPOpFusion == FPOpFusion::Fast || Options.UnsafeFPMath ||
        (N0->getFlags().hasAllowContract() &&
-        N1->getFlags().hasAllowContract())) &&
-      isFMAFasterThanFMulAndFAdd(VT)) {
+        N1->getFlags().hasAllowContract())) /*&&
+      isFMAFasterThanFMulAndFAdd(VT)*/) {
     return ISD::FMA;
   }
 
@@ -10412,7 +10412,7 @@ static SDValue buildSMovImm32(SelectionDAG &DAG, const SDLoc &DL,
   return SDValue(DAG.getMachineNode(PPU::S_MOV_B32, DL, MVT::i32, K), 0);
 }
 
-/* TODO
+/* FIXME */
 MachineSDNode *PPUTargetLowering::wrapAddr64Rsrc(SelectionDAG &DAG,
                                                 const SDLoc &DL,
                                                 SDValue Ptr) const {
@@ -10428,7 +10428,8 @@ MachineSDNode *PPUTargetLowering::wrapAddr64Rsrc(SelectionDAG &DAG,
     buildSMovImm32(DAG, DL, TII->getDefaultRsrcDataFormat() >> 32),
     DAG.getTargetConstant(PPU::sub1, DL, MVT::i32)
   };
-
+  llvm_unreachable("Fix wrapAddr64Rsrc");
+/*
   SDValue SubRegHi = SDValue(DAG.getMachineNode(PPU::REG_SEQUENCE, DL,
                                                 MVT::v2i32, Ops0), 0);
 
@@ -10440,10 +10441,10 @@ MachineSDNode *PPUTargetLowering::wrapAddr64Rsrc(SelectionDAG &DAG,
     SubRegHi,
     DAG.getTargetConstant(PPU::sub2_sub3, DL, MVT::i32)
   };
-
-  return DAG.getMachineNode(PPU::REG_SEQUENCE, DL, MVT::v4i32, Ops1);
-}
 */
+  // return DAG.getMachineNode(PPU::REG_SEQUENCE, DL, MVT::v4i32, Ops1);
+  return DAG.getMachineNode(PPU::REG_SEQUENCE, DL, MVT::v2i32, Ops0);
+}
 
 /// Return a resource descriptor with the 'Add TID' bit enabled
 ///        The TID (Thread ID) is multiplied by the stride value (bits [61:48]

@@ -332,9 +332,7 @@ protected:
   bool TrapHandler {false};
 
   // Used as options.
-/*
   bool EnableLoadStoreOpt;
-  */
   bool EnableUnsafeDSOffsetFolding {false};
   bool DenormModeInst {true};
   bool FlatForGlobal {false};
@@ -344,10 +342,10 @@ protected:
   bool DumpCode {false};
   // bool EnableDS128;
   // bool EnablePRTStrictNull;
-/*
   // Subtarget statically properties set by tablegen
-  bool FP64;
-  bool FMA;
+  bool FP64 {false};
+  bool FMA {false};
+  /*
   bool MIMG_R128;
   bool IsGCN;
   bool GCN3Encoding;
@@ -360,10 +358,10 @@ protected:
   bool GFX7GFX8GFX9Insts;
   bool SGPRInitBug;
   bool HasSMemRealTime;
-  bool HasIntClamp;
   */
+  bool HasIntClamp {false};
   bool HasFmaMixInsts {false};
-  bool HasMovrel;
+  bool HasMovrel {false};
   bool HasVPRIndexMode {true};
   bool HasScalarStores;
   bool HasScalarAtomics;
@@ -404,9 +402,7 @@ protected:
   bool FlatAddressSpace;
   bool FlatInstOffsets;
   bool FlatGlobalInsts;
-  /*
   bool FlatScratchInsts;
-  */
   bool ScalarFlatScratchInsts;
   bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
@@ -485,9 +481,10 @@ public:
   unsigned getConstantBusLimit(unsigned Opcode) const { return 1; }
 /*
   bool hasIntClamp() const { return HasIntClamp; }
+*/
 
   bool hasFP64() const { return FP64; }
-
+/*
   bool hasHWFP64() const { return FP64; }
 
   bool hasFastFMAF32() const { return FastFMAF32; }
@@ -516,9 +513,9 @@ public:
 
 /*
   bool hasCARRY() const { return true; }
+  */
 
   bool hasFMA() const { return FMA; }
-*/
 
   TrapHandlerAbi getTrapHandlerAbi() const {
     return isPPSOS() ? TrapHandlerAbiHsa : TrapHandlerAbiNone;
@@ -574,12 +571,12 @@ public:
   bool hasFlatInstOffsets() const { return FlatInstOffsets; }
 
   bool hasFlatGlobalInsts() const { return FlatGlobalInsts; }
-/*
 
   bool hasFlatScratchInsts() const { return FlatScratchInsts; }
 
   bool hasScalarFlatScratchInsts() const { return ScalarFlatScratchInsts; }
 
+/*
   bool hasFlatSegmentOffsetBug() const { return HasFlatSegmentOffsetBug; }
 
   bool hasFlatLgkmVMemCountInOrder() const { return false; }
@@ -731,12 +728,12 @@ public:
   bool enablePPUScheduler() const {
     return EnablePPUScheduler;
   }
-/*  // TODO
 
+  // TODO
   bool loadStoreOptEnabled() const {
     return EnableLoadStoreOpt;
   }
-*/
+
   bool has12DWordStoreHazard() const {
     return true;
   }

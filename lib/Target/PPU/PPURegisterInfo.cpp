@@ -428,6 +428,36 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
+// Forced to be here by one .inc
+const MCPhysReg *PPURegisterInfo::getCalleeSavedRegs(
+  const MachineFunction *MF) const {
+  CallingConv::ID CC = MF->getFunction().getCallingConv();
+
+  if (PPU::isCompute(CC)) {
+    // Dummy to not crash RegisterClassInfo.
+    static const MCPhysReg NoCalleeSavedReg = PPU::NoRegister;
+    return &NoCalleeSavedReg;
+  }
+  return PPUBaseRegisterInfo::getCalleeSavedRegs(MF);
+}
+
+const MCPhysReg * PPURegisterInfo::getCalleeSavedRegsViaCopy(const MachineFunction *MF) const {
+  return nullptr;
+}
+
+Register PPURegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+  CallingConv::ID CC = MF.getFunction().getCallingConv();
+
+  if (!PPU::isCompute(CC)) {
+      return PPUBaseRegisterInfo::getFrameRegister(MF);
+  }
+
+  const PPUFrameLowering *TFI = MF.getSubtarget<PPUSubtarget>().getFrameLowering();
+  const PPUMachineFunctionInfo *FuncInfo = MF.getInfo<PPUMachineFunctionInfo>();
+  return TFI->hasFP(MF) ? FuncInfo->getFrameOffsetReg()
+                        : FuncInfo->getStackPtrOffsetReg();
+}
+
 bool PPURegisterInfo::canRealignStack(const MachineFunction &MF) const {
   const PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
   // On entry, the base address is 0, so it can't possibly need any more

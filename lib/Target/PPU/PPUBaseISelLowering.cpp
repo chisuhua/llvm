@@ -3819,6 +3819,17 @@ SDValue PPUBaseTargetLowering::LowerCall_compute(CallLoweringInfo &CLI,
 }
 #endif
 
+SDValue PPUBaseTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
+                                                      SelectionDAG &DAG) const {
+  const Function &Fn = DAG.getMachineFunction().getFunction();
+
+  DiagnosticInfoUnsupported NoDynamicAlloca(Fn, "unsupported dynamic alloca",
+                                            SDLoc(Op).getDebugLoc());
+  DAG.getContext()->diagnose(NoDynamicAlloca);
+  auto Ops = {DAG.getConstant(0, SDLoc(), Op.getValueType()), Op.getOperand(0)};
+  return DAG.getMergeValues(Ops, SDLoc());
+}
+
 SDValue PPUBaseTargetLowering::LowerOperation_compute(SDValue Op,
                                              SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
@@ -5761,7 +5772,7 @@ SDValue PPUBaseTargetLowering::performIntrinsicWOChainCombine(
   }
 }
 
-/*
+
 /// Split the 64-bit value \p LHS into two 32-bit components, and perform the
 /// binary operation \p Opc to it with the corresponding constant operands.
 SDValue PPUBaseTargetLowering::splitBinaryBitConstantOpImpl(
@@ -5786,7 +5797,7 @@ SDValue PPUBaseTargetLowering::splitBinaryBitConstantOpImpl(
   SDValue Vec = DAG.getBuildVector(MVT::v2i32, SL, {LoAnd, HiAnd});
   return DAG.getNode(ISD::BITCAST, SL, MVT::i64, Vec);
 }
-*/
+
 
 SDValue PPUBaseTargetLowering::performShlCombine(SDNode *N,
                                                 DAGCombinerInfo &DCI) const {

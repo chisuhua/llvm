@@ -372,10 +372,9 @@ public:
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
 
-   uint64_t getBinaryCodeForInstr(const MCInst &MI,
+  uint64_t getBinaryCodeForInstr(const MCInst &MI,
                                  SmallVectorImpl<MCFixup> &Fixups,
                                  const MCSubtargetInfo &STI) const;
-
 
   /// \returns the encoding for an MCOperand.
   uint64_t getMachineOpValue(const MCInst &MI, const MCOperand &MO,

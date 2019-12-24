@@ -113,7 +113,7 @@ public:
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
-  // const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
+  const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
   const MCPhysReg *getCalleeSavedRegsViaCopy(const MachineFunction *MF) const;
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
                                        CallingConv::ID CC) const override
@@ -126,6 +126,8 @@ public:
   unsigned getCSRFirstUseCost() const override {
     return 100;
   }
+
+  Register getFrameRegister(const MachineFunction &MF) const override;
 
   bool canRealignStack(const MachineFunction &MF) const override;
   bool requiresRegisterScavenging(const MachineFunction &Fn) const override;

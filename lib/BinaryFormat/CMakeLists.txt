@@ -1,5 +1,6 @@
 add_llvm_library(LLVMBinaryFormat
   AMDGPUMetadataVerifier.cpp
+  PPUMetadataVerifier.cpp
   Dwarf.cpp
   Magic.cpp
   Minidump.cpp

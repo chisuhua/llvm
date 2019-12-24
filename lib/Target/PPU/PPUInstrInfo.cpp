@@ -4225,7 +4225,6 @@ unsigned PPUInstrInfo::buildExtractSubReg(MachineBasicBlock::iterator MI,
   return false;
 }
 
-  /*
 MachineOperand PPUInstrInfo::buildExtractSubRegOrImm(
   MachineBasicBlock::iterator MII,
   MachineRegisterInfo &MRI,
@@ -4246,7 +4245,7 @@ MachineOperand PPUInstrInfo::buildExtractSubRegOrImm(
                                        SubIdx, SubRC);
   return MachineOperand::CreateReg(SubReg, false);
 }
-  */
+
 
 // Change the order of operands from (0, 1, 2) to (0, 2, 1)
 void PPUInstrInfo::swapOperands(MachineInstr &Inst) const {
@@ -4810,13 +4809,14 @@ static void loadSRsrcFromVGPR(const PPUInstrInfo &TII, MachineInstr &MI,
 }
 
 // Extract pointer from Rsrc and return a zero-value Rsrc replacement.
-    /*
+// FIXME
 static std::tuple<unsigned, unsigned>
 extractRsrcPtr(const PPUInstrInfo &TII, MachineInstr &MI, MachineOperand &Rsrc) {
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-
+  llvm_unreachable("FIXME extractRsrcPtr");
+/*
   // Extract the ptr from the resource descriptor.
   unsigned RsrcPtr =
       TII.buildExtractSubReg(MI, MRI, Rsrc, &PPU::VReg_128RegClass,
@@ -4851,9 +4851,10 @@ extractRsrcPtr(const PPUInstrInfo &TII, MachineInstr &MI, MachineOperand &Rsrc) 
       .addImm(PPU::sub3);
 
   return std::make_tuple(RsrcPtr, NewSRsrc);
+  */
+  return std::make_tuple(0, 0);
 }
-*/
-/*
+
 void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
                                    MachineDominatorTree *MDT) const {
   MachineFunction &MF = *MI.getParent()->getParent();
@@ -4980,6 +4981,7 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
   // Shaders only generate MUBUF/MTBUF instructions via intrinsics or via
   // scratch memory access. In both cases, the legalization never involves
   // conversion to the addr64 form.
+  /*
   if (isMIMG(MI) ||
       (PPU::isShader(MF.getFunction().getCallingConv()) &&
        (isMUBUF(MI) || isMTBUF(MI)))) {
@@ -4996,6 +4998,7 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
     }
     return;
   }
+  */
 
   // Legalize MUBUF* instructions.
   int RsrcIdx =
@@ -5034,7 +5037,7 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
       Register NewVAddrHi = MRI.createVirtualRegister(&PPU::TPRRegClass);
       Register NewVAddr = MRI.createVirtualRegister(&PPU::VReg_64RegClass);
 
-      const auto *BoolXExecRC = RI.getRegClass(PPU::SReg_1_XEXECRegClassID);
+      const auto *BoolXExecRC = RI.getRegClass(PPU::SReg_1RegClassID);
       Register CondReg0 = MRI.createVirtualRegister(BoolXExecRC);
       Register CondReg1 = MRI.createVirtualRegister(BoolXExecRC);
 
@@ -5069,9 +5072,11 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
     } else if (!VAddr && ST.hasAddr64()) {
       // This instructions is the _OFFSET variant, so we need to convert it to
       // ADDR64.
+      /*
       assert(MBB.getParent()->getSubtarget<PPUSubtarget>().getGeneration()
              < PPUSubtarget::VOLCANIC_ISLANDS &&
              "FIXME: Need to emit flat atomics here");
+             */
 
       unsigned RsrcPtr, NewSRsrc;
       std::tie(RsrcPtr, NewSRsrc) = extractRsrcPtr(*this, MI, *Rsrc);
@@ -5145,7 +5150,7 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
     }
   }
 }
-*/
+
 
 void PPUInstrInfo::moveToVALU(MachineInstr &TopInst,
                              MachineDominatorTree *MDT) const {
