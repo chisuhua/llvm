@@ -58,13 +58,16 @@ public:
 };
 }
 
-#define GEN_COMPRESS_INSTR
-#include "PPUGenCompressInstEmitter.inc"
+// #define GEN_COMPRESS_INSTR
+// #include "PPUGenCompressInstEmitter.inc"
 void PPUAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
   MCInst CInst;
+  /* FIXME on e64 to e32 to e16
   bool Res = compressInst(CInst, Inst, *TM.getMCSubtargetInfo(),
                           OutStreamer->getContext());
   AsmPrinter::EmitToStreamer(*OutStreamer, Res ? CInst : Inst);
+                          */
+  AsmPrinter::EmitToStreamer(*OutStreamer, Inst);
 }
 
 // Simple pseudo-instructions have their lowering (with expansion to real

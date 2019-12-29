@@ -1101,8 +1101,8 @@ def ReadCycleWide : Pseudo<(outs GPR:$lo, GPR:$hi), (ins), [], "", "">;
 include "PPUInstrInfoM.td"
 include "PPUInstrInfoA.td"
 include "PPUInstrInfoF.td"
-include "PPUInstrInfoD.td"
-include "PPUInstrInfoC.td"
+// include "PPUInstrInfoD.td"
+// include "PPUInstrInfoC.td"
 // TODO copied from rvv
 include "PPUInstrInfoV.td"
 

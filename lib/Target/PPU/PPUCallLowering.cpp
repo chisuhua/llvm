@@ -696,7 +696,6 @@ CCAssignFn *PPUCallLowering::CCAssignFnForCall(CallingConv::ID CC,
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
-    report_fatal_error("Unsupported calling convention for call");
     return CC_PPT_Func;
   case CallingConv::AMDGPU_KERNEL:
   case CallingConv::SPIR_KERNEL:
@@ -716,7 +715,6 @@ CCAssignFn *PPUCallLowering::CCAssignFnForReturn(CallingConv::ID CC,
   case CallingConv::C:
   case CallingConv::Fast:
   case CallingConv::Cold:
-    report_fatal_error("Unsupported calling convention.");
     return RetCC_PPT_Func;
   default:
     report_fatal_error("Unsupported calling convention.");

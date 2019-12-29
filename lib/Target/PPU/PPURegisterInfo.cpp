@@ -11,19 +11,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "PPURegisterInfo.h"
+#include "PPURegisterBankInfo.h"
 #include "PPU.h"
 #include "PPUSubtarget.h"
 #include "PPUInstrInfo.h"
 #include "PPUMachineFunctionInfo.h"
 #include "MCTargetDesc/PPUInstPrinter.h"
+#include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/Support/ErrorHandling.h"
-// #include "llvm/IR/Function.h"
+#include "llvm/IR/Function.h"
 
 #define GET_REGINFO_TARGET_DESC
 #include "PPUGenRegisterInfo.inc"
@@ -38,10 +42,11 @@ const MCPhysReg *
 PPUBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   auto &Subtarget = MF->getSubtarget<PPUSubtarget>();
   if (MF->getFunction().hasFnAttribute("interrupt")) {
-    if (Subtarget.hasStdExtD())
+    /*if (Subtarget.hasStdExtD())
       return CSR_XLEN_F64_Interrupt_SaveList;
-    if (Subtarget.hasStdExtF())
+      if (Subtarget.hasStdExtF())
       return CSR_XLEN_F32_Interrupt_SaveList;
+      */
     return CSR_Interrupt_SaveList;
   }
 
@@ -51,12 +56,14 @@ PPUBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   case PPUABI::ABI_ILP32:
   case PPUABI::ABI_LP64:
     return CSR_ILP32_LP64_SaveList;
+    /*
   case PPUABI::ABI_ILP32F:
   case PPUABI::ABI_LP64F:
     return CSR_ILP32F_LP64F_SaveList;
   case PPUABI::ABI_ILP32D:
   case PPUABI::ABI_LP64D:
     return CSR_ILP32D_LP64D_SaveList;
+    */
   }
 }
 
@@ -143,8 +150,8 @@ PPUBaseRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
                                         CallingConv::ID /*CC*/) const {
   auto &Subtarget = MF.getSubtarget<PPUSubtarget>();
   if (MF.getFunction().hasFnAttribute("interrupt")) {
-    if (Subtarget.hasStdExtD())
-      return CSR_XLEN_F64_Interrupt_RegMask;
+    // if (Subtarget.hasStdExtD())
+    //   return CSR_XLEN_F64_Interrupt_RegMask;
     if (Subtarget.hasStdExtF())
       return CSR_XLEN_F32_Interrupt_RegMask;
     return CSR_Interrupt_RegMask;
@@ -156,12 +163,14 @@ PPUBaseRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
   case PPUABI::ABI_ILP32:
   case PPUABI::ABI_LP64:
     return CSR_ILP32_LP64_RegMask;
+    /*
   case PPUABI::ABI_ILP32F:
   case PPUABI::ABI_LP64F:
     return CSR_ILP32F_LP64F_RegMask;
   case PPUABI::ABI_ILP32D:
   case PPUABI::ABI_LP64D:
     return CSR_ILP32D_LP64D_RegMask;
+    */
   }
 }
 
@@ -251,8 +260,6 @@ PPURegisterInfo::PPURegisterInfo(const PPUSubtarget &ST, unsigned HwMode) :
 
 unsigned PPURegisterInfo::getSubRegFromChannel(unsigned Channel) {
   static const unsigned SubRegs[] = {
-      PPU::X0, PPU::X1
-      /* FIXME
     PPU::sub0, PPU::sub1, PPU::sub2, PPU::sub3, PPU::sub4,
     PPU::sub5, PPU::sub6, PPU::sub7, PPU::sub8, PPU::sub9,
     PPU::sub10, PPU::sub11, PPU::sub12, PPU::sub13, PPU::sub14,
@@ -260,7 +267,6 @@ unsigned PPURegisterInfo::getSubRegFromChannel(unsigned Channel) {
     PPU::sub20, PPU::sub21, PPU::sub22, PPU::sub23, PPU::sub24,
     PPU::sub25, PPU::sub26, PPU::sub27, PPU::sub28, PPU::sub29,
     PPU::sub30, PPU::sub31
-    */
   };
 
   assert(Channel < array_lengthof(SubRegs));
@@ -308,16 +314,19 @@ unsigned PPURegisterInfo::reservedPrivateSegmentWaveByteOffsetReg(
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   unsigned Reg = findPrivateSegmentWaveByteOffsetRegIndex(ST.getMaxNumSGPRs(MF));
   return PPU::SPR_32RegClass.getRegister(Reg);
-  // return PPU::GPRRegClass.getRegister(Reg);
 }
 
 BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+  if (!PPU::isCompute(MF.getFunction().getCallingConv())) {
+      return PPURegisterInfo::getReservedRegs(MF);
+  }
+
   BitVector Reserved(getNumRegs());
 
   // EXEC_LO and EXEC_HI could be allocated and used as regular register, but
   // this seems likely to result in bugs, so I'm marking them as reserved.
   reserveRegisterTuples(Reserved, PPU::TMSK);
-/*
+
   reserveRegisterTuples(Reserved, PPU::FLAT_SCR);
 
   // M0 has to be reserved so that llvm accepts it as a live-in into a block.
@@ -325,7 +334,7 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   // Reserve src_vccz, src_execz, src_scc.
   reserveRegisterTuples(Reserved, PPU::SRC_VCCZ);
-  reserveRegisterTuples(Reserved, PPU::SRC_EXECZ);
+  reserveRegisterTuples(Reserved, PPU::SRC_TMSKZ);
   reserveRegisterTuples(Reserved, PPU::SRC_SCC);
 
   // Reserve the memory aperture registers.
@@ -338,12 +347,13 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   reserveRegisterTuples(Reserved, PPU::SRC_POPS_EXITING_WAVE_ID);
 
   // Reserve xnack_mask registers - support is not implemented in Codegen.
-  reserveRegisterTuples(Reserved, PPU::XNACK_MASK);
+  // reserveRegisterTuples(Reserved, PPU::XNACK_MASK);
 
   // Reserve lds_direct register - support is not implemented in Codegen.
   reserveRegisterTuples(Reserved, PPU::LDS_DIRECT);
 
   // Reserve Trap Handler registers - support is not implemented in Codegen.
+  /*
   reserveRegisterTuples(Reserved, PPU::TBA);
   reserveRegisterTuples(Reserved, PPU::TMA);
   reserveRegisterTuples(Reserved, PPU::TTMP0_TTMP1);
@@ -354,15 +364,15 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   reserveRegisterTuples(Reserved, PPU::TTMP10_TTMP11);
   reserveRegisterTuples(Reserved, PPU::TTMP12_TTMP13);
   reserveRegisterTuples(Reserved, PPU::TTMP14_TTMP15);
+  */
 
   // Reserve null register - it shall never be allocated
-  reserveRegisterTuples(Reserved, PPU::SGPR_NULL);
-*/
+  reserveRegisterTuples(Reserved, PPU::SPR_NULL);
   // Disallow vcc_hi allocation in wave32. It may be allocated but most likely
   // will result in bugs.
-  if (isWave32) {
+  // if (isWave32) {
     Reserved.set(PPU::VCC);
-  }
+  // }
 
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
 
@@ -386,7 +396,7 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   const PPUMachineFunctionInfo *MFI = MF.getInfo<PPUMachineFunctionInfo>();
 
-  /* TODO  enable scratch in future for per wave spill
+  // TODO  enable scratch in future for per wave spill
   unsigned ScratchWaveOffsetReg = MFI->getScratchWaveOffsetReg();
   if (ScratchWaveOffsetReg != PPU::NoRegister) {
     // Reserve 1 SGPR for scratch wave offset in case we need to spill.
@@ -401,14 +411,12 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     reserveRegisterTuples(Reserved, ScratchRSrcReg);
     assert(!isSubRegister(ScratchRSrcReg, ScratchWaveOffsetReg));
   }
-  */
 
   // We have to assume the SP is needed in case there are calls in the function,
   // which is detected after the function is lowered. If we aren't really going
   // to need SP, don't bother reserving it.
   unsigned StackPtrReg = MFI->getStackPtrOffsetReg();
 
-  /*
   if (StackPtrReg != PPU::NoRegister) {
     reserveRegisterTuples(Reserved, StackPtrReg);
     assert(!isSubRegister(ScratchRSrcReg, StackPtrReg));
@@ -423,7 +431,6 @@ BitVector PPURegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   for (unsigned Reg : MFI->WWMReservedRegs) {
     reserveRegisterTuples(Reserved, Reg);
   }
-  */
 
   return Reserved;
 }
@@ -434,15 +441,39 @@ const MCPhysReg *PPURegisterInfo::getCalleeSavedRegs(
   CallingConv::ID CC = MF->getFunction().getCallingConv();
 
   if (PPU::isCompute(CC)) {
-    // Dummy to not crash RegisterClassInfo.
-    static const MCPhysReg NoCalleeSavedReg = PPU::NoRegister;
-    return &NoCalleeSavedReg;
+    switch (CC) {
+    case CallingConv::C:
+    case CallingConv::Fast:
+    case CallingConv::Cold:
+        return CSR_PPU_HighRegs_SaveList;
+    default: {
+        // Dummy to not crash RegisterClassInfo.
+        static const MCPhysReg NoCalleeSavedReg = PPU::NoRegister;
+        return &NoCalleeSavedReg;
+    }
+    }
   }
   return PPUBaseRegisterInfo::getCalleeSavedRegs(MF);
 }
 
 const MCPhysReg * PPURegisterInfo::getCalleeSavedRegsViaCopy(const MachineFunction *MF) const {
   return nullptr;
+}
+
+const uint32_t *PPURegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+                                                     CallingConv::ID CC) const {
+
+  if (!PPU::isCompute(CC)) {
+      return PPUBaseRegisterInfo::getCallPreservedMask(MF, CC);
+  }
+  switch (CC) {
+  case CallingConv::C:
+  case CallingConv::Fast:
+  case CallingConv::Cold:
+    return CSR_PPU_HighRegs_RegMask;
+  default:
+    return nullptr;
+  }
 }
 
 Register PPURegisterInfo::getFrameRegister(const MachineFunction &MF) const {
@@ -508,7 +539,6 @@ bool PPURegisterInfo::trackLivenessAfterRegAlloc(const MachineFunction &MF) cons
   return true;
 }
 
-/* FIXME
 int64_t PPURegisterInfo::getMUBUFInstrOffset(const MachineInstr *MI) const {
   assert(PPUInstrInfo::isMUBUF(*MI));
 
@@ -528,8 +558,7 @@ int64_t PPURegisterInfo::getFrameIndexInstrOffset(const MachineInstr *MI,
 
   return getMUBUFInstrOffset(MI);
 }
-*/
-/*
+
 bool PPURegisterInfo::needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const {
   if (!MI->mayLoadOrStore())
     return false;
@@ -538,7 +567,6 @@ bool PPURegisterInfo::needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const 
 
   return !isUInt<12>(FullOffset);
 }
-*/
 
 void PPURegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
                                                   unsigned BaseReg,
@@ -555,27 +583,21 @@ void PPURegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
   const PPUInstrInfo *TII = Subtarget.getInstrInfo();
 
   if (Offset == 0) {
-    // FIXME BuildMI(*MBB, Ins, DL, TII->get(PPU::V_MOV_B32_e32), BaseReg)
-    BuildMI(*MBB, Ins, DL, TII->get(PPU::VADD), BaseReg)
+    BuildMI(*MBB, Ins, DL, TII->get(PPU::V_MOV_B32_e32), BaseReg)
       .addFrameIndex(FrameIdx);
     return;
   }
 
   MachineRegisterInfo &MRI = MF->getRegInfo();
-  // TODO Register OffsetReg = MRI.createVirtualRegister(&PPU::SReg_32_XM0RegClass);
   Register OffsetReg = MRI.createVirtualRegister(&PPU::SPR_32RegClass);
 
-  // Register FIReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
   Register FIReg = MRI.createVirtualRegister(&PPU::VPR_32RegClass);
 
-  // FIXME BuildMI(*MBB, Ins, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
-  BuildMI(*MBB, Ins, DL, TII->get(PPU::ADD), OffsetReg)
+  BuildMI(*MBB, Ins, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
     .addImm(Offset);
-  // FIXME BuildMI(*MBB, Ins, DL, TII->get(PPU::V_MOV_B32_e32), FIReg)
-  BuildMI(*MBB, Ins, DL, TII->get(PPU::VADD), FIReg)
+  BuildMI(*MBB, Ins, DL, TII->get(PPU::V_MOV_B32_e32), FIReg)
     .addFrameIndex(FrameIdx);
 
-  // TII->getAddNoCarry(*MBB, Ins, DL, BaseReg)
   TII->getAddNoCarry(*MBB, Ins, DL, BaseReg)
     .addReg(OffsetReg, RegState::Kill)
     .addReg(FIReg)
@@ -602,10 +624,10 @@ void PPURegisterInfo::resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
     }
   }
 #endif
-/* FIXME
+
   MachineOperand *FIOp = TII->getNamedOperand(MI, PPU::OpName::vaddr);
   assert(FIOp && FIOp->isFI() && "frame index must be address operand");
-  // FIXME assert(TII->isMUBUF(MI));
+  assert(TII->isMUBUF(MI));
   assert(TII->getNamedOperand(MI, PPU::OpName::soffset)->getReg() ==
          MF->getInfo<PPUMachineFunctionInfo>()->getFrameOffsetReg() &&
          "should only be seeing frame offset relative FrameIndex");
@@ -617,9 +639,8 @@ void PPURegisterInfo::resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
 
   FIOp->ChangeToRegister(BaseReg, false);
   OffsetOp->setImm(NewOffset);
-  */
 }
-/*
+
 bool PPURegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
                                         unsigned BaseReg,
                                         int64_t Offset) const {
@@ -630,7 +651,7 @@ bool PPURegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
 
   return isUInt<12>(NewOffset);
 }
-*/
+
 
 const TargetRegisterClass *PPURegisterInfo::getPointerRegClass(
   const MachineFunction &MF, unsigned Kind) const {
@@ -680,25 +701,25 @@ static unsigned getNumSubRegsForSpillOp(unsigned Op) {
   case PPU::SI_SPILL_V96_SAVE:
   case PPU::SI_SPILL_V96_RESTORE:
     return 3;
+  */
   case PPU::SI_SPILL_S64_SAVE:
   case PPU::SI_SPILL_S64_RESTORE:
   case PPU::SI_SPILL_V64_SAVE:
   case PPU::SI_SPILL_V64_RESTORE:
-  case PPU::SI_SPILL_A64_SAVE:
-  case PPU::SI_SPILL_A64_RESTORE:
+  // case PPU::SI_SPILL_A64_SAVE:
+  // case PPU::SI_SPILL_A64_RESTORE:
     return 2;
   case PPU::SI_SPILL_S32_SAVE:
   case PPU::SI_SPILL_S32_RESTORE:
   case PPU::SI_SPILL_V32_SAVE:
   case PPU::SI_SPILL_V32_RESTORE:
-  case PPU::SI_SPILL_A32_SAVE:
-  case PPU::SI_SPILL_A32_RESTORE:
-  */
+  // case PPU::SI_SPILL_A32_SAVE:
+  // case PPU::SI_SPILL_A32_RESTORE:
     return 1;
   default: llvm_unreachable("Invalid spill opcode");
   }
 }
-/*
+
 static int getOffsetMUBUFStore(unsigned Opc) {
   switch (Opc) {
   case PPU::BUFFER_STORE_DWORD_OFFEN:
@@ -709,8 +730,8 @@ static int getOffsetMUBUFStore(unsigned Opc) {
     return PPU::BUFFER_STORE_SHORT_OFFSET;
   case PPU::BUFFER_STORE_DWORDX2_OFFEN:
     return PPU::BUFFER_STORE_DWORDX2_OFFSET;
-  case PPU::BUFFER_STORE_DWORDX4_OFFEN:
-    return PPU::BUFFER_STORE_DWORDX4_OFFSET;
+  // case PPU::BUFFER_STORE_DWORDX4_OFFEN:
+  //   return PPU::BUFFER_STORE_DWORDX4_OFFSET;
   case PPU::BUFFER_STORE_SHORT_D16_HI_OFFEN:
     return PPU::BUFFER_STORE_SHORT_D16_HI_OFFSET;
   case PPU::BUFFER_STORE_BYTE_D16_HI_OFFEN:
@@ -734,8 +755,8 @@ static int getOffsetMUBUFLoad(unsigned Opc) {
     return PPU::BUFFER_LOAD_SSHORT_OFFSET;
   case PPU::BUFFER_LOAD_DWORDX2_OFFEN:
     return PPU::BUFFER_LOAD_DWORDX2_OFFSET;
-  case PPU::BUFFER_LOAD_DWORDX4_OFFEN:
-    return PPU::BUFFER_LOAD_DWORDX4_OFFSET;
+  // case PPU::BUFFER_LOAD_DWORDX4_OFFEN:
+  //  return PPU::BUFFER_LOAD_DWORDX4_OFFSET;
   case PPU::BUFFER_LOAD_UBYTE_D16_OFFEN:
     return PPU::BUFFER_LOAD_UBYTE_D16_OFFSET;
   case PPU::BUFFER_LOAD_UBYTE_D16_HI_OFFEN:
@@ -752,9 +773,7 @@ static int getOffsetMUBUFLoad(unsigned Opc) {
     return -1;
   }
 }
-*/
 
-/*
 // This differs from buildSpillLoadStore by only scavenging a VGPR. It does not
 // need to handle the case where an SGPR may need to be spilled while spilling.
 static bool buildMUBUFOffsetLoadStore(const PPUInstrInfo *TII,
@@ -773,8 +792,10 @@ static bool buildMUBUFOffsetLoadStore(const PPUInstrInfo *TII,
     return false;
 
   const MachineOperand *Reg = TII->getNamedOperand(*MI, PPU::OpName::vdata);
+  /*
   if (spillVGPRtoAGPR(MI, Index, 0, Reg->getReg(), false).getInstr())
     return true;
+    */
 
   MachineInstrBuilder NewMI =
       BuildMI(*MBB, MI, DL, TII->get(LoadStoreOp))
@@ -794,7 +815,6 @@ static bool buildMUBUFOffsetLoadStore(const PPUInstrInfo *TII,
     NewMI.add(*VDataIn);
   return true;
 }
-*/
 
 void PPURegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
                                          unsigned LoadStoreOp,
@@ -821,9 +841,7 @@ void PPURegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
 
   const unsigned EltSize = 4;
   const TargetRegisterClass *RC = getRegClassForReg(MF->getRegInfo(), ValueReg);
-  // FIXME unsigned NumSubRegs = PPU::getRegBitWidth(RC->getID()) / (EltSize * CHAR_BIT);
-  unsigned NumSubRegs = 0;
-  
+  unsigned NumSubRegs = PPU::getRegBitWidth(RC->getID()) / (EltSize * CHAR_BIT);
   unsigned Size = NumSubRegs * EltSize;
   int64_t Offset = InstOffset + MFI.getObjectOffset(Index);
   int64_t ScratchOffsetRegDelta = 0;
@@ -882,11 +900,12 @@ void PPURegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
       SrcDstRegState |= getKillRegState(IsKill);
     }
 
+    // skip AGPR part
   }
 
   if (ScratchOffsetRegDelta != 0) {
     // Subtract the offset we added to the ScratchOffset register.
-    BuildMI(*MBB, MI, DL, TII->get(PPU::SUB), ScratchOffsetReg)
+    BuildMI(*MBB, MI, DL, TII->get(PPU::S_SUB_U32), ScratchOffsetReg)
         .addReg(ScratchOffsetReg)
         .addImm(ScratchOffsetRegDelta);
   }
@@ -898,17 +917,16 @@ static std::pair<unsigned, unsigned> getSpillEltSize(unsigned SuperRegSize,
   if (SuperRegSize % 16 == 0) {
     // return { 16, Store ? PPU::S_BUFFER_STORE_DWORDX4_SGPR :
     //                      PPU::S_BUFFER_LOAD_DWORDX4_SGPR };
-    return { 16, Store ? PPU::SWX4_GPR :
-                         PPU::LWX4_GPR };
-  }
-
-  if (SuperRegSize % 8 == 0) {
-    return { 8, Store ? PPU::SWX2_GPR :
-                        PPU::SWX2_GPR };
   }
 #endif
-  return { 4, Store ? PPU::SW :
-                      PPU::LW};
+
+  if (SuperRegSize % 8 == 0) {
+    return { 8, Store ? PPU::S_BUFFER_STORE_DWORDX2_SGPR :
+                        PPU::S_BUFFER_LOAD_DWORDX2_SGPR };
+  }
+
+  return { 4, Store ? PPU::S_BUFFER_STORE_DWORD_SGPR :
+                      PPU::S_BUFFER_LOAD_DWORD_SGPR};
 }
 
 bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
@@ -1003,11 +1021,11 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
       int64_t Offset = (ST.getWavefrontSize() * FrOffset) + (EltSize * i);
       if (Offset != 0) {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::ADD), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::S_ADD_U32), OffsetReg)
           .addReg(FrameReg)
           .addImm(Offset);
       } else {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::SMOV), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
           .addReg(FrameReg);
       }
 
@@ -1034,14 +1052,12 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
 
       // Mark the "old value of vgpr" input undef only if this is the first sgpr
       // spill to this specific vgpr in the first basic block.
-      /* FIXME
       BuildMI(*MBB, MI, DL,
-              TII->getMCOpcodeFromPseudo(PPU::VWRITELANE),
+              TII->getMCOpcodeFromPseudo(PPU::V_WRITELANE_B32),
               Spill.VGPR)
         .addReg(SubReg, getKillRegState(IsKill))
         .addImm(Spill.Lane)
         .addReg(Spill.VGPR, VGPRDefined ? 0 : RegState::Undef);
-        */
 
       // FIXME: Since this spills to another register instead of an actual
       // frame index, we should delete the frame index when all references to
@@ -1058,7 +1074,7 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
       // TODO: Should VI try to spill to VGPR and then spill to SMEM?
 
       MachineInstrBuilder Mov
-        = BuildMI(*MBB, MI, DL, TII->get(PPU::VMOV), TmpVGPR)
+        = BuildMI(*MBB, MI, DL, TII->get(PPU::V_MOV_B32_e32), TmpVGPR)
         .addReg(SubReg, SubKillState);
 
       // There could be undef components of a spilled super register.
@@ -1077,15 +1093,13 @@ bool PPURegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
       MachineMemOperand *MMO
         = MF->getMachineMemOperand(PtrInfo, MachineMemOperand::MOStore,
                                    EltSize, MinAlign(Align, EltSize * i));
-      /* FIXME  
-      BuildMI(*MBB, MI, DL, TII->get(PPU::PPU_SPILL_V32_SAVE))
+      BuildMI(*MBB, MI, DL, TII->get(PPU::SI_SPILL_V32_SAVE))
         .addReg(TmpVGPR, RegState::Kill)      // src
         .addFrameIndex(Index)                 // vaddr
         .addReg(MFI->getScratchRSrcReg())     // srrsrc
         .addReg(MFI->getStackPtrOffsetReg())  // soffset
         .addImm(i * 4)                        // offset
         .addMemOperand(MMO);
-        */
     }
   }
 
@@ -1173,11 +1187,11 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       // Add i * 4 offset
       int64_t Offset = (ST.getWavefrontSize() * FrOffset) + (EltSize * i);
       if (Offset != 0) {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::ADD), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::S_ADD_U32), OffsetReg)
           .addReg(FrameReg)
           .addImm(Offset);
       } else {
-        BuildMI(*MBB, MI, DL, TII->get(PPU::SMOV), OffsetReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::S_MOV_B32), OffsetReg)
           .addReg(FrameReg);
       }
       auto MIB =
@@ -1196,7 +1210,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
     if (SpillToVGPR) {
       PPUMachineFunctionInfo::SpilledReg Spill = VGPRSpills[i];
       auto MIB =
-        BuildMI(*MBB, MI, DL, TII->getMCOpcodeFromPseudo(PPU::VREADLANE),
+        BuildMI(*MBB, MI, DL, TII->getMCOpcodeFromPseudo(PPU::V_READLANE_B32),
                 SubReg)
         .addReg(Spill.VGPR)
         .addImm(Spill.Lane);
@@ -1219,7 +1233,7 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       MachineMemOperand *MMO = MF->getMachineMemOperand(PtrInfo,
         MachineMemOperand::MOLoad, EltSize,
         MinAlign(Align, EltSize * i));
-/* FIXME
+
       BuildMI(*MBB, MI, DL, TII->get(PPU::SI_SPILL_V32_RESTORE), TmpVGPR)
         .addFrameIndex(Index)                 // vaddr
         .addReg(MFI->getScratchRSrcReg())     // srsrc
@@ -1230,9 +1244,9 @@ bool PPURegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       auto MIB =
         BuildMI(*MBB, MI, DL, TII->get(PPU::V_READFIRSTLANE_B32), SubReg)
         .addReg(TmpVGPR, RegState::Kill);
+
       if (NumSubRegs > 1)
         MIB.addReg(MI->getOperand(0).getReg(), RegState::ImplicitDefine);
-*/
     }
   }
 
@@ -1254,26 +1268,28 @@ bool PPURegisterInfo::eliminateSGPRToVGPRSpillFrameIndex(
   int FI,
   RegScavenger *RS) const {
   switch (MI->getOpcode()) {
-      /*
+  /*
   case PPU::SI_SPILL_S1024_SAVE:
   case PPU::SI_SPILL_S512_SAVE:
   case PPU::SI_SPILL_S256_SAVE:
   case PPU::SI_SPILL_S160_SAVE:
   case PPU::SI_SPILL_S128_SAVE:
   case PPU::SI_SPILL_S96_SAVE:
+  */
   case PPU::SI_SPILL_S64_SAVE:
   case PPU::SI_SPILL_S32_SAVE:
     return spillSGPR(MI, FI, RS, true);
+    /*
   case PPU::SI_SPILL_S1024_RESTORE:
   case PPU::SI_SPILL_S512_RESTORE:
   case PPU::SI_SPILL_S256_RESTORE:
   case PPU::SI_SPILL_S160_RESTORE:
   case PPU::SI_SPILL_S128_RESTORE:
   case PPU::SI_SPILL_S96_RESTORE:
+  */
   case PPU::SI_SPILL_S64_RESTORE:
   case PPU::SI_SPILL_S32_RESTORE:
     return restoreSGPR(MI, FI, RS, true);
-    */
   default:
     llvm_unreachable("not an SGPR spill instruction");
   }
@@ -1283,6 +1299,9 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                                         int SPAdj, unsigned FIOperandNum,
                                         RegScavenger *RS) const {
   MachineFunction *MF = MI->getParent()->getParent();
+  if (!PPU::isCompute(MF)) {
+      return PPUBaseRegisterInfo::eliminateFrameIndex(MI, SPAdj, FIOperandNum, RS);
+  }
   MachineBasicBlock *MBB = MI->getParent();
   PPUMachineFunctionInfo *MFI = MF->getInfo<PPUMachineFunctionInfo>();
   MachineFrameInfo &FrameInfo = MF->getFrameInfo();
@@ -1306,6 +1325,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     case PPU::SI_SPILL_S160_SAVE:
     case PPU::SI_SPILL_S128_SAVE:
     case PPU::SI_SPILL_S96_SAVE:
+    */
     case PPU::SI_SPILL_S64_SAVE:
     case PPU::SI_SPILL_S32_SAVE: {
       spillSGPR(MI, Index, RS);
@@ -1313,12 +1333,14 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     }
 
     // SGPR register restore
+    /*
     case PPU::SI_SPILL_S1024_RESTORE:
     case PPU::SI_SPILL_S512_RESTORE:
     case PPU::SI_SPILL_S256_RESTORE:
     case PPU::SI_SPILL_S160_RESTORE:
     case PPU::SI_SPILL_S128_RESTORE:
     case PPU::SI_SPILL_S96_RESTORE:
+    */
     case PPU::SI_SPILL_S64_RESTORE:
     case PPU::SI_SPILL_S32_RESTORE: {
       restoreSGPR(MI, Index, RS);
@@ -1326,19 +1348,22 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     }
 
     // VGPR register spill
+    /*
     case PPU::SI_SPILL_V1024_SAVE:
     case PPU::SI_SPILL_V512_SAVE:
     case PPU::SI_SPILL_V256_SAVE:
     case PPU::SI_SPILL_V160_SAVE:
     case PPU::SI_SPILL_V128_SAVE:
     case PPU::SI_SPILL_V96_SAVE:
+    */
     case PPU::SI_SPILL_V64_SAVE:
     case PPU::SI_SPILL_V32_SAVE:
+    /*
     case PPU::SI_SPILL_A1024_SAVE:
     case PPU::SI_SPILL_A512_SAVE:
     case PPU::SI_SPILL_A128_SAVE:
     case PPU::SI_SPILL_A64_SAVE:
-    case PPU::SI_SPILL_A32_SAVE: {
+    case PPU::SI_SPILL_A32_SAVE: */ {
       const MachineOperand *VData = TII->getNamedOperand(*MI,
                                                          PPU::OpName::vdata);
       assert(TII->getNamedOperand(*MI, PPU::OpName::soffset)->getReg() ==
@@ -1358,7 +1383,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     }
     case PPU::SI_SPILL_V32_RESTORE:
     case PPU::SI_SPILL_V64_RESTORE:
-    case PPU::SI_SPILL_V96_RESTORE:
+    /*case PPU::SI_SPILL_V96_RESTORE:
     case PPU::SI_SPILL_V128_RESTORE:
     case PPU::SI_SPILL_V160_RESTORE:
     case PPU::SI_SPILL_V256_RESTORE:
@@ -1368,7 +1393,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     case PPU::SI_SPILL_A64_RESTORE:
     case PPU::SI_SPILL_A128_RESTORE:
     case PPU::SI_SPILL_A512_RESTORE:
-    case PPU::SI_SPILL_A1024_RESTORE: {
+    case PPU::SI_SPILL_A1024_RESTORE:*/ {
       const MachineOperand *VData = TII->getNamedOperand(*MI,
                                                          PPU::OpName::vdata);
       assert(TII->getNamedOperand(*MI, PPU::OpName::soffset)->getReg() ==
@@ -1385,7 +1410,6 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       MI->eraseFromParent();
       break;
     }
-  */
 
     default: {
       const DebugLoc &DL = MI->getDebugLoc();
@@ -1404,37 +1428,31 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
         // If there's no free SGPR, in-place modify the FP
         Register DiffReg = TmpDiffReg.isValid() ? TmpDiffReg : FrameReg;
 
-        bool IsCopy = MI->getOpcode() == PPU::VMOV;
+        bool IsCopy = MI->getOpcode() == PPU::V_MOV_B32_e32;
         Register ResultReg = IsCopy ?
           MI->getOperand(0).getReg() :
           RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
-/*
-        BuildMI(*MBB, MI, DL, TII->get(PPU::SUB), DiffReg)
+
+        BuildMI(*MBB, MI, DL, TII->get(PPU::S_SUB_U32), DiffReg)
           .addReg(FrameReg)
           .addReg(MFI->getScratchWaveOffsetReg());
-*/
 
         int64_t Offset = FrameInfo.getObjectOffset(Index);
         if (Offset == 0) {
           // XXX - This never happens because of emergency scavenging slot at 0?
-          /*
           BuildMI(*MBB, MI, DL, TII->get(PPU::V_LSHRREV_B32_e64), ResultReg)
             .addImm(Log2_32(ST.getWavefrontSize()))
             .addReg(DiffReg);
-            */
         } else {
           Register ScaledReg =
             RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
 
           // FIXME: Assusmed VGPR use.
-          /*
           BuildMI(*MBB, MI, DL, TII->get(PPU::V_LSHRREV_B32_e64), ScaledReg)
             .addImm(Log2_32(ST.getWavefrontSize()))
             .addReg(DiffReg, RegState::Kill);
-            */
 
           // TODO: Fold if use instruction is another add of a constant.
-          /*
           if (PPU::isInlinableLiteral32(Offset, ST.hasInv2PiInlineImm())) {
 
             // FIXME: This can fail
@@ -1444,25 +1462,23 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
               .addImm(0); // clamp bit
           } else {
             Register ConstOffsetReg =
-              RS->scavengeRegister(&PPU::SReg_32_XM0RegClass, MI, 0, false);
+              RS->scavengeRegister(&PPU::SReg_32RegClass, MI, 0, false);
 
-            BuildMI(*MBB, MI, DL, TII->get(PPU::SMOV), ConstOffsetReg)
+            BuildMI(*MBB, MI, DL, TII->get(PPU::S_MOV_B32), ConstOffsetReg)
               .addImm(Offset);
             TII->getAddNoCarry(*MBB, MI, DL, ResultReg, *RS)
               .addReg(ConstOffsetReg, RegState::Kill)
               .addReg(ScaledReg, RegState::Kill)
               .addImm(0); // clamp bit
           }
-          */
         }
-/*
+
         if (!TmpDiffReg.isValid()) {
           // Restore the FP.
-          BuildMI(*MBB, MI, DL, TII->get(PPU::ADD), FrameReg)
+          BuildMI(*MBB, MI, DL, TII->get(PPU::S_ADD_U32), FrameReg)
             .addReg(FrameReg)
             .addReg(MFI->getScratchWaveOffsetReg());
         }
-        */
 
         // Don't introduce an extra copy if we're just materializing in a mov.
         if (IsCopy)
@@ -1471,7 +1487,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           FIOp.ChangeToRegister(ResultReg, false, false, true);
         return;
       }
-/*
+
       if (IsMUBUF) {
         // Disable offen so we don't need a 0 vgpr base.
         assert(static_cast<int>(FIOperandNum) ==
@@ -1494,7 +1510,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           return;
         }
       }
-*/
+
       // If the offset is simply too big, don't convert to a scratch wave offset
       // relative index.
 
@@ -1502,7 +1518,7 @@ void PPURegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       FIOp.ChangeToImmediate(Offset);
       if (!TII->isImmOperandLegal(*MI, FIOperandNum, FIOp)) {
         Register TmpReg = RS->scavengeRegister(&PPU::VPR_32RegClass, MI, 0);
-        BuildMI(*MBB, MI, DL, TII->get(PPU::VMOV), TmpReg)
+        BuildMI(*MBB, MI, DL, TII->get(PPU::V_MOV_B32_e32), TmpReg)
           .addImm(Offset);
         FIOp.ChangeToRegister(TmpReg, false, false, true);
       }
@@ -1524,6 +1540,10 @@ const TargetRegisterClass *PPURegisterInfo::getPhysRegClass(unsigned Reg) const 
     &PPU::SPR_32RegClass,
     &PPU::VReg_64RegClass,
     &PPU::SReg_64RegClass,
+    &PPU::SReg_32RegClass,
+    &PPU::SCC_CLASSRegClass,
+    &PPU::Pseudo_SReg_32RegClass,
+    &PPU::Pseudo_SReg_64RegClass
     /*
     &PPU::AReg_64RegClass,
     &PPU::VReg_96RegClass,
@@ -1743,7 +1763,6 @@ PPURegisterInfo::findUnusedRegister(const MachineRegisterInfo &MRI,
 
 ArrayRef<int16_t> PPURegisterInfo::getRegSplitParts(const TargetRegisterClass *RC,
                                                    unsigned EltSize) const {
-    /*
   if (EltSize == 4) {
     static const int16_t Sub0_31[] = {
       PPU::sub0, PPU::sub1, PPU::sub2, PPU::sub3,
@@ -1805,7 +1824,10 @@ ArrayRef<int16_t> PPURegisterInfo::getRegSplitParts(const TargetRegisterClass *R
       llvm_unreachable("unhandled register size");
     }
   }
-
+  if (EltSize == 8) {
+      llvm_unreachable("FIXME on getRegSplitParts with EltSize ==8");
+  }
+/*
   if (EltSize == 8) {
     static const int16_t Sub0_31_64[] = {
       PPU::sub0_sub1, PPU::sub2_sub3,
@@ -1966,9 +1988,9 @@ unsigned PPURegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
   switch (RC->getID()) {
   default:
     return PPUBaseRegisterInfo::getRegPressureLimit(RC, MF);
-  case PPU::TPRRegClassID:
+  case PPU::VPR_32RegClassID:
     return std::min(ST.getMaxNumVGPRs(Occupancy), ST.getMaxNumVGPRs(MF));
-  case PPU::GPRRegClassID:
+  case PPU::SPR_32RegClassID:
     return std::min(ST.getMaxNumSGPRs(Occupancy, true), ST.getMaxNumSGPRs(MF));
   }
 }
@@ -1988,19 +2010,18 @@ unsigned PPURegisterInfo::getRegPressureSetLimit(const MachineFunction &MF,
 
 const int *PPURegisterInfo::getRegUnitPressureSets(unsigned RegUnit) const {
   static const int Empty[] = { -1 };
-/*
   if (hasRegUnit(PPU::M0, RegUnit))
     return Empty;
-    */
   return PPUBaseRegisterInfo::getRegUnitPressureSets(RegUnit);
 }
 
 unsigned PPURegisterInfo::getReturnAddressReg(const MachineFunction &MF) const {
   // Not a callee saved register.
-  /*
-  return PPU::SGPR30_SGPR31;
-  */
-    return PPU::X1;
+  if (!PPU::isCompute(&MF)) {
+        // return PPUBaseRegisterInfo::getReturnAddressReg(MF);
+  }
+  // FIXME FIXME
+  return PPU::SPR30_SPR31;
 }
 
 const TargetRegisterClass *
@@ -2010,30 +2031,27 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
   switch (Size) {
   case 1: {
     switch (RB.getID()) {
-    case PPU::GPRRegBankID:
+    case PPU::SPRRegBankID:
       return &PPU::SReg_32RegClass;
-      /*
-    case PPU::VRRegBankID:
+    case PPU::VPRRegBankID:
       return &PPU::VPR_32RegClass;
     case PPU::VCCRegBankID:
-      return &PPU::SReg_32_XM0_XEXECRegClass 
+      return &PPU::SReg_32RegClass;
     case PPU::SCCRegBankID:
       // This needs to return an allocatable class, so don't bother returning
       // the dummy SCC class.
-      return &PPU::SReg_32_XM0RegClass;
-      */
+      return &PPU::SReg_32RegClass;
     default:
       llvm_unreachable("unknown register bank");
     }
   }
-    /*
   case 32:
-    return RB.getID() == PPU::VRRegBankID ? &PPU::VPR_32RegClass :
-                                                 &PPU::SReg_32_XM0RegClass;
+    return RB.getID() == PPU::VPRRegBankID ? &PPU::VPR_32RegClass :
+                                                 &PPU::SReg_32RegClass;
   case 64:
-    return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_64RegClass :
-                                                 &PPU::SReg_64_XEXECRegClass;
-  case 96:
+    return RB.getID() == PPU::VPRRegBankID ? &PPU::VReg_64RegClass :
+                                                 &PPU::SReg_64RegClass;
+  /*case 96:
     return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_96RegClass :
                                                  &PPU::SReg_96RegClass;
   case 128:
@@ -2050,11 +2068,9 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
                                                  &PPU::SReg_512RegClass;
                                                  */
   default:
-          /*
     if (Size < 32)
-      return RB.getID() == PPU::VRRegBankID ? &PPU::VPR_32RegClass :
-                                                   &PPU::SReg_32_XM0RegClass;
-                                                   */
+      return RB.getID() == PPU::VPRRegBankID ? &PPU::VPR_32RegClass :
+                                                   &PPU::SReg_32RegClass;
     return nullptr;
   }
 }
@@ -2088,7 +2104,6 @@ PPURegisterInfo::getRegClass(unsigned RCID) const {
 }
 
 // Find reaching register definition
-/*
 MachineInstr *PPURegisterInfo::findReachingDef(unsigned Reg, unsigned SubReg,
                                               MachineInstr &Use,
                                               MachineRegisterInfo &MRI,
@@ -2141,5 +2156,4 @@ MachineInstr *PPURegisterInfo::findReachingDef(unsigned Reg, unsigned SubReg,
 
   return Def;
 }
-*/
 

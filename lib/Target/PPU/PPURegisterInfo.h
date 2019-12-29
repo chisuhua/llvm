@@ -116,10 +116,7 @@ public:
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
   const MCPhysReg *getCalleeSavedRegsViaCopy(const MachineFunction *MF) const;
   const uint32_t *getCallPreservedMask(const MachineFunction &MF,
-                                       CallingConv::ID CC) const override
-  {
-      PPUBaseRegisterInfo::getCallPreservedMask(MF, CC);
-  }
+                                       CallingConv::ID CC) const override;
 
   // Stack access is very expensive. CSRs are also the high registers, and we
   // want to minimize the number of used registers.
@@ -140,10 +137,10 @@ public:
 
   int64_t getMUBUFInstrOffset(const MachineInstr *MI) const;
 
-  // int64_t getFrameIndexInstrOffset(const MachineInstr *MI,
-  //                                 int Idx) const override;
+  int64_t getFrameIndexInstrOffset(const MachineInstr *MI,
+                                   int Idx) const override;
 
-  // bool needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const override;
+  bool needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const override;
 
   void materializeFrameBaseRegister(MachineBasicBlock *MBB,
                                     unsigned BaseReg, int FrameIdx,
@@ -152,8 +149,8 @@ public:
   void resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
                          int64_t Offset) const override;
 
-  // bool isFrameOffsetLegal(const MachineInstr *MI, unsigned BaseReg,
-  //                        int64_t Offset) const override;
+  bool isFrameOffsetLegal(const MachineInstr *MI, unsigned BaseReg,
+                          int64_t Offset) const override;
 
   const TargetRegisterClass *getPointerRegClass(
     const MachineFunction &MF, unsigned Kind = 0) const override;

@@ -75,8 +75,9 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.hasStdExtF())
     addRegisterClass(MVT::f32, &PPU::FPR32RegClass);
-  if (Subtarget.hasStdExtD())
+  /*if (Subtarget.hasStdExtD())
     addRegisterClass(MVT::f64, &PPU::FPR64RegClass);
+    */
 
   // TODO copied from rvv
   if (STI.hasStdExtV())
@@ -1191,7 +1192,7 @@ static MachineBasicBlock *emitReadCycleWidePseudo(MachineInstr &MI,
 
   return DoneMBB;
 }
-
+/*
 static MachineBasicBlock *emitSplitF64Pseudo(MachineInstr &MI,
                                              MachineBasicBlock *BB) {
   assert(MI.getOpcode() == PPU::SplitF64Pseudo && "Unexpected instruction");
@@ -1255,6 +1256,7 @@ static MachineBasicBlock *emitBuildPairF64Pseudo(MachineInstr &MI,
   MI.eraseFromParent(); // The pseudo instruction is gone now.
   return BB;
 }
+*/
 
 static bool isSelectPseudo(MachineInstr &MI) {
   switch (MI.getOpcode()) {
@@ -1262,7 +1264,7 @@ static bool isSelectPseudo(MachineInstr &MI) {
     return false;
   case PPU::Select_GPR_Using_CC_GPR:
   case PPU::Select_FPR32_Using_CC_GPR:
-  case PPU::Select_FPR64_Using_CC_GPR:
+  // case PPU::Select_FPR64_Using_CC_GPR:
     return true;
   }
 }
@@ -1402,12 +1404,13 @@ PPUBaseTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return emitReadCycleWidePseudo(MI, BB);
   case PPU::Select_GPR_Using_CC_GPR:
   case PPU::Select_FPR32_Using_CC_GPR:
-  case PPU::Select_FPR64_Using_CC_GPR:
+  // case PPU::Select_FPR64_Using_CC_GPR:
     return emitSelectPseudo(MI, BB);
-  case PPU::BuildPairF64Pseudo:
+  /*case PPU::BuildPairF64Pseudo:
     return emitBuildPairF64Pseudo(MI, BB);
   case PPU::SplitF64Pseudo:
     return emitSplitF64Pseudo(MI, BB);
+    */
   }
 }
 
@@ -1444,10 +1447,12 @@ static const MCPhysReg ArgFPR32s[] = {
   PPU::F10_32, PPU::F11_32, PPU::F12_32, PPU::F13_32,
   PPU::F14_32, PPU::F15_32, PPU::F16_32, PPU::F17_32
 };
+/*
 static const MCPhysReg ArgFPR64s[] = {
   PPU::F10_64, PPU::F11_64, PPU::F12_64, PPU::F13_64,
   PPU::F14_64, PPU::F15_64, PPU::F16_64, PPU::F17_64
 };
+*/
 
 // Pass a 2*XLEN argument that has been split into two XLEN values through
 // registers or the stack as necessary.
@@ -1527,8 +1532,8 @@ static bool CC_PPU(const DataLayout &DL, PPUABI::ABI ABI, unsigned ValNo,
 
   if (State.getFirstUnallocated(ArgFPR32s) == array_lengthof(ArgFPR32s))
     UseGPRForF32 = true;
-  if (State.getFirstUnallocated(ArgFPR64s) == array_lengthof(ArgFPR64s))
-    UseGPRForF64 = true;
+  // if (State.getFirstUnallocated(ArgFPR64s) == array_lengthof(ArgFPR64s))
+  //  UseGPRForF64 = true;
 
   // From this point on, rely on UseGPRForF32, UseGPRForF64 and similar local
   // variables rather than directly checking against the target ABI.
@@ -1617,9 +1622,11 @@ static bool CC_PPU(const DataLayout &DL, PPUABI::ABI ABI, unsigned ValNo,
   // Allocate to a register if possible, or else a stack slot.
   Register Reg;
   if (ValVT == MVT::f32 && !UseGPRForF32)
-    Reg = State.AllocateReg(ArgFPR32s, ArgFPR64s);
+    llvm_unreachable("FIXME on using ArgFPR64");
+    // Reg = State.AllocateReg(ArgFPR32s, ArgFPR64s);
   else if (ValVT == MVT::f64 && !UseGPRForF64)
-    Reg = State.AllocateReg(ArgFPR64s, ArgFPR32s);
+    llvm_unreachable("FIXME on using ArgFPR64");
+    // Reg = State.AllocateReg(ArgFPR64s, ArgFPR32s);
   else
     Reg = State.AllocateReg(ArgGPRs);
   unsigned StackOffset = Reg ? 0 : State.AllocateStack(XLen / 8, XLen / 8);
@@ -1747,7 +1754,8 @@ static SDValue unpackFromRegLoc(SelectionDAG &DAG, SDValue Chain,
     RC = &PPU::FPR32RegClass;
     break;
   case MVT::f64:
-    RC = &PPU::FPR64RegClass;
+    llvm_unreachable("FIXME on unpackFromRegLoc");
+    // RC = &PPU::FPR64RegClass;
     break;
   }
 
@@ -2680,8 +2688,8 @@ PPUBaseTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TR
     case 'f':
       if (Subtarget.hasStdExtF() && VT == MVT::f32)
         return std::make_pair(0U, &PPU::FPR32RegClass);
-      if (Subtarget.hasStdExtD() && VT == MVT::f64)
-        return std::make_pair(0U, &PPU::FPR64RegClass);
+      // if (Subtarget.hasStdExtD() && VT == MVT::f64)
+      //  return std::make_pair(0U, &PPU::FPR64RegClass);
       break;
     default:
       break;
@@ -2736,6 +2744,7 @@ PPUBaseTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TR
   //
   // The second case is the ABI name of the register, so that frontends can also
   // use the ABI names in register constraint lists.
+  /* FIXME on float
   if (Subtarget.hasStdExtF() || Subtarget.hasStdExtD()) {
     std::pair<Register, Register> FReg =
         StringSwitch<std::pair<Register, Register>>(Constraint.lower())
@@ -2777,6 +2786,7 @@ PPUBaseTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TR
                  ? std::make_pair(FReg.second, &PPU::FPR64RegClass)
                  : std::make_pair(FReg.first, &PPU::FPR32RegClass);
   }
+                 */
 
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }

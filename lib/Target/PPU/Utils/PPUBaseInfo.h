@@ -450,11 +450,11 @@ bool getMUBUFHasSrsrc(unsigned Opc);
 
 LLVM_READONLY
 bool getMUBUFHasSoffset(unsigned Opc);
+*/
 
 LLVM_READONLY
 int getMCOpcode(uint16_t Opcode, unsigned Gen);
 
-*/
 void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
                                const MCSubtargetInfo *STI);
 
@@ -672,6 +672,12 @@ bool isCompute(CallingConv::ID CC);
 
 LLVM_READNONE
 bool isCompute(SelectionDAG *DAG);
+
+LLVM_READNONE
+bool isCompute(MachineFunction *MF);
+
+LLVM_READNONE
+bool isCompute(const MachineFunction *MF);
 
 LLVM_READNONE
 bool isEntryFunctionCC(CallingConv::ID CC);

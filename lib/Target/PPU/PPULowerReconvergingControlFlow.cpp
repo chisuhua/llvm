@@ -101,8 +101,8 @@ bool PPULowerReconvergingControlFlow::runOnMachineFunction(MachineFunction &MF) 
       MachineInstr &MI = *II;
       unsigned Opcode = MI.getOpcode();
 
-      // if (Opcode == PPU::S_BRANCH) { FIXME reconverge
-      if (TII->isBranchOp(Opcode)) {
+      if (Opcode == PPU::S_BRANCH) { // FIXME reconverge
+      // if (TII->isBranchOp(Opcode)) {
         assert(!FinalSucc && !NonUniformBrcond && !HaveOtherTerminator &&
                "S_BRANCH must be last");
         FinalSucc = MI.getOperand(0).getMBB();

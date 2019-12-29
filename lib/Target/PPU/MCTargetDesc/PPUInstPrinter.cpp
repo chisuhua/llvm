@@ -38,8 +38,8 @@ using namespace llvm;
 #include "PPUGenAsmWriter.inc"
 
 // Include the auto-generated portion of the compress emitter.
-#define GEN_UNCOMPRESS_INSTR
-#include "PPUGenCompressInstEmitter.inc"
+// #define GEN_UNCOMPRESS_INSTR
+// #include "PPUGenCompressInstEmitter.inc"
 
 static cl::opt<bool>
     NoAliases("ppu-no-aliases",
@@ -51,8 +51,10 @@ void PPUInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
   bool Res = false;
   const MCInst *NewMI = MI;
   MCInst UncompressedMI;
+  /* TODO uncompress
   if (!NoAliases)
     Res = uncompressInst(UncompressedMI, *MI, MRI, STI);
+    */
   if (Res)
     NewMI = const_cast<MCInst *>(&UncompressedMI);
   if (NoAliases || !printAliasInstr(NewMI, STI, O))
@@ -1427,7 +1429,6 @@ void PPUInstPrinter::printWaitFlag(const MCInst *MI, unsigned OpNo,
   }
   */
 }
-/* TODO
 void PPUInstPrinter::printHwreg(const MCInst *MI, unsigned OpNo,
                                    const MCSubtargetInfo &STI, raw_ostream &O) {
   unsigned Id;
@@ -1450,7 +1451,6 @@ void PPUInstPrinter::printHwreg(const MCInst *MI, unsigned OpNo,
   }
   O << ')';
 }
-*/
 
 void PPUInstPrinter::printEndpgm(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI,

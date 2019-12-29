@@ -363,8 +363,8 @@ protected:
   bool HasFmaMixInsts {false};
   bool HasMovrel {false};
   bool HasVPRIndexMode {true};
-  bool HasScalarStores;
-  bool HasScalarAtomics;
+  bool HasScalarStores {true};
+  bool HasScalarAtomics {true};
   /*
   bool HasSDWAOmod;
   bool HasSDWAScalar;
@@ -377,26 +377,22 @@ protected:
   bool HasDPP8;
   bool HasR128A16;
   bool HasNSAEncoding;
-  bool HasDLInsts;
   */
-  bool HasDot1Insts;
-  bool HasDot2Insts;
-  bool HasDot3Insts;
-  bool HasDot4Insts;
-  bool HasDot5Insts;
-  bool HasDot6Insts;
-  bool HasPkFmacF16Inst;
-  /*
-  bool HasAtomicFaddInsts;
-  */
+  bool HasDLInsts {false};
+  bool HasDot1Insts {false};
+  bool HasDot2Insts {false};
+  bool HasDot3Insts {false};
+  bool HasDot4Insts {false};
+  bool HasDot5Insts {false};
+  bool HasDot6Insts {false};
+  bool HasPkFmacF16Inst {false};
+  bool HasAtomicFaddInsts {false};
   bool EnableSRAMECC;
   // bool DoesNotSupportSRAMECC;
   bool HasNoSdstCMPX;
   // bool HasVscnt;
-  bool HasVOP3Literal;
-  /*
-  bool HasNoDataDepHazard;
-  */
+  bool HasVOP3Literal {false};
+  bool HasNoDataDepHazard {false};
   bool HasRegisterBanking;
   bool HasMAIInsts;
   bool FlatAddressSpace;
@@ -416,13 +412,14 @@ protected:
   short TexVTXClauseSize;
   */
   bool ScalarizeGlobal;
-/*
+
   bool HasVcmpxPermlaneHazard;
   bool HasVMEMtoScalarWriteHazard;
   bool HasSMEMtoVectorWriteHazard;
   bool HasInstFwdPrefetchBug;
   bool HasVcmpxExecWARHazard;
   bool HasLdsBranchVmemWARHazard;
+  /*
   bool HasNSAtoVMEMBug;
   bool HasOffset3fBug;
   bool HasFlatSegmentOffsetBug;
@@ -493,6 +490,8 @@ public:
   */
 
   bool hasAddr64() const { return false; }
+
+  bool hasOnlyRevVALUShifts() const { return true; }
 /*
   bool hasBFE() const { return true; }
 
@@ -600,9 +599,9 @@ public:
 
 /*
   bool hasSDWAOutModsVOPC() const { return HasSDWAOutModsVOPC; }
+*/
 
   bool hasDLInsts() const { return HasDLInsts; }
-*/
 
   bool hasRegisterBanking() const {
     return HasRegisterBanking;
@@ -687,6 +686,15 @@ public:
     return true;
   }
 
+  bool hasScalarStores() const {
+    return HasScalarStores;
+  }
+
+  bool hasScalarAtomics() const {
+    return HasScalarAtomics;
+  }
+
+
   bool hasLDSFPAtomics() const {
     // return GFX8Insts;
     return false;
@@ -721,7 +729,51 @@ public:
     return HasDot6Insts;
   }
 
+  bool hasPkFmacF16Inst() const {
+    return HasPkFmacF16Inst;
+  }
 
+  bool hasAtomicFaddInsts() const {
+    return HasAtomicFaddInsts;
+  }
+
+  bool hasVOP3Literal() const {
+    return HasVOP3Literal;
+  }
+
+  bool hasNoDataDepHazard() const {
+    return HasNoDataDepHazard;
+  }
+
+  /// A read of an SGPR by SMRD instruction requires 4 wait states when the SGPR
+  /// was written by a VALU instruction.
+  bool hasSMRDReadVALUDefHazard() const {
+    // TODO return getGeneration() == SOUTHERN_ISLANDS;
+    return false;
+  }
+
+  /// A read of an SGPR by a VMEM instruction requires 5 wait states when the
+  /// SGPR was written by a VALU Instruction.
+  bool hasVMEMReadSGPRVALUDefHazard() const {
+    // return getGeneration() >= VOLCANIC_ISLANDS;
+    return true;
+  }
+
+  bool hasRFEHazards() const {
+    // return getGeneration() >= VOLCANIC_ISLANDS;
+    return true;
+  }
+
+  bool hasSMovFedHazard() const {
+    // return getGeneration() == AMDGPUSubtarget::GFX9;
+    return false;
+  }
+
+  /// Number of hazard wait states for s_setreg_b32/s_setreg_imm32_b32.
+  unsigned getSetRegWaitStates() const {
+    // return getGeneration() <= SEA_ISLANDS ? 1 : 2;
+    return 1;
+  }
 
   bool hasMadF16() const;
 
@@ -737,6 +789,27 @@ public:
   bool has12DWordStoreHazard() const {
     return true;
   }
+
+  bool hasVcmpxPermlaneHazard() const {
+    return HasVcmpxPermlaneHazard;
+  }
+
+  bool hasVMEMtoScalarWriteHazard() const {
+    return HasVMEMtoScalarWriteHazard;
+  }
+
+  bool hasSMEMtoVectorWriteHazard() const {
+    return HasSMEMtoVectorWriteHazard;
+  }
+
+  bool hasVcmpxExecWARHazard() const {
+    return HasVcmpxExecWARHazard;
+  }
+
+  bool hasLdsBranchVmemWARHazard() const {
+    return HasLdsBranchVmemWARHazard;
+  }
+
 
   /// Return the maximum number of waves per SIMD for kernels using \p SGPRs
   /// SGPRs

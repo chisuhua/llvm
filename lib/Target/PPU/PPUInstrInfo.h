@@ -111,8 +111,8 @@ private:
     SCC_FALSE = -1,
     VCCNZ = 2,
     VCCZ = -2,
-    EXECNZ = -3,
-    EXECZ = 3
+    TMSKNZ = -3,
+    TMSKZ = 3
   };
 
   using SetVectorType = SmallSetVector<MachineInstr *, 32>;
@@ -1002,20 +1002,20 @@ public:
 
   std::pair<unsigned, unsigned>
   decomposeMachineOperandsTargetFlags(unsigned TF) const override;
-/*
+
   ArrayRef<std::pair<int, const char *>>
   getSerializableTargetIndices() const override;
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
-*/
-/*
+
+
   ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                  const ScheduleDAG *DAG) const override;
 
   ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const MachineFunction &MF) const override;
-*/
+
   bool isBasicBlockPrologue(const MachineInstr &MI) const override;
 
   /// Return a partially built integer add instruction without carry.
@@ -1107,13 +1107,13 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
                                    Register VReg,
                                    const MachineInstr &DefMI);
 
-/*
   LLVM_READONLY
   int getVOPe64(uint16_t Opcode);
 
   LLVM_READONLY
   int getVOPe32(uint16_t Opcode);
 
+/*
   LLVM_READONLY
   int getSDWAOp(uint16_t Opcode);
 
@@ -1122,13 +1122,13 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
 
   LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);
+  */
 
   LLVM_READONLY
   int getCommuteRev(uint16_t Opcode);
 
   LLVM_READONLY
   int getCommuteOrig(uint16_t Opcode);
-  */
 
   LLVM_READONLY
   int getAddr64Inst(uint16_t Opcode);
@@ -1158,6 +1158,7 @@ bool execMayBeModifiedBeforeAnyUse(const MachineRegisterInfo &MRI,
   LLVM_READONLY
   int getVCMPXNoSDstOp(uint16_t Opcode);
 
+  FIXME
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);
   const uint64_t RSRC_INDEX_STRIDE_SHIFT = (32 + 21);

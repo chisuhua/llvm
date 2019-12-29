@@ -116,7 +116,7 @@ class PPUReg32<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
 // Because PPUReg64 register have AsmName and AltNames that alias with their
 // 32-bit sub-register, PPUAsmParser will need to coerce a register number
 // from a PPUReg32 to the equivalent PPUReg64 when appropriate.
-def sub_32_rv : SubRegIndex<32>;
+/* def sub_32_rv : SubRegIndex<32>;
 class PPUReg64<PPUReg32 subreg> : Register<""> {
   let HWEncoding{4-0} = subreg.HWEncoding{4-0};
   let SubRegs = [subreg];
@@ -124,6 +124,7 @@ class PPUReg64<PPUReg32 subreg> : Register<""> {
   let AsmName = subreg.AsmName;
   let AltNames = subreg.AltNames;
 }
+*/
 
 def ABIRegAltName : RegAltNameIndex;
 } // Namespace = "PPU"
@@ -290,11 +291,12 @@ let RegAltNameIndices = [ABIRegAltName] in {
   def F29_32 : PPUReg32<29,"f29", ["ft9"]>, DwarfRegNum<[61]>;
   def F30_32 : PPUReg32<30,"f30", ["ft10"]>, DwarfRegNum<[62]>;
   def F31_32 : PPUReg32<31,"f31", ["ft11"]>, DwarfRegNum<[63]>;
-
+/*
   foreach Index = 0-31 in {
     def F#Index#_64 : PPUReg64<!cast<PPUReg32>("F"#Index#"_32")>,
       DwarfRegNum<[!add(Index, 32)]>;
   }
+  */
 }
 
 // The order of registers represents the preferred allocation sequence,
@@ -314,6 +316,7 @@ def FPR32C : RegisterClass<"PPU", [f32], 32, (add
 
 // The order of registers represents the preferred allocation sequence,
 // meaning caller-save regs are listed before callee-save.
+/*
 def FPR64 : RegisterClass<"PPU", [f64], 64, (add
     (sequence "F%u_64", 0, 7),
     (sequence "F%u_64", 10, 17),
@@ -326,6 +329,7 @@ def FPR64C : RegisterClass<"PPU", [f64], 64, (add
   (sequence "F%u_64", 10, 15),
   (sequence "F%u_64", 8, 9)
 )>;
+*/
 
 // Vector registers
 let RegAltNameIndices = [ABIRegAltName] in {
@@ -509,13 +513,12 @@ def SPR_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
 // SPR 64-bit registers
 def SPR_64Regs : PPURegisterTuples<getSubRegs<2>.ret, SPR_32, 105, 2, 2, "s">;
 
-/*
 // SPR 96-bit registers. No operations use these, but for symmetry with 96-bit VGPRs.
 def SPR_96Regs : PPURegisterTuples<getSubRegs<3>.ret, SPR_32, 105, 3, 3, "s">;
 
 // SPR 128-bit registers
 def SPR_128b : PPURegisterTuples<getSubRegs<4>.ret, SPR_32, 105, 4, 4, "s">;
-
+/*
 // SPR 160-bit registers. No operations use these, but for symmetry with 160-bit VGPRs.
 def SPR_160b : PPURegisterTuples<getSubRegs<5>.ret, SPR_32, 123, 4, 5, "s">;
 
@@ -540,13 +543,12 @@ def VPR_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16, p2, p3, p5,
 // VGPR 64-bit registers
 def VPR_64 : PPURegisterTuples<getSubRegs<2>.ret, VPR_32, 255, 1, 2, "v">;
 
-/*
 // VGPR 96-bit registers
 def VPR_96b : PPURegisterTuples<getSubRegs<3>.ret, VPR_32, 255, 1, 3, "v">;
 
 // VGPR 128-bit registers
 def VPR_128b : PPURegisterTuples<getSubRegs<4>.ret, VPR_32, 255, 1, 4, "v">;
-
+/*
 // VGPR 160-bit registers
 def VPR_160b : PPURegisterTuples<getSubRegs<5>.ret, VPR_32, 255, 1, 5, "v">;
 

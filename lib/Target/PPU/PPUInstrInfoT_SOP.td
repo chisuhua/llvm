@@ -374,7 +374,6 @@ def S_CBRANCH_I_FORK : SOPK_Pseudo <
 >;
 
 // use CSR instread
-/*
 let mayLoad = 1 in {
 def S_GETREG_B32 : SOPK_Pseudo <
   "s_getreg_b32",
@@ -389,7 +388,7 @@ def S_SETREG_B32 : SOPK_Pseudo <
   "s_setreg_b32",
   (outs), (ins SReg_32:$sdst, hwreg:$simm16),
   "$simm16, $sdst",
-  [(AMDGPUsetreg i32:$sdst, (i16 timm:$simm16))]
+  [(PPUsetreg i32:$sdst, (i16 timm:$simm16))]
 >;
 
 // FIXME: Not on SI?
@@ -404,7 +403,6 @@ def S_SETREG_IMM32_B32 : SOPK_Pseudo <
 }
 
 } // End hasSideEffects = 1
-*/
 
   def S_CALL_B64 : SOPK_Pseudo<
       "s_call_b64",
@@ -628,13 +626,35 @@ def S_ICACHE_INV : SOPP <0x00000013, (ins), "s_icache_inv"> {
   let simm16 = 0;
 }
 
+
+
+
 let SubtargetPredicate = HasVPRIndexMode in {
 def S_SET_GPR_IDX_OFF : SOPP<0x1c, (ins), "s_set_gpr_idx_off"> {
   let simm16 = 0;
 }
 }
+} // End hasSideEffects
 
 
+let SubtargetPredicate = HasVPRIndexMode in {
+def S_SET_GPR_IDX_MODE : SOPP<0x1d, (ins VPRIdxMode:$simm16),
+  "s_set_gpr_idx_mode$simm16"> {
+  let Defs = [M0];
+}
+}
+
+let SubtargetPredicate = isGFX10Plus in {
+  def S_INST_PREFETCH :
+    SOPP<0x020, (ins s16imm:$simm16), "s_inst_prefetch $simm16">;
+  def S_CLAUSE :
+    SOPP<0x021, (ins s16imm:$simm16), "s_clause $simm16">;
+  def S_WAITCNT_IDLE :
+    SOPP <0x022, (ins), "s_wait_idle"> {
+      let simm16 = 0;
+    }
+  def S_WAITCNT_DEPCTR :
+    SOPP <0x023, (ins s16imm:$simm16), "s_waitcnt_depctr $simm16">;
   def S_ROUND_MODE :
     SOPP<0x024, (ins s16imm:$simm16), "s_round_mode $simm16">;
   def S_DENORM_MODE :
@@ -642,19 +662,18 @@ def S_SET_GPR_IDX_OFF : SOPP<0x1c, (ins), "s_set_gpr_idx_off"> {
     [(SIdenorm_mode (i32 timm:$simm16))]> {
       let hasSideEffects = 1;
     }
-
-} // End hasSideEffects
+  def S_TTRACEDATA_IMM :
+    SOPP<0x028, (ins s16imm:$simm16), "s_ttracedata_imm $simm16">;
+} // End SubtargetPredicate = isGFX10Plus
 
 
 //===----------------------------------------------------------------------===//
 // S_GETREG_B32 Intrinsic Pattern.
 //===----------------------------------------------------------------------===//
-/*
 def : PPUPat <
   (int_ppu_s_getreg imm:$simm16),
   (S_GETREG_B32 (as_i16imm $simm16))
 >;
-*/
 
 //===----------------------------------------------------------------------===//
 // SOP1 Patterns
@@ -729,186 +748,186 @@ def : PPUPat<
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
-// SOP1 - GFX10.
+// SOP1 - ppu.
 //===----------------------------------------------------------------------===//
 
-class Select_gfx10<string opName> : PPUMCInstr<opName, PPUEncodingFamily.PPU> {
+class Select_ppu<string opName> : PPUMCInstr<opName, PPUEncodingFamily.PPU> {
   Predicate AssemblerPredicate = isPPT;
   string DecoderNamespace      = "PPU";
 }
 
-multiclass SOP1_Real_gfx10<bits<8> op> {
-  def _gfx10 : SOP1_Real<op, !cast<SOP1_Pseudo>(NAME)>,
-               Select_gfx10<!cast<SOP1_Pseudo>(NAME).Mnemonic>;
+multiclass SOP1_Real_ppu<bits<8> op> {
+  def _ppu : SOP1_Real<op, !cast<SOP1_Pseudo>(NAME)>,
+               Select_ppu<!cast<SOP1_Pseudo>(NAME).Mnemonic>;
 }
 
-// defm S_BITREPLICATE_B64_B32 : SOP1_Real_gfx10<0x03b>;
-defm S_AND_SAVETMSK_B32     : SOP1_Real_gfx10<0x03c>;
-defm S_OR_SAVETMSK_B32      : SOP1_Real_gfx10<0x03d>;
-defm S_XOR_SAVETMSK_B32     : SOP1_Real_gfx10<0x03e>;
-defm S_ANDN2_SAVETMSK_B32   : SOP1_Real_gfx10<0x03f>;
-defm S_ORN2_SAVETMSK_B32    : SOP1_Real_gfx10<0x040>;
-defm S_NAND_SAVETMSK_B32    : SOP1_Real_gfx10<0x041>;
-defm S_NOR_SAVETMSK_B32     : SOP1_Real_gfx10<0x042>;
-defm S_XNOR_SAVETMSK_B32    : SOP1_Real_gfx10<0x043>;
-defm S_ANDN1_SAVETMSK_B32   : SOP1_Real_gfx10<0x044>;
-defm S_ORN1_SAVETMSK_B32    : SOP1_Real_gfx10<0x045>;
-defm S_ANDN1_WRTMSK_B32     : SOP1_Real_gfx10<0x046>;
-defm S_ANDN2_WRTMSK_B32     : SOP1_Real_gfx10<0x047>;
-defm S_MOVRELSD_2_B32       : SOP1_Real_gfx10<0x049>;
+// defm S_BITREPLICATE_B64_B32 : SOP1_Real_ppu<0x03b>;
+defm S_AND_SAVETMSK_B32     : SOP1_Real_ppu<0x03c>;
+defm S_OR_SAVETMSK_B32      : SOP1_Real_ppu<0x03d>;
+defm S_XOR_SAVETMSK_B32     : SOP1_Real_ppu<0x03e>;
+defm S_ANDN2_SAVETMSK_B32   : SOP1_Real_ppu<0x03f>;
+defm S_ORN2_SAVETMSK_B32    : SOP1_Real_ppu<0x040>;
+defm S_NAND_SAVETMSK_B32    : SOP1_Real_ppu<0x041>;
+defm S_NOR_SAVETMSK_B32     : SOP1_Real_ppu<0x042>;
+defm S_XNOR_SAVETMSK_B32    : SOP1_Real_ppu<0x043>;
+defm S_ANDN1_SAVETMSK_B32   : SOP1_Real_ppu<0x044>;
+defm S_ORN1_SAVETMSK_B32    : SOP1_Real_ppu<0x045>;
+defm S_ANDN1_WRTMSK_B32     : SOP1_Real_ppu<0x046>;
+defm S_ANDN2_WRTMSK_B32     : SOP1_Real_ppu<0x047>;
+defm S_MOVRELSD_2_B32       : SOP1_Real_ppu<0x049>;
 
-defm S_MOV_B32            : SOP1_Real_gfx10<0x003>;
-defm S_MOV_B64            : SOP1_Real_gfx10<0x004>;
-defm S_CMOV_B32           : SOP1_Real_gfx10<0x005>;
-defm S_CMOV_B64           : SOP1_Real_gfx10<0x006>;
-defm S_NOT_B32            : SOP1_Real_gfx10<0x007>;
-defm S_NOT_B64            : SOP1_Real_gfx10<0x008>;
-defm S_WQM_B32            : SOP1_Real_gfx10<0x009>;
-defm S_WQM_B64            : SOP1_Real_gfx10<0x00a>;
-defm S_BREV_B32           : SOP1_Real_gfx10<0x00b>;
-// defm S_BREV_B64           : SOP1_Real_gfx10<0x00c>;
-defm S_BCNT0_I32_B32      : SOP1_Real_gfx10<0x00d>;
-// defm S_BCNT0_I32_B64      : SOP1_Real_gfx10<0x00e>;
-defm S_BCNT1_I32_B32      : SOP1_Real_gfx10<0x00f>;
-// defm S_BCNT1_I32_B64      : SOP1_Real_gfx10<0x010>;
-defm S_FF0_I32_B32        : SOP1_Real_gfx10<0x011>;
-// defm S_FF0_I32_B64        : SOP1_Real_gfx10<0x012>;
-defm S_FF1_I32_B32        : SOP1_Real_gfx10<0x013>;
-// defm S_FF1_I32_B64        : SOP1_Real_gfx10<0x014>;
-defm S_FLBIT_I32_B32      : SOP1_Real_gfx10<0x015>;
-// defm S_FLBIT_I32_B64      : SOP1_Real_gfx10<0x016>;
-defm S_FLBIT_I32          : SOP1_Real_gfx10<0x017>;
-// defm S_FLBIT_I32_I64      : SOP1_Real_gfx10<0x018>;
-defm S_SEXT_I32_I8        : SOP1_Real_gfx10<0x019>;
-defm S_SEXT_I32_I16       : SOP1_Real_gfx10<0x01a>;
-defm S_BITSET0_B32        : SOP1_Real_gfx10<0x01b>;
-// defm S_BITSET0_B64        : SOP1_Real_gfx10<0x01c>;
-defm S_BITSET1_B32        : SOP1_Real_gfx10<0x01d>;
-// defm S_BITSET1_B64        : SOP1_Real_gfx10<0x01e>;
-defm S_GETPC_B64          : SOP1_Real_gfx10<0x01f>;
-defm S_SETPC_B64          : SOP1_Real_gfx10<0x020>;
-defm S_SWAPPC_B64         : SOP1_Real_gfx10<0x021>;
-// defm S_RFE_B64            : SOP1_Real_gfx10<0x022>;
-defm S_AND_SAVETMSK_B64   : SOP1_Real_gfx10<0x024>;
-defm S_OR_SAVETMSK_B64    : SOP1_Real_gfx10<0x025>;
-defm S_XOR_SAVETMSK_B64   : SOP1_Real_gfx10<0x026>;
-defm S_ANDN2_SAVETMSK_B64 : SOP1_Real_gfx10<0x027>;
-defm S_ORN2_SAVETMSK_B64  : SOP1_Real_gfx10<0x028>;
-defm S_NAND_SAVETMSK_B64  : SOP1_Real_gfx10<0x029>;
-defm S_NOR_SAVETMSK_B64   : SOP1_Real_gfx10<0x02a>;
-defm S_XNOR_SAVETMSK_B64  : SOP1_Real_gfx10<0x02b>;
-// defm S_QUADMASK_B32       : SOP1_Real_gfx10<0x02c>;
-// defm S_QUADMASK_B64       : SOP1_Real_gfx10<0x02d>;
-// defm S_MOVRELS_B32        : SOP1_Real_gfx10<0x02e>;
-// defm S_MOVRELS_B64        : SOP1_Real_gfx10<0x02f>;
-// defm S_MOVRELD_B32        : SOP1_Real_gfx10<0x030>;
-// defm S_MOVRELD_B64        : SOP1_Real_gfx10<0x031>;
-defm S_ABS_I32            : SOP1_Real_gfx10<0x034>;
-// defm S_MOV_FED_B32        : SOP1_Real_gfx10<0x035>;
+defm S_MOV_B32            : SOP1_Real_ppu<0x003>;
+defm S_MOV_B64            : SOP1_Real_ppu<0x004>;
+defm S_CMOV_B32           : SOP1_Real_ppu<0x005>;
+defm S_CMOV_B64           : SOP1_Real_ppu<0x006>;
+defm S_NOT_B32            : SOP1_Real_ppu<0x007>;
+defm S_NOT_B64            : SOP1_Real_ppu<0x008>;
+defm S_WQM_B32            : SOP1_Real_ppu<0x009>;
+defm S_WQM_B64            : SOP1_Real_ppu<0x00a>;
+defm S_BREV_B32           : SOP1_Real_ppu<0x00b>;
+// defm S_BREV_B64           : SOP1_Real_ppu<0x00c>;
+defm S_BCNT0_I32_B32      : SOP1_Real_ppu<0x00d>;
+// defm S_BCNT0_I32_B64      : SOP1_Real_ppu<0x00e>;
+defm S_BCNT1_I32_B32      : SOP1_Real_ppu<0x00f>;
+// defm S_BCNT1_I32_B64      : SOP1_Real_ppu<0x010>;
+defm S_FF0_I32_B32        : SOP1_Real_ppu<0x011>;
+// defm S_FF0_I32_B64        : SOP1_Real_ppu<0x012>;
+defm S_FF1_I32_B32        : SOP1_Real_ppu<0x013>;
+// defm S_FF1_I32_B64        : SOP1_Real_ppu<0x014>;
+defm S_FLBIT_I32_B32      : SOP1_Real_ppu<0x015>;
+// defm S_FLBIT_I32_B64      : SOP1_Real_ppu<0x016>;
+defm S_FLBIT_I32          : SOP1_Real_ppu<0x017>;
+// defm S_FLBIT_I32_I64      : SOP1_Real_ppu<0x018>;
+defm S_SEXT_I32_I8        : SOP1_Real_ppu<0x019>;
+defm S_SEXT_I32_I16       : SOP1_Real_ppu<0x01a>;
+defm S_BITSET0_B32        : SOP1_Real_ppu<0x01b>;
+// defm S_BITSET0_B64        : SOP1_Real_ppu<0x01c>;
+defm S_BITSET1_B32        : SOP1_Real_ppu<0x01d>;
+// defm S_BITSET1_B64        : SOP1_Real_ppu<0x01e>;
+defm S_GETPC_B64          : SOP1_Real_ppu<0x01f>;
+defm S_SETPC_B64          : SOP1_Real_ppu<0x020>;
+defm S_SWAPPC_B64         : SOP1_Real_ppu<0x021>;
+// defm S_RFE_B64            : SOP1_Real_ppu<0x022>;
+defm S_AND_SAVETMSK_B64   : SOP1_Real_ppu<0x024>;
+defm S_OR_SAVETMSK_B64    : SOP1_Real_ppu<0x025>;
+defm S_XOR_SAVETMSK_B64   : SOP1_Real_ppu<0x026>;
+defm S_ANDN2_SAVETMSK_B64 : SOP1_Real_ppu<0x027>;
+defm S_ORN2_SAVETMSK_B64  : SOP1_Real_ppu<0x028>;
+defm S_NAND_SAVETMSK_B64  : SOP1_Real_ppu<0x029>;
+defm S_NOR_SAVETMSK_B64   : SOP1_Real_ppu<0x02a>;
+defm S_XNOR_SAVETMSK_B64  : SOP1_Real_ppu<0x02b>;
+// defm S_QUADMASK_B32       : SOP1_Real_ppu<0x02c>;
+// defm S_QUADMASK_B64       : SOP1_Real_ppu<0x02d>;
+// defm S_MOVRELS_B32        : SOP1_Real_ppu<0x02e>;
+// defm S_MOVRELS_B64        : SOP1_Real_ppu<0x02f>;
+// defm S_MOVRELD_B32        : SOP1_Real_ppu<0x030>;
+// defm S_MOVRELD_B64        : SOP1_Real_ppu<0x031>;
+defm S_ABS_I32            : SOP1_Real_ppu<0x034>;
+// defm S_MOV_FED_B32        : SOP1_Real_ppu<0x035>;
 
 //===----------------------------------------------------------------------===//
 // SOP2 - GFX10.
 //===----------------------------------------------------------------------===//
 
-multiclass SOP2_Real_gfx10<bits<7> op> {
-  def _gfx10 : SOP2_Real<op, !cast<SOP2_Pseudo>(NAME)>,
-               Select_gfx10<!cast<SOP2_Pseudo>(NAME).Mnemonic>;
+multiclass SOP2_Real_ppu<bits<7> op> {
+  def _ppu : SOP2_Real<op, !cast<SOP2_Pseudo>(NAME)>,
+               Select_ppu<!cast<SOP2_Pseudo>(NAME).Mnemonic>;
 }
 
-defm S_LSHL1_ADD_U32   : SOP2_Real_gfx10<0x02e>;
-defm S_LSHL2_ADD_U32   : SOP2_Real_gfx10<0x02f>;
-defm S_LSHL3_ADD_U32   : SOP2_Real_gfx10<0x030>;
-defm S_LSHL4_ADD_U32   : SOP2_Real_gfx10<0x031>;
-defm S_PACK_LL_B32_B16 : SOP2_Real_gfx10<0x032>;
-defm S_PACK_LH_B32_B16 : SOP2_Real_gfx10<0x033>;
-defm S_PACK_HH_B32_B16 : SOP2_Real_gfx10<0x034>;
-defm S_MUL_HI_U32      : SOP2_Real_gfx10<0x035>;
-defm S_MUL_HI_I32      : SOP2_Real_gfx10<0x036>;
+defm S_LSHL1_ADD_U32   : SOP2_Real_ppu<0x02e>;
+defm S_LSHL2_ADD_U32   : SOP2_Real_ppu<0x02f>;
+defm S_LSHL3_ADD_U32   : SOP2_Real_ppu<0x030>;
+defm S_LSHL4_ADD_U32   : SOP2_Real_ppu<0x031>;
+defm S_PACK_LL_B32_B16 : SOP2_Real_ppu<0x032>;
+defm S_PACK_LH_B32_B16 : SOP2_Real_ppu<0x033>;
+defm S_PACK_HH_B32_B16 : SOP2_Real_ppu<0x034>;
+defm S_MUL_HI_U32      : SOP2_Real_ppu<0x035>;
+defm S_MUL_HI_I32      : SOP2_Real_ppu<0x036>;
 
-defm S_ADD_U32     : SOP2_Real_gfx10<0x000>;
-defm S_SUB_U32     : SOP2_Real_gfx10<0x001>;
-defm S_ADD_I32     : SOP2_Real_gfx10<0x002>;
-defm S_SUB_I32     : SOP2_Real_gfx10<0x003>;
-defm S_ADDC_U32    : SOP2_Real_gfx10<0x004>;
-defm S_SUBB_U32    : SOP2_Real_gfx10<0x005>;
-defm S_MIN_I32     : SOP2_Real_gfx10<0x006>;
-defm S_MIN_U32     : SOP2_Real_gfx10<0x007>;
-defm S_MAX_I32     : SOP2_Real_gfx10<0x008>;
-defm S_MAX_U32     : SOP2_Real_gfx10<0x009>;
-defm S_CSELECT_B32 : SOP2_Real_gfx10<0x00a>;
-defm S_CSELECT_B64 : SOP2_Real_gfx10<0x00b>;
-defm S_AND_B32     : SOP2_Real_gfx10<0x00e>;
-defm S_AND_B64     : SOP2_Real_gfx10<0x00f>;
-defm S_OR_B32      : SOP2_Real_gfx10<0x010>;
-defm S_OR_B64      : SOP2_Real_gfx10<0x011>;
-defm S_XOR_B32     : SOP2_Real_gfx10<0x012>;
-defm S_XOR_B64     : SOP2_Real_gfx10<0x013>;
-defm S_ANDN2_B32   : SOP2_Real_gfx10<0x014>;
-defm S_ANDN2_B64   : SOP2_Real_gfx10<0x015>;
-defm S_ORN2_B32    : SOP2_Real_gfx10<0x016>;
-defm S_ORN2_B64    : SOP2_Real_gfx10<0x017>;
-defm S_NAND_B32    : SOP2_Real_gfx10<0x018>;
-defm S_NAND_B64    : SOP2_Real_gfx10<0x019>;
-defm S_NOR_B32     : SOP2_Real_gfx10<0x01a>;
-defm S_NOR_B64     : SOP2_Real_gfx10<0x01b>;
-defm S_XNOR_B32    : SOP2_Real_gfx10<0x01c>;
-defm S_XNOR_B64    : SOP2_Real_gfx10<0x01d>;
-defm S_LSHL_B32    : SOP2_Real_gfx10<0x01e>;
-defm S_LSHL_B64    : SOP2_Real_gfx10<0x01f>;
-defm S_LSHR_B32    : SOP2_Real_gfx10<0x020>;
-defm S_LSHR_B64    : SOP2_Real_gfx10<0x021>;
-defm S_ASHR_I32    : SOP2_Real_gfx10<0x022>;
-defm S_ASHR_I64    : SOP2_Real_gfx10<0x023>;
-defm S_BFM_B32     : SOP2_Real_gfx10<0x024>;
-defm S_BFM_B64     : SOP2_Real_gfx10<0x025>;
-defm S_MUL_I32     : SOP2_Real_gfx10<0x026>;
-defm S_BFE_U32     : SOP2_Real_gfx10<0x027>;
-defm S_BFE_I32     : SOP2_Real_gfx10<0x028>;
-defm S_BFE_U64     : SOP2_Real_gfx10<0x029>;
-defm S_BFE_I64     : SOP2_Real_gfx10<0x02a>;
-defm S_ABSDIFF_I32 : SOP2_Real_gfx10<0x02c>;
+defm S_ADD_U32     : SOP2_Real_ppu<0x000>;
+defm S_SUB_U32     : SOP2_Real_ppu<0x001>;
+defm S_ADD_I32     : SOP2_Real_ppu<0x002>;
+defm S_SUB_I32     : SOP2_Real_ppu<0x003>;
+defm S_ADDC_U32    : SOP2_Real_ppu<0x004>;
+defm S_SUBB_U32    : SOP2_Real_ppu<0x005>;
+defm S_MIN_I32     : SOP2_Real_ppu<0x006>;
+defm S_MIN_U32     : SOP2_Real_ppu<0x007>;
+defm S_MAX_I32     : SOP2_Real_ppu<0x008>;
+defm S_MAX_U32     : SOP2_Real_ppu<0x009>;
+defm S_CSELECT_B32 : SOP2_Real_ppu<0x00a>;
+defm S_CSELECT_B64 : SOP2_Real_ppu<0x00b>;
+defm S_AND_B32     : SOP2_Real_ppu<0x00e>;
+defm S_AND_B64     : SOP2_Real_ppu<0x00f>;
+defm S_OR_B32      : SOP2_Real_ppu<0x010>;
+defm S_OR_B64      : SOP2_Real_ppu<0x011>;
+defm S_XOR_B32     : SOP2_Real_ppu<0x012>;
+defm S_XOR_B64     : SOP2_Real_ppu<0x013>;
+defm S_ANDN2_B32   : SOP2_Real_ppu<0x014>;
+defm S_ANDN2_B64   : SOP2_Real_ppu<0x015>;
+defm S_ORN2_B32    : SOP2_Real_ppu<0x016>;
+defm S_ORN2_B64    : SOP2_Real_ppu<0x017>;
+defm S_NAND_B32    : SOP2_Real_ppu<0x018>;
+defm S_NAND_B64    : SOP2_Real_ppu<0x019>;
+defm S_NOR_B32     : SOP2_Real_ppu<0x01a>;
+defm S_NOR_B64     : SOP2_Real_ppu<0x01b>;
+defm S_XNOR_B32    : SOP2_Real_ppu<0x01c>;
+defm S_XNOR_B64    : SOP2_Real_ppu<0x01d>;
+defm S_LSHL_B32    : SOP2_Real_ppu<0x01e>;
+defm S_LSHL_B64    : SOP2_Real_ppu<0x01f>;
+defm S_LSHR_B32    : SOP2_Real_ppu<0x020>;
+defm S_LSHR_B64    : SOP2_Real_ppu<0x021>;
+defm S_ASHR_I32    : SOP2_Real_ppu<0x022>;
+defm S_ASHR_I64    : SOP2_Real_ppu<0x023>;
+defm S_BFM_B32     : SOP2_Real_ppu<0x024>;
+defm S_BFM_B64     : SOP2_Real_ppu<0x025>;
+defm S_MUL_I32     : SOP2_Real_ppu<0x026>;
+defm S_BFE_U32     : SOP2_Real_ppu<0x027>;
+defm S_BFE_I32     : SOP2_Real_ppu<0x028>;
+defm S_BFE_U64     : SOP2_Real_ppu<0x029>;
+defm S_BFE_I64     : SOP2_Real_ppu<0x02a>;
+defm S_ABSDIFF_I32 : SOP2_Real_ppu<0x02c>;
 
 //===----------------------------------------------------------------------===//
 // SOPK - GFX10.
 //===----------------------------------------------------------------------===//
 
-multiclass SOPK_Real32_gfx10<bits<5> op> {
-  def _gfx10 : SOPK_Real32<op, !cast<SOPK_Pseudo>(NAME)>,
-               Select_gfx10<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+multiclass SOPK_Real32_ppu<bits<5> op> {
+  def _ppu : SOPK_Real32<op, !cast<SOPK_Pseudo>(NAME)>,
+               Select_ppu<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
 }
 
-multiclass SOPK_Real64_gfx10<bits<5> op> {
-  def _gfx10 : SOPK_Real64<op, !cast<SOPK_Pseudo>(NAME)>,
-               Select_gfx10<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
+multiclass SOPK_Real64_ppu<bits<5> op> {
+  def _ppu : SOPK_Real64<op, !cast<SOPK_Pseudo>(NAME)>,
+               Select_ppu<!cast<SOPK_Pseudo>(NAME).Mnemonic>;
 }
 
-// defm S_VERSION              : SOPK_Real32_gfx10<0x001>;
-defm S_CALL_B64             : SOPK_Real32_gfx10<0x016>;
-defm S_WAITCNT_VSCNT        : SOPK_Real32_gfx10<0x017>;
-defm S_WAITCNT_VMCNT        : SOPK_Real32_gfx10<0x018>;
-defm S_WAITCNT_EXPCNT       : SOPK_Real32_gfx10<0x019>;
-defm S_WAITCNT_LGKMCNT      : SOPK_Real32_gfx10<0x01a>;
-// defm S_SUBVECTOR_LOOP_BEGIN : SOPK_Real32_gfx10<0x01b>;
-// defm S_SUBVECTOR_LOOP_END   : SOPK_Real32_gfx10<0x01c>;
+// defm S_VERSION              : SOPK_Real32_ppu<0x001>;
+defm S_CALL_B64             : SOPK_Real32_ppu<0x016>;
+defm S_WAITCNT_VSCNT        : SOPK_Real32_ppu<0x017>;
+defm S_WAITCNT_VMCNT        : SOPK_Real32_ppu<0x018>;
+defm S_WAITCNT_EXPCNT       : SOPK_Real32_ppu<0x019>;
+defm S_WAITCNT_LGKMCNT      : SOPK_Real32_ppu<0x01a>;
+// defm S_SUBVECTOR_LOOP_BEGIN : SOPK_Real32_ppu<0x01b>;
+// defm S_SUBVECTOR_LOOP_END   : SOPK_Real32_ppu<0x01c>;
 
-defm S_MOVK_I32         : SOPK_Real32_gfx10<0x000>;
-defm S_CMOVK_I32        : SOPK_Real32_gfx10<0x002>;
-defm S_CMPK_EQ_I32      : SOPK_Real32_gfx10<0x003>;
-defm S_CMPK_LG_I32      : SOPK_Real32_gfx10<0x004>;
-defm S_CMPK_GT_I32      : SOPK_Real32_gfx10<0x005>;
-defm S_CMPK_GE_I32      : SOPK_Real32_gfx10<0x006>;
-defm S_CMPK_LT_I32      : SOPK_Real32_gfx10<0x007>;
-defm S_CMPK_LE_I32      : SOPK_Real32_gfx10<0x008>;
-defm S_CMPK_EQ_U32      : SOPK_Real32_gfx10<0x009>;
-defm S_CMPK_LG_U32      : SOPK_Real32_gfx10<0x00a>;
-defm S_CMPK_GT_U32      : SOPK_Real32_gfx10<0x00b>;
-defm S_CMPK_GE_U32      : SOPK_Real32_gfx10<0x00c>;
-defm S_CMPK_LT_U32      : SOPK_Real32_gfx10<0x00d>;
-defm S_CMPK_LE_U32      : SOPK_Real32_gfx10<0x00e>;
-defm S_ADDK_I32         : SOPK_Real32_gfx10<0x00f>;
-defm S_MULK_I32         : SOPK_Real32_gfx10<0x010>;
-// defm S_GETREG_B32       : SOPK_Real32_gfx10<0x012>;
-// defm S_SETREG_B32       : SOPK_Real32_gfx10<0x013>;
-// defm S_SETREG_IMM32_B32 : SOPK_Real64_gfx10<0x015>;
+defm S_MOVK_I32         : SOPK_Real32_ppu<0x000>;
+defm S_CMOVK_I32        : SOPK_Real32_ppu<0x002>;
+defm S_CMPK_EQ_I32      : SOPK_Real32_ppu<0x003>;
+defm S_CMPK_LG_I32      : SOPK_Real32_ppu<0x004>;
+defm S_CMPK_GT_I32      : SOPK_Real32_ppu<0x005>;
+defm S_CMPK_GE_I32      : SOPK_Real32_ppu<0x006>;
+defm S_CMPK_LT_I32      : SOPK_Real32_ppu<0x007>;
+defm S_CMPK_LE_I32      : SOPK_Real32_ppu<0x008>;
+defm S_CMPK_EQ_U32      : SOPK_Real32_ppu<0x009>;
+defm S_CMPK_LG_U32      : SOPK_Real32_ppu<0x00a>;
+defm S_CMPK_GT_U32      : SOPK_Real32_ppu<0x00b>;
+defm S_CMPK_GE_U32      : SOPK_Real32_ppu<0x00c>;
+defm S_CMPK_LT_U32      : SOPK_Real32_ppu<0x00d>;
+defm S_CMPK_LE_U32      : SOPK_Real32_ppu<0x00e>;
+defm S_ADDK_I32         : SOPK_Real32_ppu<0x00f>;
+defm S_MULK_I32         : SOPK_Real32_ppu<0x010>;
+defm S_GETREG_B32       : SOPK_Real32_ppu<0x012>;
+defm S_SETREG_B32       : SOPK_Real32_ppu<0x013>;
+defm S_SETREG_IMM32_B32 : SOPK_Real64_ppu<0x015>;
 
 

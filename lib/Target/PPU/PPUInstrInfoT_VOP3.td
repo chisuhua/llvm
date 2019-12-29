@@ -164,12 +164,12 @@ def V_DIV_FIXUP_F16_gfx9 : VOP3Inst <"v_div_fixup_f16_gfx9",
   let Predicates = [Has16BitInsts, isPPT];
   let FPDPRounding = 1;
 }
-/*
+
 def V_FMA_F16 : VOP3Inst <"v_fma_f16", VOP3_Profile<VOP_F16_F16_F16_F16>, fma> {
-  let Predicates = [Has16BitInsts, isGFX8Only];
+  let Predicates = [Has16BitInsts, isPPT];
   let FPDPRounding = 1;
 }
-*/
+
 def V_FMA_F16_gfx9 : VOP3Inst <"v_fma_f16_gfx9", VOP3_Profile<VOP_F16_F16_F16_F16, VOP3_OPSEL>, fma> {
   let Predicates = [Has16BitInsts, isPPT];
   let FPDPRounding = 1;

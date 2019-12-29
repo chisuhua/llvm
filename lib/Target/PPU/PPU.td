@@ -107,6 +107,13 @@ def FeaturePkFmacF16Inst : SubtargetFeature<"pk-fmac-f16-inst",
   "true",
   "Has v_pk_fmac_f16 instruction"
 >;
+
+def FeatureDLInsts : SubtargetFeature<"dl-insts",
+  "HasDLInsts",
+  "true",
+  "Has v_fmac_f32 and v_xnor_b32 instructions"
+>;
+
 def FeatureDot1Insts : SubtargetFeature<"dot1-insts",
   "HasDot1Insts",
   "true",
@@ -444,6 +451,8 @@ def isGFX10Plus :
 def HasPkFmacF16Inst : Predicate<"Subtarget->hasPkFmacF16Inst()">,
   AssemblerPredicate<"FeaturePkFmacF16Inst">;
 
+def HasDLInsts : Predicate<"Subtarget->hasDLInsts()">,
+  AssemblerPredicate<"FeatureDLInsts">;
 
 def HasDot1Insts : Predicate<"Subtarget->hasDot1Insts()">,
   AssemblerPredicate<"FeatureDot1Insts">;

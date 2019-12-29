@@ -5632,6 +5632,7 @@ bool PPUOperand::isEndpgm() const { return isImmTy(ImmTyEndpgm); }
 // Return the matching FPR64 register for the given FPR32.
 // FIXME: Ideally this function could be removed in favour of using
 // information from TableGen.
+/*
 static Register convertFPR32ToFPR64(Register Reg) {
   switch (Reg) {
   default:
@@ -5670,6 +5671,7 @@ static Register convertFPR32ToFPR64(Register Reg) {
   case PPU::F31_32: return PPU::F31_64;
   }
 }
+*/
 
 unsigned PPUAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
                                                     unsigned Kind) {
@@ -5685,11 +5687,13 @@ unsigned PPUAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
 
   // As the parser couldn't differentiate an FPR32 from an FPR64, coerce the
   // register from FPR32 to FPR64 or FPR32C to FPR64C if necessary.
+  /* TODO
   if ((IsRegFPR32 && Kind == MCK_FPR64) ||
       (IsRegFPR32C && Kind == MCK_FPR64C)) {
     Op.Reg.RegNum = convertFPR32ToFPR64(Reg);
     return Match_Success;
   }
+  */
 
 // TODO i add amd part here
   // Tokens like "glc" would be parsed as immediate operands in ParseOperand().
@@ -5808,16 +5812,18 @@ bool PPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     if (isRV64())
       return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 6) - 1);
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
-  case Match_InvalidUImmLog2XLenNonZero:
+  /*case Match_InvalidUImmLog2XLenNonZero:
     if (isRV64())
       return generateImmOutOfRangeError(Operands, ErrorInfo, 1, (1 << 6) - 1);
     return generateImmOutOfRangeError(Operands, ErrorInfo, 1, (1 << 5) - 1);
+    */
   case Match_InvalidUImm5:
     return generateImmOutOfRangeError(Operands, ErrorInfo, 0, (1 << 5) - 1);
-  case Match_InvalidSImm6:
+  /*case Match_InvalidSImm6:
     return generateImmOutOfRangeError(Operands, ErrorInfo, -(1 << 5),
                                       (1 << 5) - 1);
-  case Match_InvalidSImm6NonZero:
+                                      */
+  /*case Match_InvalidSImm6NonZero:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 5), (1 << 5) - 1,
         "immediate must be non-zero in the range");
@@ -5853,15 +5859,17 @@ bool PPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 9), (1 << 9) - 16,
         "immediate must be a multiple of 16 bytes and non-zero in the range");
+        */
   case Match_InvalidSImm12:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 11), (1 << 11) - 1,
         "operand must be a symbol with %lo/%pcrel_lo/%tprel_lo modifier or an "
         "integer in the range");
-  case Match_InvalidSImm12Lsb0:
+  /*case Match_InvalidSImm12Lsb0:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 11), (1 << 11) - 2,
         "immediate must be a multiple of 2 bytes in the range");
+        */
   case Match_InvalidSImm13Lsb0:
     return generateImmOutOfRangeError(
         Operands, ErrorInfo, -(1 << 12), (1 << 12) - 2,
@@ -6801,9 +6809,9 @@ bool PPUAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case PPU::PseudoFLW:
     emitLoadStoreSymbol(Inst, PPU::FLW, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
-  case PPU::PseudoFLD:
-    emitLoadStoreSymbol(Inst, PPU::FLD, IDLoc, Out, /*HasTmpReg=*/true);
-    return false;
+  // case PPU::PseudoFLD:
+  //  emitLoadStoreSymbol(Inst, PPU::FLD, IDLoc, Out, /*HasTmpReg=*/true);
+  //  return false;
   case PPU::PseudoSB:
     emitLoadStoreSymbol(Inst, PPU::SB, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
@@ -6819,9 +6827,9 @@ bool PPUAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   case PPU::PseudoFSW:
     emitLoadStoreSymbol(Inst, PPU::FSW, IDLoc, Out, /*HasTmpReg=*/true);
     return false;
-  case PPU::PseudoFSD:
-    emitLoadStoreSymbol(Inst, PPU::FSD, IDLoc, Out, /*HasTmpReg=*/true);
-    return false;
+  // case PPU::PseudoFSD:
+  //  emitLoadStoreSymbol(Inst, PPU::FSD, IDLoc, Out, /*HasTmpReg=*/true);
+  //  return false;
   case PPU::PseudoAddTPRel:
     if (checkPseudoAddTPRel(Inst, Operands))
       return true;

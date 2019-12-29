@@ -328,7 +328,7 @@ public:
 
   bool shouldExtendTypeInLibCall(EVT Type) const override;
 
-private:
+// private:
   void analyzeInputArgs(MachineFunction &MF, CCState &CCInfo,
                         const SmallVectorImpl<ISD::InputArg> &Ins,
                         bool IsRet) const;

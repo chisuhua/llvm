@@ -1552,7 +1552,7 @@ SDValue PPUTargetLowering::getPreloadedValue(SelectionDAG &DAG,
   std::tie(Reg, RC) = MFI.getPreloadedValue(PVID);
   return CreateLiveInRegister(DAG, RC, Reg->getRegister(), VT);
 }
-
+/*
 static void processShaderInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
                                    CallingConv::ID CallConv,
                                    ArrayRef<ISD::InputArg> Ins,
@@ -1570,6 +1570,7 @@ static void processShaderInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
     Splits.push_back(*Arg);
   }
 }
+*/
 
 // Allocate special inputs passed in VGPRs.
 void PPUTargetLowering::allocateSpecialEntryInputVGPRs(CCState &CCInfo,
@@ -1987,10 +1988,14 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
 
   if (Subtarget->isPPSOS() && !PPU::isKernel(CallConv)) {
+      /*
     DiagnosticInfoUnsupported NoGraphicsHSA(
         Fn, "unsupported non-compute shaders with HSA", DL.getDebugLoc());
     DAG.getContext()->diagnose(NoGraphicsHSA);
     return DAG.getEntryNode();
+    */
+      PPUBaseTargetLowering::LowerFormalArguments(Chain, CallConv, isVarArg, Ins, DL,
+              DAG, InVals);
   }
 
   SmallVector<ISD::InputArg, 16> Splits;
@@ -2004,7 +2009,7 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   bool IsEntryFunc = PPU::isEntryFunctionCC(CallConv);
 
   if (IsShader) {
-    processShaderInputArgs(Splits, CallConv, Ins, Skipped, FType, Info);
+    // processShaderInputArgs(Splits, CallConv, Ins, Skipped, FType, Info);
 
     assert(!Info->hasDispatchPtr() &&
            !Info->hasKernargSegmentPtr() && !Info->hasFlatScratchInit() &&
@@ -2389,7 +2394,7 @@ void PPUTargetLowering::passSpecialInputs(
     PPUFunctionArgInfo::WORKGROUP_ID_X,
     PPUFunctionArgInfo::WORKGROUP_ID_Y,
     PPUFunctionArgInfo::WORKGROUP_ID_Z,
-    PPUFunctionArgInfo::IMPLICIT_ARG_PTR
+    // PPUFunctionArgInfo::IMPLICIT_ARG_PTR
   };
 
   for (auto InputID : InputRegs) {
@@ -2690,7 +2695,8 @@ SDValue PPUTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
     // In the HSA case, this should be an identity copy.
     SDValue ScratchRSrcReg
-      = DAG.getCopyFromReg(Chain, DL, Info->getScratchRSrcReg(), MVT::v4i32);
+      = DAG.getCopyFromReg(Chain, DL, Info->getScratchRSrcReg(), MVT::v2i32);
+      // FIXME I change to v4i32 to v2i32);
 
     // FIXME RegsToPass.emplace_back(PPU::SGPR0_SGPR1_SGPR2_SGPR3, ScratchRSrcReg);
     RegsToPass.emplace_back(PPU::SCRATCH_RSRC_REG, ScratchRSrcReg);

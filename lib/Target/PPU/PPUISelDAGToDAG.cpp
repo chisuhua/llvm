@@ -545,7 +545,7 @@ void PPUBaseDAGToDAGISel::doPeepholeLoadStoreADDI() {
     case PPU::LWU:
     case PPU::LD:
     case PPU::FLW:
-    case PPU::FLD:
+    // case PPU::FLD:
       BaseOpIdx = 0;
       OffsetOpIdx = 1;
       break;
@@ -554,7 +554,7 @@ void PPUBaseDAGToDAGISel::doPeepholeLoadStoreADDI() {
     case PPU::SW:
     case PPU::SD:
     case PPU::FSW:
-    case PPU::FSD:
+    // case PPU::FSD:
       BaseOpIdx = 1;
       OffsetOpIdx = 2;
       break;
@@ -1727,7 +1727,9 @@ bool PPUDAGToDAGISel::SelectMUBUFScratchOffen(SDNode *Parent,
   MachineFunction &MF = CurDAG->getMachineFunction();
   const PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
 
-  Rsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v4i32);
+  // FIXME i change to v2i32
+  // Rsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v4i32);
+  Rsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v2i32);
 
   if (ConstantSDNode *CAddr = dyn_cast<ConstantSDNode>(Addr)) {
     unsigned Imm = CAddr->getZExtValue();
@@ -1798,7 +1800,8 @@ bool PPUDAGToDAGISel::SelectMUBUFScratchOffset(SDNode *Parent,
   MachineFunction &MF = CurDAG->getMachineFunction();
   const PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
 
-  SRsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v4i32);
+  // FIXME SRsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v4i32);
+  SRsrc = CurDAG->getRegister(Info->getScratchRSrcReg(), MVT::v2i32);
 
   const MachinePointerInfo &PtrInfo = cast<MemSDNode>(Parent)->getPointerInfo();
   unsigned SOffsetReg = isStackPtrRelative(PtrInfo) ?

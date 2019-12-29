@@ -1892,16 +1892,15 @@ def getCommuteRev : InstrMapping {
   let KeyCol = ["1"];
   let ValueCols = [["0"]];
 }
-/*
+
 def getMCOpcodeGen : InstrMapping {
   let FilterClass = "PPUMCInstr";
   let RowFields = ["PseudoInstr"];
   let ColFields = ["Subtarget"];
-  let KeyCol = [!cast<string>(SIEncodingFamily.NONE)];
-  let ValueCols = [[!cast<string>(PPUEncodingFamily.NONE)],
-                   [!cast<string>(SIEncodingFamily.SDWA10)]];
+  let KeyCol = [!cast<string>(PPUEncodingFamily.NONE)];
+  let ValueCols = [[!cast<string>(PPUEncodingFamily.PPU)]];
 }
-*/
+
 
 // Get equivalent SOPK instruction.
 def getSOPKOp : InstrMapping {
@@ -2291,10 +2290,9 @@ def SI_INIT_TMSK_FROM_INPUT : SPseudoInst <
   let usesCustomInserter = 1;
 }
 
-/*
 // Return for returning shaders to a shader variant epilog.
 def SI_RETURN_TO_EPILOG : SPseudoInst <
-  (outs), (ins variable_ops), [(AMDGPUreturn_to_epilog)]> {
+  (outs), (ins variable_ops), [(PPUreturn_to_epilog)]> {
   let isTerminator = 1;
   let isBarrier = 1;
   let isReturn = 1;
@@ -2302,7 +2300,6 @@ def SI_RETURN_TO_EPILOG : SPseudoInst <
   let DisableWQM = 1;
   let FixedSize = 1;
 }
-*/
 
 
 // Return for returning function calls.
@@ -3549,7 +3546,6 @@ def : PPUPat<
 >;
 }
 */
-/*
 let OtherPredicates = [HasDLInsts] in {
 def : PPUPat <
   (fma (f32 (VOP3Mods0 f32:$src0, i32:$src0_modifiers, i1:$clamp, i32:$omod)),
@@ -3559,7 +3555,6 @@ def : PPUPat <
                   SRCMODS.NONE, $src2, $clamp, $omod)
 >;
 } // End OtherPredicates = [HasDLInsts]
-*/
 
 let SubtargetPredicate = isPPT in
 def : PPUPat <

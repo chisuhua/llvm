@@ -16,6 +16,7 @@
 def CSR_ILP32_LP64
     : CalleeSavedRegs<(add X1, X3, X4, X8, X9, (sequence "X%u", 18, 27))>;
 
+/* TODO schi remove rv float
 def CSR_ILP32F_LP64F
     : CalleeSavedRegs<(add CSR_ILP32_LP64,
                        F8_32, F9_32, (sequence "F%u_32", 18, 27))>;
@@ -23,6 +24,7 @@ def CSR_ILP32F_LP64F
 def CSR_ILP32D_LP64D
     : CalleeSavedRegs<(add CSR_ILP32_LP64,
                        F8_64, F9_64, (sequence "F%u_64", 18, 27))>;
+                       */
 
 // Needed for implementation of PPURegisterInfo::getNoPreservedMask()
 def CSR_NoRegs : CalleeSavedRegs<(add)>;
@@ -51,6 +53,7 @@ def CSR_XLEN_F32_Interrupt: CalleeSavedRegs<(add X1,
     (sequence "F%u_32", 18, 27))>;
 
 // Same as CSR_Interrupt, but including all 64-bit FP registers.
+/*
 def CSR_XLEN_F64_Interrupt: CalleeSavedRegs<(add X1,
     (sequence "X%u", 3, 9),
     (sequence "X%u", 10, 11),
@@ -63,7 +66,7 @@ def CSR_XLEN_F64_Interrupt: CalleeSavedRegs<(add X1,
     (sequence "F%u_64", 28, 31),
     (sequence "F%u_64", 8, 9),
     (sequence "F%u_64", 18, 27))>;
-
+*/
 // AMDGPUCallingConv
 
 // Node: for CallingConv::AMDGPU_KERNEL/SPIR_KERNEL it don't have Call/Ret 

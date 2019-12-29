@@ -1,5 +1,6 @@
 #include "PPUBaseInfo.h"
 #include "PPUTargetTransformInfo.h"
+#include "PPUAsmUtils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/raw_ostream.h"
@@ -162,6 +163,59 @@ unsigned getVmcntBitWidthHi() { return 2; }
 
 
 namespace PPU {
+
+
+struct MUBUFInfo {
+  uint16_t Opcode;
+  uint16_t BaseOpcode;
+  uint8_t elements;
+  bool has_vaddr;
+  bool has_srsrc;
+  bool has_soffset;
+};
+
+#define GET_MUBUFInfoTable_DECL
+#define GET_MUBUFInfoTable_IMPL
+#include "PPUGenSearchableTables.inc"
+/*
+int getMUBUFBaseOpcode(unsigned Opc) {
+  const MUBUFInfo *Info = getMUBUFInfoFromOpcode(Opc);
+  return Info ? Info->BaseOpcode : -1;
+}
+
+int getMUBUFOpcode(unsigned BaseOpc, unsigned Elements) {
+  const MUBUFInfo *Info = getMUBUFInfoFromBaseOpcodeAndElements(BaseOpc, Elements);
+  return Info ? Info->Opcode : -1;
+}
+
+int getMUBUFElements(unsigned Opc) {
+  const MUBUFInfo *Info = getMUBUFOpcodeHelper(Opc);
+  return Info ? Info->elements : 0;
+}
+
+bool getMUBUFHasVAddr(unsigned Opc) {
+  const MUBUFInfo *Info = getMUBUFOpcodeHelper(Opc);
+  return Info ? Info->has_vaddr : false;
+}
+
+bool getMUBUFHasSrsrc(unsigned Opc) {
+  const MUBUFInfo *Info = getMUBUFOpcodeHelper(Opc);
+  return Info ? Info->has_srsrc : false;
+}
+
+bool getMUBUFHasSoffset(unsigned Opc) {
+  const MUBUFInfo *Info = getMUBUFOpcodeHelper(Opc);
+  return Info ? Info->has_soffset : false;
+}
+*/
+
+// Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
+// header files, so we need to wrap it in a function that takes unsigned
+// instead.
+int getMCOpcode(uint16_t Opcode, unsigned Gen) {
+  // return getMCOpcodeGen(Opcode, static_cast<Subtarget>(Gen));
+  return getMCOpcodeGen(Opcode);
+}
 
 namespace IsaInfo {
 
@@ -678,7 +732,6 @@ unsigned encodeWaitcnt(const IsaVersion &Version, const Waitcnt &Decoded) {
 //===----------------------------------------------------------------------===//
 // hwreg
 //===----------------------------------------------------------------------===//
-/*
 namespace Hwreg {
 
 int64_t getHwregId(const StringRef Name) {
@@ -690,11 +743,13 @@ int64_t getHwregId(const StringRef Name) {
 }
 
 static unsigned getLastSymbolicHwreg(const MCSubtargetInfo &STI) {
+    /*
   if (isSI(STI) || isCI(STI) || isVI(STI))
     return ID_SYMBOLIC_FIRST_GFX9_;
   else if (isGFX9(STI))
     return ID_SYMBOLIC_FIRST_GFX10_;
   else
+  */
     return ID_SYMBOLIC_LAST_;
 }
 
@@ -722,7 +777,7 @@ uint64_t encodeHwreg(uint64_t Id, uint64_t Offset, uint64_t Width) {
 }
 
 StringRef getHwreg(unsigned Id, const MCSubtargetInfo &STI) {
-  return isValidHwreg(Id, STI) ? IdSymbolic[Id] : "";
+   return isValidHwreg(Id, STI) ? IdSymbolic[Id] : "";
 }
 
 void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) {
@@ -732,7 +787,6 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) 
 }
 
 } // namespace Hwreg
-*/
 
 //===----------------------------------------------------------------------===//
 // SendMsg
@@ -872,6 +926,14 @@ bool isCompute(CallingConv::ID CC) {
 
 bool isCompute(SelectionDAG *DAG) {
   return isCompute(DAG->getMachineFunction().getFunction().getCallingConv());
+}
+
+bool isCompute(MachineFunction *MF) {
+  return isCompute(MF->getFunction().getCallingConv());
+}
+
+bool isCompute(const MachineFunction *MF) {
+  return isCompute(const_cast<MachineFunction*>(MF));
 }
 
 bool isEntryFunctionCC(CallingConv::ID CC) {

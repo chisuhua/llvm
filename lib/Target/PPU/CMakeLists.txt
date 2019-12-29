@@ -3,7 +3,7 @@ set(LLVM_TARGET_DEFINITIONS PPU.td)
 tablegen(LLVM PPUGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM PPUGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM PPUGenCallingConv.inc -gen-callingconv)
-tablegen(LLVM PPUGenCompressInstEmitter.inc -gen-compress-inst-emitter)
+#tablegen(LLVM PPUGenCompressInstEmitter.inc -gen-compress-inst-emitter)
 tablegen(LLVM PPUGenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM PPUGenDisassemblerTables.inc -gen-disassembler)
 #tablegen(LLVM PPUGenGlobalISel.inc -gen-global-isel)
@@ -83,6 +83,7 @@ add_llvm_target(PPUCodeGen
   PPUInline.cpp
   PPUFixVGPRCopies.cpp
   PPUAnnotateControlFlow.cpp
+  PPUHazardRecognizer.cpp
   )
 #  PPUFixSGPRCopies.cpp
 # PPUNSAReassign.cpp
