@@ -217,13 +217,14 @@ bool PPUMergeBaseOffsetOpt::detectAndFoldOffset(MachineInstr &HiLUI,
   case PPU::LWU:
   case PPU::LD:
   case PPU::FLW:
-  case PPU::FLD:
+  // case PPU::FLD:
   case PPU::SB:
   case PPU::SH:
   case PPU::SW:
   case PPU::SD:
   case PPU::FSW:
-  case PPU::FSD: {
+  //case PPU::FSD:
+  {
     // Transforms the sequence:            Into:
     // HiLUI:  lui vreg1, %hi(foo)          --->  lui vreg1, %hi(foo+8)
     // LoADDI: addi vreg2, vreg1, %lo(foo)  --->  lw vreg3, lo(foo+8)(vreg1)

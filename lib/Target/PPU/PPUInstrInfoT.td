@@ -44,7 +44,7 @@ def PPUatomic_dec : SDNode<"PPUISD::ATOMIC_DEC", SDTAtomic2,
   [SDNPMayLoad, SDNPMayStore, SDNPMemOperand, SDNPHasChain]
 >;
 
-/*
+
 def SDTAtomic2_f32 : SDTypeProfile<1, 2, [
   SDTCisSameAs<0,2>, SDTCisFP<0>, SDTCisPtrTy<1>
 ]>;
@@ -56,7 +56,7 @@ def SIatomic_fmin : SDNode<"PPUISD::ATOMIC_LOAD_FMIN", SDTAtomic2_f32,
 def SIatomic_fmax : SDNode<"PPUISD::ATOMIC_LOAD_FMAX", SDTAtomic2_f32,
   [SDNPMayLoad, SDNPMayStore, SDNPMemOperand, SDNPHasChain]
 >;
-*/
+
 // load_d16_{lo|hi} ptr, tied_input
 def SIload_d16 : SDTypeProfile<1, 2, [
   SDTCisPtrTy<1>,
@@ -311,6 +311,25 @@ defm atomic_load_fmax_#as : binary_atomic_op<SIatomic_fmax, 0>;
 } // End let AddressSpaces = ...
 } // End foreach AddrSpace
 
+/*
+def atomic_fadd_global_noret : PatFrag<
+  (ops node:$ptr, node:$value),
+  (SIglobal_atomic_fadd node:$ptr, node:$value)> {
+  // FIXME: Move this
+  let MemoryVT = f32;
+  let IsAtomic = 1;
+  let AddressSpaces = StoreAddress_global.AddrSpaces;
+}
+
+def atomic_pk_fadd_global_noret : PatFrag<
+    (ops node:$ptr, node:$value),
+    (SIglobal_atomic_pk_fadd node:$ptr, node:$value)> {
+  // FIXME: Move this
+  let MemoryVT = v2f16;
+  let IsAtomic = 1;
+  let AddressSpaces = StoreAddress_global.AddrSpaces;
+}
+*/
 
 //===----------------------------------------------------------------------===//
 // SDNodes PatFrags for loads/stores with a glue input.
@@ -322,6 +341,193 @@ defm atomic_load_fmax_#as : binary_atomic_op<SIatomic_fmax, 0>;
 //
 //===----------------------------------------------------------------------===//
 
+def PPUld_glue : SDNode <"ISD::LOAD", SDTLoad,
+  [SDNPHasChain, SDNPMayLoad, SDNPMemOperand, SDNPInGlue]
+>;
+
+def PPUatomic_ld_glue : SDNode <"ISD::ATOMIC_LOAD", SDTAtomicLoad,
+  [SDNPHasChain, SDNPMayLoad, SDNPMemOperand, SDNPInGlue]
+>;
+
+def unindexedload_glue : PatFrag <(ops node:$ptr), (PPUld_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsUnindexed = 1;
+}
+
+def load_glue : PatFrag <(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsNonExtLoad = 1;
+}
+
+def atomic_load_32_glue : PatFrag<(ops node:$ptr),
+  (PPUatomic_ld_glue node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i32;
+}
+
+def atomic_load_64_glue : PatFrag<(ops node:$ptr),
+  (PPUatomic_ld_glue node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i64;
+}
+
+def extload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsAnyExtLoad = 1;
+}
+
+def sextload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsSignExtLoad = 1;
+}
+
+def zextload_glue : PatFrag<(ops node:$ptr), (unindexedload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let IsZeroExtLoad = 1;
+}
+
+def extloadi8_glue : PatFrag<(ops node:$ptr), (extload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
+
+def zextloadi8_glue : PatFrag<(ops node:$ptr), (zextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
+
+def extloadi16_glue : PatFrag<(ops node:$ptr), (extload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
+
+def zextloadi16_glue : PatFrag<(ops node:$ptr), (zextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
+
+def sextloadi8_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i8;
+}
+
+def sextloadi16_glue : PatFrag<(ops node:$ptr), (sextload_glue node:$ptr)> {
+  let IsLoad = 1;
+  let MemoryVT = i16;
+}
+
+
+let IsLoad = 1, AddressSpaces = LoadAddress_local.AddrSpaces in {
+def load_local_m0 : PatFrag<(ops node:$ptr), (load_glue node:$ptr)> {
+  let IsNonExtLoad = 1;
+}
+
+let MemoryVT = i8 in {
+def extloadi8_local_m0 : PatFrag<(ops node:$ptr), (extloadi8_glue node:$ptr)>;
+def sextloadi8_local_m0 : PatFrag<(ops node:$ptr), (sextloadi8_glue node:$ptr)>;
+def zextloadi8_local_m0 : PatFrag<(ops node:$ptr), (zextloadi8_glue node:$ptr)>;
+}
+
+let MemoryVT = i16 in {
+def extloadi16_local_m0 : PatFrag<(ops node:$ptr), (extloadi16_glue node:$ptr)>;
+def sextloadi16_local_m0 : PatFrag<(ops node:$ptr), (sextloadi16_glue node:$ptr)>;
+def zextloadi16_local_m0 : PatFrag<(ops node:$ptr), (zextloadi16_glue node:$ptr)>;
+}
+
+def load_align8_local_m0 : LoadFrag <load_glue>, LocalAddress {
+  let MinAlignment = 8;
+  let IsNonExtLoad = 1;
+}
+def load_align16_local_m0 : LoadFrag <load_glue>, LocalAddress {
+  let MinAlignment = 16;
+  let IsNonExtLoad = 1;
+}
+
+} // End IsLoad = 1
+
+def atomic_load_32_local_m0 : LoadFrag<atomic_load_32_glue>, LocalAddress;
+def atomic_load_64_local_m0 : LoadFrag<atomic_load_64_glue>, LocalAddress;
+
+
+def PPUst_glue : SDNode <"ISD::STORE", SDTStore,
+  [SDNPHasChain, SDNPMayStore, SDNPMemOperand, SDNPInGlue]
+>;
+
+def PPUatomic_st_glue : SDNode <"ISD::ATOMIC_STORE", SDTAtomicStore,
+  [SDNPHasChain, SDNPMayStore, SDNPMemOperand, SDNPInGlue]
+>;
+
+def atomic_store_glue : PatFrag<(ops node:$ptr, node:$val),
+  (PPUatomic_st_glue node:$ptr, node:$val)> {
+}
+
+def unindexedstore_glue : PatFrag<(ops node:$val, node:$ptr),
+                                   (PPUst_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let IsUnindexed = 1;
+}
+
+def store_glue : PatFrag<(ops node:$val, node:$ptr),
+                         (unindexedstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let IsTruncStore = 0;
+}
+
+def truncstore_glue : PatFrag<(ops node:$val, node:$ptr),
+  (unindexedstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let IsTruncStore = 1;
+}
+
+def truncstorei8_glue : PatFrag<(ops node:$val, node:$ptr),
+                           (truncstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let MemoryVT = i8;
+}
+
+def truncstorei16_glue : PatFrag<(ops node:$val, node:$ptr),
+                           (truncstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let MemoryVT = i16;
+}
+
+let IsStore = 1, AddressSpaces = StoreAddress_local.AddrSpaces in {
+def store_glue_align8 : PatFrag<(ops node:$val, node:$ptr),
+                                (store_glue node:$val, node:$ptr)>, Aligned<8>;
+def store_glue_align16 : PatFrag<(ops node:$val, node:$ptr),
+                                (store_glue node:$val, node:$ptr)>, Aligned<16>;
+
+def store_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                             (unindexedstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let IsTruncStore = 0;
+}
+
+def truncstorei8_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                    (unindexedstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let MemoryVT = i8;
+}
+
+
+def truncstorei16_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                    (unindexedstore_glue node:$val, node:$ptr)> {
+  let IsStore = 1;
+  let MemoryVT = i16;
+}
+
+// FIXME: atomic store doesn't work.
+def atomic_store_local_m0 : StoreFrag<PPUatomic_st_glue>, LocalAddress;
+def store_align8_local_m0 : StoreFrag<store_glue_align8>, LocalAddress {
+  let IsTruncStore = 0;
+}
+
+def store_align16_local_m0 : StoreFrag<store_glue_align16>, LocalAddress {
+  let IsTruncStore = 0;
+}
+}
+
+
 def si_setcc_uniform : PatFrag <
   (ops node:$lhs, node:$rhs, node:$cond),
   (setcc node:$lhs, node:$rhs, node:$cond), [{
@@ -330,7 +536,7 @@ def si_setcc_uniform : PatFrag <
       return false;
 
     unsigned Reg = cast<RegisterSDNode>(Use->getOperand(1))->getReg();
-    if (Reg != AMDGPU::SCC)
+    if (Reg != PPU::SCC)
       return false;
   }
   return true;
@@ -393,7 +599,7 @@ def lshl_rev : PatFrag <
   (ops node:$src1, node:$src0),
   (shl $src0, $src1)
 >;
-/*
+
 multiclass SIAtomicM0Glue2 <string op_name, bit is_amdgpu = 0,
                             SDTypeProfile tc = SDTAtomic2,
                             bit IsInt = 1> {
@@ -428,7 +634,6 @@ defm atomic_load_fadd : SIAtomicM0Glue2 <"LOAD_FADD", 0, SDTAtomic2_f32, 0>;
 defm atomic_load_fmin : SIAtomicM0Glue2 <"LOAD_FMIN", 1, SDTAtomic2_f32, 0>;
 defm atomic_load_fmax : SIAtomicM0Glue2 <"LOAD_FMAX", 1, SDTAtomic2_f32, 0>;
 
-*/
 def as_i1imm : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getZExtValue(), SDLoc(N), MVT::i1);
 }]>;
@@ -597,7 +802,7 @@ def WAIT_FLAG : Operand <i32> {
   let PrintMethod = "printWaitFlag";
   let OperandType = "OPERAND_IMMEDIATE";
 }
-
+/*
 def SendMsgMatchClass : AsmOperandClass {
   let Name = "SendMsg";
   let PredicateMethod = "isSendMsg";
@@ -609,7 +814,7 @@ def SendMsgImm : Operand<i32> {
   let PrintMethod = "printSendMsg";
   let ParserMatchClass = SendMsgMatchClass;
 }
-
+*/
 
 def BoolReg : AsmOperandClass {
   let Name = "BoolReg";
@@ -711,20 +916,20 @@ def exp_vm : NamedOperandBit<"ExpVM", NamedMatchClass<"ExpVM">>;
 def FORMAT : NamedOperandU8<"FORMAT", NamedMatchClass<"FORMAT">>;
 
 def DMask : NamedOperandU16<"DMask", NamedMatchClass<"DMask">>;
-def Dim : NamedOperandU8<"Dim", NamedMatchClass<"Dim", 0>>;
+// def Dim : NamedOperandU8<"Dim", NamedMatchClass<"Dim", 0>>;
 
-def dpp8 : NamedOperandU32<"DPP8", NamedMatchClass<"DPP8", 0>>;
+// def dpp8 : NamedOperandU32<"DPP8", NamedMatchClass<"DPP8", 0>>;
 
-def dpp_ctrl : NamedOperandU32<"DPPCtrl", NamedMatchClass<"DPPCtrl", 0>>;
+// def dpp_ctrl : NamedOperandU32<"DPPCtrl", NamedMatchClass<"DPPCtrl", 0>>;
 def row_mask : NamedOperandU32<"RowMask", NamedMatchClass<"RowMask">>;
 def bank_mask : NamedOperandU32<"BankMask", NamedMatchClass<"BankMask">>;
 def bound_ctrl : NamedOperandBit<"BoundCtrl", NamedMatchClass<"BoundCtrl">>;
 def FI : NamedOperandU32<"FI", NamedMatchClass<"FI">>;
 
-def dst_sel : NamedOperandU32<"SDWADstSel", NamedMatchClass<"SDWADstSel">>;
-def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
-def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
-def dst_unused : NamedOperandU32<"SDWADstUnused", NamedMatchClass<"SDWADstUnused">>;
+// def dst_sel : NamedOperandU32<"SDWADstSel", NamedMatchClass<"SDWADstSel">>;
+// def src0_sel : NamedOperandU32<"SDWASrc0Sel", NamedMatchClass<"SDWASrc0Sel">>;
+// def src1_sel : NamedOperandU32<"SDWASrc1Sel", NamedMatchClass<"SDWASrc1Sel">>;
+// def dst_unused : NamedOperandU32<"SDWADstUnused", NamedMatchClass<"SDWADstUnused">>;
 
 def op_sel : NamedOperandU32Default0<"OpSel", NamedMatchClass<"OpSel">>;
 def op_sel_hi : NamedOperandU32Default0<"OpSelHi", NamedMatchClass<"OpSelHi">>;
@@ -737,9 +942,8 @@ def abid : NamedOperandU32<"ABID", NamedMatchClass<"ABID">>;
 
 def hwreg : NamedOperandU16<"Hwreg", NamedMatchClass<"Hwreg", 0>>;
 
-def exp_tgt : NamedOperandU8<"ExpTgt", NamedMatchClass<"ExpTgt", 0>> {
-
-}
+// def exp_tgt : NamedOperandU8<"ExpTgt", NamedMatchClass<"ExpTgt", 0>> {
+// }
 
 } // End OperandType = "OPERAND_IMMEDIATE"
 
@@ -1649,6 +1853,136 @@ class AtomicNoRet <string noRetOp, bit isRet> {
   bit IsRet = isRet;
 }
 
+//===----------------------------------------------------------------------===//
+// Vector instruction mappings
+//===----------------------------------------------------------------------===//
+
+// Maps an opcode in e32 form to its e64 equivalent
+def getVOPe64 : InstrMapping {
+  let FilterClass = "VOP";
+  let RowFields = ["OpName"];
+  let ColFields = ["Size", "VOP3"];
+  let KeyCol = ["4", "0"];
+  let ValueCols = [["8", "1"]];
+}
+
+// Maps an opcode in e64 form to its e32 equivalent
+def getVOPe32 : InstrMapping {
+  let FilterClass = "VOP";
+  let RowFields = ["OpName"];
+  let ColFields = ["Size", "VOP3"];
+  let KeyCol = ["8", "1"];
+  let ValueCols = [["4", "0"]];
+}
+
+// Maps an commuted opcode to its original version
+def getCommuteOrig : InstrMapping {
+  let FilterClass = "Commutable_REV";
+  let RowFields = ["RevOp"];
+  let ColFields = ["IsOrig"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
+}
+
+// Maps an original opcode to its commuted version
+def getCommuteRev : InstrMapping {
+  let FilterClass = "Commutable_REV";
+  let RowFields = ["RevOp"];
+  let ColFields = ["IsOrig"];
+  let KeyCol = ["1"];
+  let ValueCols = [["0"]];
+}
+
+def getMCOpcodeGen : InstrMapping {
+  let FilterClass = "PPUMCInstr";
+  let RowFields = ["PseudoInstr"];
+  let ColFields = ["Subtarget"];
+  let KeyCol = [!cast<string>(PPUEncodingFamily.NONE)];
+  let ValueCols = [[!cast<string>(PPUEncodingFamily.PPU)]];
+}
+
+
+// Get equivalent SOPK instruction.
+def getSOPKOp : InstrMapping {
+  let FilterClass = "SOPKInstTable";
+  let RowFields = ["BaseCmpOp"];
+  let ColFields = ["IsSOPK"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
+}
+
+def getAddr64Inst : InstrMapping {
+  let FilterClass = "MUBUFAddr64Table";
+  let RowFields = ["OpName"];
+  let ColFields = ["IsAddr64"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
+}
+
+def getIfAddr64Inst : InstrMapping {
+  let FilterClass = "MUBUFAddr64Table";
+  let RowFields = ["OpName"];
+  let ColFields = ["IsAddr64"];
+  let KeyCol = ["1"];
+  let ValueCols = [["1"]];
+}
+
+def getMUBUFNoLdsInst : InstrMapping {
+  let FilterClass = "MUBUFLdsTable";
+  let RowFields = ["OpName"];
+  let ColFields = ["IsLds"];
+  let KeyCol = ["1"];
+  let ValueCols = [["0"]];
+}
+
+// Maps an atomic opcode to its version with a return value.
+def getAtomicRetOp : InstrMapping {
+  let FilterClass = "AtomicNoRet";
+  let RowFields = ["NoRetOp"];
+  let ColFields = ["IsRet"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
+}
+
+// Maps an atomic opcode to its returnless version.
+def getAtomicNoRetOp : InstrMapping {
+  let FilterClass = "AtomicNoRet";
+  let RowFields = ["NoRetOp"];
+  let ColFields = ["IsRet"];
+  let KeyCol = ["1"];
+  let ValueCols = [["0"]];
+}
+
+// Maps a GLOBAL to its SADDR form.
+/*
+def getGlobalSaddrOp : InstrMapping {
+  let FilterClass = "GlobalSaddrTable";
+  let RowFields = ["SaddrOp"];
+  let ColFields = ["IsSaddr"];
+  let KeyCol = ["0"];
+  let ValueCols = [["1"]];
+}
+*/
+
+// Maps a v_cmpx opcode with sdst to opcode without sdst.
+def getVCMPXNoSDstOp : InstrMapping {
+  let FilterClass = "VCMPXNoSDstTable";
+  let RowFields = ["NoSDstOp"];
+  let ColFields = ["HasSDst"];
+  let KeyCol = ["1"];
+  let ValueCols = [["0"]];
+}
+
+// Maps a SOPP to a SOPP with S_NOP
+def getSOPPWithRelaxation : InstrMapping {
+  let FilterClass = "Base_SOPP";
+  let RowFields = ["AsmString"];
+  let ColFields = ["Size"];
+  let KeyCol = ["4"];
+  let ValueCols = [["8"]];
+}
+
+
 
 include "PPUInstrFormatsT_SOP.td"
 // VOP
@@ -1662,6 +1996,7 @@ include "PPUInstrFormatsT_VOPC.td"
 include "PPUInstrFormatsT_SM.td"
 // include "PPUInstrFormatsT_FLAT.td"
 include "PPUInstrFormatsT_BUF.td"
+include "PPUInstrFormatsT_LDS.td"
 
 
 
@@ -1676,6 +2011,7 @@ include "PPUInstrInfoT_VOPC.td"
 include "PPUInstrInfoT_SM.td"
 // include "PPUInstrInfoT_FLAT.td"
 include "PPUInstrInfoT_BUF.td"
+include "PPUInstrInfoT_LDS.td"
 
 //===----------------------------------------------------------------------===//
 // EXP Instructions
@@ -1953,10 +2289,10 @@ def SI_INIT_TMSK_FROM_INPUT : SPseudoInst <
   let Defs = [TMSK];
   let usesCustomInserter = 1;
 }
-/*
+
 // Return for returning shaders to a shader variant epilog.
 def SI_RETURN_TO_EPILOG : SPseudoInst <
-  (outs), (ins variable_ops), [(AMDGPUreturn_to_epilog)]> {
+  (outs), (ins variable_ops), [(PPUreturn_to_epilog)]> {
   let isTerminator = 1;
   let isBarrier = 1;
   let isReturn = 1;
@@ -1964,7 +2300,7 @@ def SI_RETURN_TO_EPILOG : SPseudoInst <
   let DisableWQM = 1;
   let FixedSize = 1;
 }
-*/
+
 
 // Return for returning function calls.
 def SI_RETURN : SPseudoInst <
@@ -3210,7 +3546,6 @@ def : PPUPat<
 >;
 }
 */
-/*
 let OtherPredicates = [HasDLInsts] in {
 def : PPUPat <
   (fma (f32 (VOP3Mods0 f32:$src0, i32:$src0_modifiers, i1:$clamp, i32:$omod)),
@@ -3220,7 +3555,6 @@ def : PPUPat <
                   SRCMODS.NONE, $src2, $clamp, $omod)
 >;
 } // End OtherPredicates = [HasDLInsts]
-*/
 
 let SubtargetPredicate = isPPT in
 def : PPUPat <

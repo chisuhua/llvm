@@ -111,6 +111,7 @@ void PPUAsmBackend::relaxInstruction(const MCInst &Inst,
   switch (Inst.getOpcode()) {
   default:
     llvm_unreachable("Opcode not expected!");
+    /* TODO
   case PPU::C_BEQZ:
     // c.beqz $rs1, $imm -> beq $rs1, X0, $imm.
     Res.setOpcode(PPU::BEQ);
@@ -137,6 +138,7 @@ void PPUAsmBackend::relaxInstruction(const MCInst &Inst,
     Res.addOperand(MCOperand::createReg(PPU::X1));
     Res.addOperand(Inst.getOperand(0));
     break;
+    */
   }
 }
 
@@ -146,6 +148,7 @@ unsigned PPUAsmBackend::getRelaxedOpcode(unsigned Op) const {
   switch (Op) {
   default:
     return Op;
+    /* TODO
   case PPU::C_BEQZ:
     return PPU::BEQ;
   case PPU::C_BNEZ:
@@ -153,6 +156,7 @@ unsigned PPUAsmBackend::getRelaxedOpcode(unsigned Op) const {
   case PPU::C_J:
   case PPU::C_JAL: // fall through.
     return PPU::JAL;
+    */
   }
 }
 

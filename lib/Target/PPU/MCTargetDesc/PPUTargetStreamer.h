@@ -9,11 +9,27 @@
 #ifndef LLVM_LIB_TARGET_PPU_PPUTARGETSTREAMER_H
 #define LLVM_LIB_TARGET_PPU_PPUTARGETSTREAMER_H
 
+#include "PPUKernelCodeT.h"
+#include "llvm/BinaryFormat/MsgPackDocument.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/PPUMetadata.h"
+#include "llvm/Support/PPUKernelDescriptor.h"
 
 namespace llvm {
+#include "PPUPTNote.h"
+
+class DataLayout;
+class Function;
+class MCELFStreamer;
+class MCSymbol;
+class MDNode;
+class Module;
+class Type;
 
 class PPUTargetStreamer : public MCTargetStreamer {
+protected:
+  MCContext &getContext() const { return Streamer.getContext(); }
 public:
   PPUTargetStreamer(MCStreamer &S);
 
@@ -23,6 +39,55 @@ public:
   virtual void emitDirectiveOptionNoRVC() = 0;
   virtual void emitDirectiveOptionRelax() = 0;
   virtual void emitDirectiveOptionNoRelax() = 0;
+
+// below is from AMD
+  virtual void EmitDirectivePPUTarget(StringRef Target) = 0;
+
+  // virtual void EmitDirectiveHSACodeObjectVersion(uint32_t Major,
+  //                                                uint32_t Minor) = 0;
+
+  // virtual void EmitDirectiveHSACodeObjectISA(uint32_t Major, uint32_t Minor,
+  //                                            uint32_t Stepping,
+  //                                            StringRef VendorName,
+  //                                            StringRef ArchName) = 0;
+
+  virtual void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) = 0;
+
+  virtual void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) = 0;
+
+  virtual void emitPPULDS(MCSymbol *Symbol, unsigned Size,
+                             unsigned Align) = 0;
+
+  /// \returns True on success, false on failure.
+  // virtual bool EmitISAVersion(StringRef IsaVersionString) = 0;
+
+  /// \returns True on success, false on failure.
+  virtual bool EmitHSAMetadataV3(StringRef HSAMetadataString);
+
+  /// Emit HSA Metadata
+  ///
+  /// When \p Strict is true, known metadata elements must already be
+  /// well-typed. When \p Strict is false, known types are inferred and
+  /// the \p HSAMetadata structure is updated with the correct types.
+  ///
+  /// \returns True on success, false on failure.
+  virtual bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) = 0;
+
+  /// \returns True on success, false on failure.
+  // virtual bool EmitHSAMetadata(const PPU::HSAMD::Metadata &HSAMetadata) = 0;
+
+  /// \returns True on success, false on failure.
+  virtual bool EmitCodeEnd() = 0;
+
+  virtual void EmitAmdhsaKernelDescriptor(
+      const MCSubtargetInfo &STI, StringRef KernelName,
+      const amdhsa::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
+      uint64_t NextSGPR, bool ReserveVCC, bool ReserveFlatScr,
+      bool ReserveXNACK) = 0;
+
+  static StringRef getArchNameFromElfMach(unsigned ElfMach);
+  static unsigned getElfMach(StringRef GPU);
+
 };
 
 // This part is for ascii assembly output
@@ -38,6 +103,43 @@ public:
   void emitDirectiveOptionNoRVC() override;
   void emitDirectiveOptionRelax() override;
   void emitDirectiveOptionNoRelax() override;
+
+// below from AMD
+  void finish() override;
+
+  void EmitDirectivePPUTarget(StringRef Target) override;
+
+  // void EmitDirectiveHSACodeObjectVersion(uint32_t Major,
+  //                                       uint32_t Minor) override;
+
+  // void EmitDirectiveHSACodeObjectISA(uint32_t Major, uint32_t Minor,
+  //                                   uint32_t Stepping, StringRef VendorName,
+  //                                   StringRef ArchName) override;
+
+  void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) override;
+
+  void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
+
+  void emitPPULDS(MCSymbol *Sym, unsigned Size, unsigned Align) override;
+
+  /// \returns True on success, false on failure.
+  // bool EmitISAVersion(StringRef IsaVersionString) override;
+
+  /// \returns True on success, false on failure.
+  bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
+
+  /// \returns True on success, false on failure.
+  // bool EmitHSAMetadata(const PPU::HSAMD::Metadata &HSAMetadata) override;
+
+  /// \returns True on success, false on failure.
+  bool EmitCodeEnd() override;
+
+  void EmitAmdhsaKernelDescriptor(
+      const MCSubtargetInfo &STI, StringRef KernelName,
+      const amdhsa::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
+      uint64_t NextSGPR, bool ReserveVCC, bool ReserveFlatScr,
+      bool ReserveXNACK) override;
+
 };
 
 }

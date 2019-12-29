@@ -314,7 +314,7 @@ enum StreamId : unsigned { // Stream ID, (2) [9:8].
 };
 
 } // namespace SendMsg
-
+*/
 namespace Hwreg { // Encoding of SIMM16 used in s_setreg/getreg* insns.
 
 enum Id { // HwRegCode, (6) [5:0]
@@ -411,7 +411,7 @@ enum EncBits : unsigned {
 };
 
 } // namespace Swizzle
-
+/*
 namespace SDWA {
 
 enum SdwaSel : unsigned {
@@ -591,8 +591,8 @@ enum DppFiMode {
 #define   S_00B848_FWD_PROGRESS(x)                                    (((x) & 0x1) << 31)
 #define   G_00B848_FWD_PROGRESS(x)                                    (((x) >> 31) & 0x1)
 #define   C_00B848_FWD_PROGRESS                                       0x7FFFFFFF
-
-
+*/
+// FIXME for real encoding
 // Helpers for setting FLOAT_MODE
 #define FP_ROUND_ROUND_TO_NEAREST 0
 #define FP_ROUND_ROUND_TO_INF 1
@@ -615,6 +615,7 @@ enum DppFiMode {
 #define FP_DENORM_MODE_SP(x) (((x) & 0x3) << 4)
 #define FP_DENORM_MODE_DP(x) (((x) & 0x3) << 6)
 
+/*
 #define R_00B860_COMPUTE_TMPRING_SIZE                                   0x00B860
 #define   S_00B860_WAVESIZE(x)                                        (((x) & 0x1FFF) << 12)
 

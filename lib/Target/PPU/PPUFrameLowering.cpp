@@ -767,8 +767,8 @@ void PPUFrameLowering::determineCalleeSaves(MachineFunction &MF,
       const MCPhysReg * Regs = MF.getRegInfo().getCalleeSavedRegs();
 
       for (unsigned i = 0; Regs[i]; ++i)
-        if (PPU::FPR32RegClass.contains(Regs[i]) ||
-            PPU::FPR64RegClass.contains(Regs[i]))
+        if (PPU::FPR32RegClass.contains(Regs[i]) /*||
+            PPU::FPR64RegClass.contains(Regs[i])*/)
           SavedRegs.set(Regs[i]);
     }
   }
@@ -1079,6 +1079,9 @@ void PPUFrameLowering::emitFlatScratchInit(const PPUSubtarget &ST,
     */
 }
 
+
+// FIXME AllSPR128 for Rsrc? or AllSPR64
+
 unsigned PPUFrameLowering::getReservedPrivateSegmentBufferReg(
   const PPUSubtarget &ST,
   const PPUInstrInfo *TII,
@@ -1244,7 +1247,7 @@ void PPUFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
         .addReg(MFI->getScratchWaveOffsetReg());
     }
     else {
-      BuildMI(MBB, MBB.begin(), DL, TII->get(PPU::ADD), SPReg)
+      BuildMI(MBB, MBB.begin(), DL, TII->get(PPU::S_ADD_U32), SPReg)
         .addReg(MFI->getScratchWaveOffsetReg())
         .addImm(StackSize * ST.getWavefrontSize());
     }

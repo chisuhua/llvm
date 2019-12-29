@@ -169,6 +169,49 @@ IsaVersion getIsaVersion(StringRef GPU);
 
 } // namespace AMDGPU
 
+namespace PPU {
+
+/// GPU kinds supported by the AMDGPU target.
+enum GPUKind : uint32_t {
+  // Not specified processor.
+  GK_NONE = 0,
+
+  GK_PPU = 1,
+
+  GK_PPU_FIRST = GK_PPU,
+  GK_PPU_LAST = GK_PPU,
+};
+
+/// Instruction set architecture version.
+/*
+struct IsaVersion {
+  unsigned Major;
+  unsigned Minor;
+  unsigned Stepping;
+};
+*/
+
+// This isn't comprehensive for now, just things that are needed from the
+// frontend driver.
+enum ArchFeatureKind : uint32_t {
+  FEATURE_NONE = 0,
+
+  // Common features.
+  FEATURE_FAST_FMA_F32 = 1 << 4,
+  FEATURE_FAST_DENORMAL_F32 = 1 << 5
+};
+
+StringRef getArchNamePPU(GPUKind AK);
+StringRef getCanonicalArchName(StringRef Arch);
+GPUKind parseArchPPU(StringRef CPU);
+unsigned getArchAttrPPU(GPUKind AK);
+
+void fillValidArchListPPU(SmallVectorImpl<StringRef> &Values);
+
+// IsaVersion getIsaVersion(StringRef GPU);
+
+} // namespace AMDGPU
+
 } // namespace llvm
 
 #endif

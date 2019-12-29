@@ -16,6 +16,13 @@ class PPUReadPreloadRegisterIntrinsic
 class PPUReadPreloadRegisterIntrinsicNamed<string name>
   : Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>, GCCBuiltin<name>;
 
+// Used to tag image and resource intrinsics with information used to generate
+// mem operands.
+class PPURsrcIntrinsic<int rsrcarg, bit isimage = 0> {
+  int RsrcArg = rsrcarg;
+  bit IsImage = isimage;
+}
+
 
 multiclass PPUReadPreloadRegisterIntrinsic_xyz {
   def _x : PPUReadPreloadRegisterIntrinsic;
@@ -167,6 +174,10 @@ def int_ppu_implicitarg_ptr :
   Intrinsic<[LLVMQualPointerType<llvm_i8_ty, 4>], [],
   [IntrNoMem, IntrSpeculatable]>;
 
+def int_ppu_groupstaticsize :
+  GCCBuiltin<"__builtin_ppu_groupstaticsize">,
+  Intrinsic<[llvm_i32_ty], [], [IntrNoMem, IntrSpeculatable]>;
+
 def int_ppu_dispatch_id :
   GCCBuiltin<"__builtin_ppu_dispatch_id">,
   Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrSpeculatable]>;
@@ -276,6 +287,412 @@ def int_ppu_wave_barrier : GCCBuiltin<"__builtin_ppu_wave_barrier">,
 
 def int_ppu_waitcnt : GCCBuiltin<"__builtin_ppu_waitcnt">,
   Intrinsic<[], [llvm_i32_ty], []>;
+
+
+
+def int_ppu_rcp : Intrinsic<
+  [llvm_anyfloat_ty], [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_rsq :  Intrinsic<
+  [llvm_anyfloat_ty], [LLVMMatchType<0>], [IntrNoMem, IntrSpeculatable]
+>;
+
+
+
+
+def int_ppu_cvt_pkrtz : GCCBuiltin<"__builtin_ppu_cvt_pkrtz">,
+  Intrinsic<[llvm_v2f16_ty], [llvm_float_ty, llvm_float_ty],
+            [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_cvt_pknorm_i16 :
+  GCCBuiltin<"__builtin_ppu_cvt_pknorm_i16">,
+  Intrinsic<[llvm_v2i16_ty], [llvm_float_ty, llvm_float_ty],
+            [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_cvt_pknorm_u16 :
+  GCCBuiltin<"__builtin_ppu_cvt_pknorm_u16">,
+  Intrinsic<[llvm_v2i16_ty], [llvm_float_ty, llvm_float_ty],
+            [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_cvt_pk_i16 :
+    GCCBuiltin<"__builtin_ppu_cvt_pk_i16">,
+    Intrinsic<
+  [llvm_v2i16_ty], [llvm_i32_ty, llvm_i32_ty],
+  [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_cvt_pk_u16 : GCCBuiltin<"__builtin_ppu_cvt_pk_u16">,
+  Intrinsic<[llvm_v2i16_ty], [llvm_i32_ty, llvm_i32_ty],
+    [IntrNoMem, IntrSpeculatable]
+>;
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// Buffer intrinsics
+//////////////////////////////////////////////////////////////////////////
+
+// NOTE ppu use rsrc to v2i32
+
+defset list<PPURsrcIntrinsic> PPUBufferIntrinsics = {
+
+class PPUBufferLoad<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(SGPR/VGPR/imm)
+   llvm_i1_ty,        // glc(imm)
+   llvm_i1_ty],       // slc(imm)
+  [IntrReadMem, ImmArg<3>, ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+def int_ppu_buffer_load_format : PPUBufferLoad<llvm_anyfloat_ty>;
+def int_ppu_buffer_load : PPUBufferLoad;
+
+def int_ppu_s_buffer_load : Intrinsic <
+  [llvm_any_ty],
+  [llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // byte offset(SGPR/imm)
+   llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 2 = dlc)
+  [IntrNoMem, ImmArg<2>]>,
+  PPURsrcIntrinsic<0>;
+
+class PPUBufferStore<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [],
+  [data_ty,          // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(SGPR/VGPR/imm)
+   llvm_i1_ty,        // glc(imm)
+   llvm_i1_ty],       // slc(imm)
+  [IntrWriteMem, ImmArg<4>, ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+def int_ppu_buffer_store_format : PPUBufferStore<llvm_anyfloat_ty>;
+def int_ppu_buffer_store : PPUBufferStore;
+
+// New buffer intrinsics with separate raw and struct variants.  The raw
+// variant never has an index. The struct variant always has an index, even if
+// it is const 0. A struct intrinsic with constant 0 index is different to the
+// corresponding raw intrinsic on gfx9+ because the behavior of bound checking
+// and swizzling changes depending on whether idxen is set in the instruction.
+// These new instrinsics also keep the offset and soffset arguments separate as
+// they behave differently in bounds checking and swizzling.
+class PPURawBufferLoad<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+  [IntrReadMem, ImmArg<3>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+def int_ppu_raw_buffer_load_format : PPURawBufferLoad<llvm_anyfloat_ty>;
+def int_ppu_raw_buffer_load : PPURawBufferLoad;
+
+class PPUStructBufferLoad<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+  [IntrReadMem, ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+def int_ppu_struct_buffer_load_format : PPUStructBufferLoad<llvm_anyfloat_ty>;
+def int_ppu_struct_buffer_load : PPUStructBufferLoad;
+
+class PPURawBufferStore<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [],
+  [data_ty,           // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+  [IntrWriteMem, ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+def int_ppu_raw_buffer_store_format : PPURawBufferStore<llvm_anyfloat_ty>;
+def int_ppu_raw_buffer_store : PPURawBufferStore;
+
+class PPUStructBufferStore<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [],
+  [data_ty,           // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+  [IntrWriteMem, ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+def int_ppu_struct_buffer_store_format : PPUStructBufferStore<llvm_anyfloat_ty>;
+def int_ppu_struct_buffer_store : PPUStructBufferStore;
+
+class PPURawBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,  // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 1 = slc)
+  [ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1, 0>;
+def int_ppu_raw_buffer_atomic_swap : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_add : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_sub : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_smin : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_umin : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_smax : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_umax : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_and : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_or : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_xor : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_inc : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_dec : PPURawBufferAtomic;
+def int_ppu_raw_buffer_atomic_cmpswap : Intrinsic<
+  [llvm_anyint_ty],
+  [LLVMMatchType<0>,  // src(VGPR)
+   LLVMMatchType<0>,  // cmp(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 1 = slc)
+  [ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<2, 0>;
+
+class PPUStructBufferAtomic<LLVMType data_ty = llvm_any_ty> : Intrinsic <
+  [data_ty],
+  [LLVMMatchType<0>,  // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 1 = slc)
+  [ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1, 0>;
+def int_ppu_struct_buffer_atomic_swap : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_add : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_sub : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_smin : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_umin : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_smax : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_umax : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_and : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_or : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_xor : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_inc : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_dec : PPUStructBufferAtomic;
+def int_ppu_struct_buffer_atomic_cmpswap : Intrinsic<
+  [llvm_anyint_ty],
+  [LLVMMatchType<0>,  // src(VGPR)
+   LLVMMatchType<0>,  // cmp(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(VGPR/imm, included in bounds checking and swizzling)
+   llvm_i32_ty,       // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+   llvm_i32_ty],      // cachepolicy(imm; bit 1 = slc)
+  [ImmArg<6>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<2, 0>;
+
+// Obsolescent tbuffer intrinsics.
+def int_ppu_tbuffer_load : Intrinsic <
+    [llvm_any_ty],    // overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+    [llvm_v2i32_ty,   // rsrc(SGPR)
+     llvm_i32_ty,     // vindex(VGPR)
+     llvm_i32_ty,     // voffset(VGPR)
+     llvm_i32_ty,     // soffset(SGPR)
+     llvm_i32_ty,     // offset(imm)
+     llvm_i32_ty,     // dfmt(imm)
+     llvm_i32_ty,     // nfmt(imm)
+     llvm_i1_ty,     // glc(imm)
+     llvm_i1_ty],    // slc(imm)
+    [IntrReadMem, ImmArg<4>, ImmArg<5>, ImmArg<6>,
+     ImmArg<7>, ImmArg<8>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+
+def int_ppu_tbuffer_store : Intrinsic <
+    [],
+    [llvm_any_ty,    // vdata(VGPR), overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+     llvm_v2i32_ty,  // rsrc(SGPR)
+     llvm_i32_ty,    // vindex(VGPR)
+     llvm_i32_ty,    // voffset(VGPR)
+     llvm_i32_ty,    // soffset(SGPR)
+     llvm_i32_ty,    // offset(imm)
+     llvm_i32_ty,    // dfmt(imm)
+     llvm_i32_ty,    // nfmt(imm)
+     llvm_i1_ty,     // glc(imm)
+     llvm_i1_ty],    // slc(imm)
+    [IntrWriteMem, ImmArg<5>, ImmArg<6>, ImmArg<7>,
+     ImmArg<8>, ImmArg<9>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+
+// New tbuffer intrinsics, with:
+// - raw and struct variants
+// - joint format field
+// - joint cachepolicy field
+def int_ppu_raw_tbuffer_load : Intrinsic <
+    [llvm_any_ty],    // overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+    [llvm_v2i32_ty,   // rsrc(SGPR)
+     llvm_i32_ty,     // offset(VGPR/imm, included in bounds checking and swizzling)
+     llvm_i32_ty,     // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+     llvm_i32_ty,     // format(imm; bits 3..0 = dfmt, bits 6..4 = nfmt)
+     llvm_i32_ty],    // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+    [IntrReadMem, ImmArg<3>, ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+
+def int_ppu_raw_tbuffer_store : Intrinsic <
+    [],
+    [llvm_any_ty,    // vdata(VGPR), overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+     llvm_v2i32_ty,  // rsrc(SGPR)
+     llvm_i32_ty,    // offset(VGPR/imm, included in bounds checking and swizzling)
+     llvm_i32_ty,    // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+     llvm_i32_ty,    // format(imm; bits 3..0 = dfmt, bits 6..4 = nfmt)
+     llvm_i32_ty],   // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+    [IntrWriteMem, ImmArg<4>, ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+
+def int_ppu_struct_tbuffer_load : Intrinsic <
+    [llvm_any_ty],    // overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+    [llvm_v2i32_ty,   // rsrc(SGPR)
+     llvm_i32_ty,     // vindex(VGPR)
+     llvm_i32_ty,     // offset(VGPR/imm, included in bounds checking and swizzling)
+     llvm_i32_ty,     // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+     llvm_i32_ty,     // format(imm; bits 3..0 = dfmt, bits 6..4 = nfmt)
+     llvm_i32_ty],    // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+    [IntrReadMem, ImmArg<4>, ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<0>;
+
+def int_ppu_struct_tbuffer_store : Intrinsic <
+    [],
+    [llvm_any_ty,    // vdata(VGPR), overloaded for types f32/i32, v2f32/v2i32, v4f32/v4i32
+     llvm_v2i32_ty,  // rsrc(SGPR)
+     llvm_i32_ty,    // vindex(VGPR)
+     llvm_i32_ty,    // offset(VGPR/imm, included in bounds checking and swizzling)
+     llvm_i32_ty,    // soffset(SGPR/imm, excluded from bounds checking and swizzling)
+     llvm_i32_ty,    // format(imm; bits 3..0 = dfmt, bits 6..4 = nfmt)
+     llvm_i32_ty],   // cachepolicy(imm; bit 0 = glc, bit 1 = slc, bit 2 = dlc on gfx10+)
+    [IntrWriteMem, ImmArg<5>, ImmArg<6>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1>;
+
+class PPUBufferAtomic : Intrinsic <
+  [llvm_anyint_ty],
+  [LLVMMatchType<0>,       // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(SGPR/VGPR/imm)
+   llvm_i1_ty],       // slc(imm)
+  [ImmArg<4>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1, 0>;
+def int_ppu_buffer_atomic_swap : PPUBufferAtomic;
+def int_ppu_buffer_atomic_add : PPUBufferAtomic;
+def int_ppu_buffer_atomic_sub : PPUBufferAtomic;
+def int_ppu_buffer_atomic_smin : PPUBufferAtomic;
+def int_ppu_buffer_atomic_umin : PPUBufferAtomic;
+def int_ppu_buffer_atomic_smax : PPUBufferAtomic;
+def int_ppu_buffer_atomic_umax : PPUBufferAtomic;
+def int_ppu_buffer_atomic_and : PPUBufferAtomic;
+def int_ppu_buffer_atomic_or : PPUBufferAtomic;
+def int_ppu_buffer_atomic_xor : PPUBufferAtomic;
+def int_ppu_buffer_atomic_cmpswap : Intrinsic<
+  [llvm_i32_ty],
+  [llvm_i32_ty,       // src(VGPR)
+   llvm_i32_ty,       // cmp(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(SGPR/VGPR/imm)
+   llvm_i1_ty],       // slc(imm)
+  [ImmArg<5>], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<2, 0>;
+
+} // defset PPUBufferIntrinsics
+/*
+// Uses that do not set the done bit should set IntrWriteMem on the
+// call site.
+def int_ppu_exp : Intrinsic <[], [
+  llvm_i32_ty,       // tgt,
+  llvm_i32_ty,       // en
+  llvm_any_ty,       // src0 (f32 or i32)
+  LLVMMatchType<0>,  // src1
+  LLVMMatchType<0>,  // src2
+  LLVMMatchType<0>,  // src3
+  llvm_i1_ty,        // done
+  llvm_i1_ty         // vm
+  ],
+  [ImmArg<0>, ImmArg<1>, ImmArg<6>, ImmArg<7>, IntrInaccessibleMemOnly]
+>;
+
+// exp with compr bit set.
+def int_ppu_exp_compr : Intrinsic <[], [
+  llvm_i32_ty,       // tgt,
+  llvm_i32_ty,       // en
+  llvm_anyvector_ty, // src0 (v2f16 or v2i16)
+  LLVMMatchType<0>,  // src1
+  llvm_i1_ty,        // done
+  llvm_i1_ty],       // vm
+  [ImmArg<0>, ImmArg<1>, ImmArg<4>, ImmArg<5>, IntrInaccessibleMemOnly]
+>;
+*/
+def int_ppu_buffer_wbinvl1_sc :
+  GCCBuiltin<"__builtin_ppu_buffer_wbinvl1_sc">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_buffer_wbinvl1 :
+  GCCBuiltin<"__builtin_ppu_buffer_wbinvl1">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_s_dcache_inv :
+  GCCBuiltin<"__builtin_ppu_s_dcache_inv">,
+  Intrinsic<[], [], []>;
+
+def int_ppu_s_memtime :
+  GCCBuiltin<"__builtin_ppu_s_memtime">,
+  Intrinsic<[llvm_i64_ty], []>;
+
+def int_ppu_s_sleep :
+  GCCBuiltin<"__builtin_ppu_s_sleep">,
+  Intrinsic<[], [llvm_i32_ty], [ImmArg<0>]> {
+}
+
+def int_ppu_s_getreg :
+  GCCBuiltin<"__builtin_ppu_s_getreg">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty],
+  [IntrInaccessibleMemOnly, IntrReadMem, IntrSpeculatable, ImmArg<0>]
+>;
+
+// int_ppu_s_getpc is provided to allow a specific style of position
+// independent code to determine the high part of its address when it is
+// known (through convention) that the code and any data of interest does
+// not cross a 4Gb address boundary. Use for any other purpose may not
+// produce the desired results as optimizations may cause code movement,
+// especially as we explicitly use IntrNoMem to allow optimizations.
+def int_ppu_s_getpc :
+  GCCBuiltin<"__builtin_ppu_s_getpc">,
+  Intrinsic<[llvm_i64_ty], [], [IntrNoMem, IntrSpeculatable]>;
+
+
+
+
+
+
+
+// llvm.ppu.ds.swizzle src offset
+def int_ppu_ds_swizzle :
+  GCCBuiltin<"__builtin_ppu_ds_swizzle">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty],
+            [IntrNoMem, IntrConvergent, ImmArg<1>]>;
+
+def int_ppu_ubfe : Intrinsic<[llvm_anyint_ty],
+    [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty],
+    [IntrNoMem, IntrSpeculatable]
+>;
+
+def int_ppu_sbfe : Intrinsic<[llvm_anyint_ty],
+    [LLVMMatchType<0>, llvm_i32_ty, llvm_i32_ty],
+    [IntrNoMem, IntrSpeculatable]
+>;
 
 def int_ppu_lerp :
   GCCBuiltin<"__builtin_ppu_lerp">,
@@ -460,7 +877,7 @@ def int_ppu_permlane16 : GCCBuiltin<"__builtin_ppu_permlane16">,
             [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
             [IntrNoMem, IntrConvergent, ImmArg<4>, ImmArg<5>]>;
 
-// llvm.amdgcn.permlanex16 <old> <src0> <src1> <src2> <fi> <bound_control>
+// llvm.ppu.permlanex16 <old> <src0> <src1> <src2> <fi> <bound_control>
 def int_ppu_permlanex16 : GCCBuiltin<"__builtin_ppu_permlanex16">,
   Intrinsic<[llvm_i32_ty],
             [llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i1_ty, llvm_i1_ty],
@@ -581,6 +998,27 @@ def int_ppu_udot8 :
     ],
     [IntrNoMem, IntrSpeculatable, ImmArg<3>]
   >;
+
+
+class PPUBufferAtomicNoRtn : Intrinsic <
+  [],
+  [llvm_anyfloat_ty,  // vdata(VGPR)
+   llvm_v2i32_ty,     // rsrc(SGPR)
+   llvm_i32_ty,       // vindex(VGPR)
+   llvm_i32_ty,       // offset(SGPR/VGPR/imm)
+   llvm_i1_ty],       // slc(imm)
+  [], "", [SDNPMemOperand]>,
+  PPURsrcIntrinsic<1, 0>;
+
+class PPUGlobalAtomicNoRtn : Intrinsic <
+  [],
+  [llvm_anyptr_ty,    // vaddr
+   llvm_anyfloat_ty],               // vdata(VGPR)
+  [IntrArgMemOnly, NoCapture<0>], "", [SDNPMemOperand]>;
+
+def int_ppu_buffer_atomic_fadd    : PPUBufferAtomicNoRtn;
+def int_ppu_global_atomic_fadd    : PPUGlobalAtomicNoRtn;
+
 
 
 //===----------------------------------------------------------------------===//

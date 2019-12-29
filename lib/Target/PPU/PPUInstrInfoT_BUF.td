@@ -152,7 +152,7 @@ defm BUFFER_STORE_DWORDX2 : MUBUF_Pseudo_Stores <
 // defm BUFFER_STORE_DWORDX4 : MUBUF_Pseudo_Stores <
 //   "buffer_store_dwordx4", v4i32, store_global
 // >;
-/*
+
 defm BUFFER_ATOMIC_SWAP : MUBUF_Pseudo_Atomics <
   "buffer_atomic_swap", VPR_32, i32, atomic_swap_global_32
 >;
@@ -195,9 +195,11 @@ defm BUFFER_ATOMIC_DEC : MUBUF_Pseudo_Atomics <
 defm BUFFER_ATOMIC_SWAP_X2 : MUBUF_Pseudo_Atomics <
   "buffer_atomic_swap_x2", VReg_64, i64, atomic_swap_global_64
 >;
+/*
 defm BUFFER_ATOMIC_CMPSWAP_X2 : MUBUF_Pseudo_Atomics <
   "buffer_atomic_cmpswap_x2", VReg_128, v2i64, null_frag
 >;
+*/
 defm BUFFER_ATOMIC_ADD_X2 : MUBUF_Pseudo_Atomics <
   "buffer_atomic_add_x2", VReg_64, i64, atomic_load_add_global_64
 >;
@@ -231,7 +233,7 @@ defm BUFFER_ATOMIC_INC_X2 : MUBUF_Pseudo_Atomics <
 defm BUFFER_ATOMIC_DEC_X2 : MUBUF_Pseudo_Atomics <
   "buffer_atomic_dec_x2", VReg_64, i64, atomic_dec_global_64
 >;
-*/
+
 /*
 // let SubtargetPredicate = isGFX8GFX9 in {
 def BUFFER_STORE_LDS_DWORD : MUBUF_Pseudo_Store_Lds <"buffer_store_lds_dword">;
@@ -1138,40 +1140,38 @@ defm BUFFER_LOAD_SHORT_D16_HI   : MUBUF_Real_AllAddr_ppu <0x25>;
 defm BUFFER_LOAD_FORMAT_D16_HI_X  : MUBUF_Real_AllAddr_ppu <0x26>;
 defm BUFFER_STORE_FORMAT_D16_HI_X : MUBUF_Real_AllAddr_ppu <0x27>;
 
-/*
-defm BUFFER_ATOMIC_SWAP         : MUBUF_Real_Atomic_vi <0x40>;
-defm BUFFER_ATOMIC_CMPSWAP      : MUBUF_Real_Atomic_vi <0x41>;
-defm BUFFER_ATOMIC_ADD          : MUBUF_Real_Atomic_vi <0x42>;
-defm BUFFER_ATOMIC_SUB          : MUBUF_Real_Atomic_vi <0x43>;
-defm BUFFER_ATOMIC_SMIN         : MUBUF_Real_Atomic_vi <0x44>;
-defm BUFFER_ATOMIC_UMIN         : MUBUF_Real_Atomic_vi <0x45>;
-defm BUFFER_ATOMIC_SMAX         : MUBUF_Real_Atomic_vi <0x46>;
-defm BUFFER_ATOMIC_UMAX         : MUBUF_Real_Atomic_vi <0x47>;
-defm BUFFER_ATOMIC_AND          : MUBUF_Real_Atomic_vi <0x48>;
-defm BUFFER_ATOMIC_OR           : MUBUF_Real_Atomic_vi <0x49>;
-defm BUFFER_ATOMIC_XOR          : MUBUF_Real_Atomic_vi <0x4a>;
-defm BUFFER_ATOMIC_INC          : MUBUF_Real_Atomic_vi <0x4b>;
-defm BUFFER_ATOMIC_DEC          : MUBUF_Real_Atomic_vi <0x4c>;
+defm BUFFER_ATOMIC_SWAP         : MUBUF_Real_Atomic_ppu <0x40>;
+defm BUFFER_ATOMIC_CMPSWAP      : MUBUF_Real_Atomic_ppu <0x41>;
+defm BUFFER_ATOMIC_ADD          : MUBUF_Real_Atomic_ppu <0x42>;
+defm BUFFER_ATOMIC_SUB          : MUBUF_Real_Atomic_ppu <0x43>;
+defm BUFFER_ATOMIC_SMIN         : MUBUF_Real_Atomic_ppu <0x44>;
+defm BUFFER_ATOMIC_UMIN         : MUBUF_Real_Atomic_ppu <0x45>;
+defm BUFFER_ATOMIC_SMAX         : MUBUF_Real_Atomic_ppu <0x46>;
+defm BUFFER_ATOMIC_UMAX         : MUBUF_Real_Atomic_ppu <0x47>;
+defm BUFFER_ATOMIC_AND          : MUBUF_Real_Atomic_ppu <0x48>;
+defm BUFFER_ATOMIC_OR           : MUBUF_Real_Atomic_ppu <0x49>;
+defm BUFFER_ATOMIC_XOR          : MUBUF_Real_Atomic_ppu <0x4a>;
+defm BUFFER_ATOMIC_INC          : MUBUF_Real_Atomic_ppu <0x4b>;
+defm BUFFER_ATOMIC_DEC          : MUBUF_Real_Atomic_ppu <0x4c>;
 
-defm BUFFER_ATOMIC_SWAP_X2      : MUBUF_Real_Atomic_vi <0x60>;
-defm BUFFER_ATOMIC_CMPSWAP_X2   : MUBUF_Real_Atomic_vi <0x61>;
-defm BUFFER_ATOMIC_ADD_X2       : MUBUF_Real_Atomic_vi <0x62>;
-defm BUFFER_ATOMIC_SUB_X2       : MUBUF_Real_Atomic_vi <0x63>;
-defm BUFFER_ATOMIC_SMIN_X2      : MUBUF_Real_Atomic_vi <0x64>;
-defm BUFFER_ATOMIC_UMIN_X2      : MUBUF_Real_Atomic_vi <0x65>;
-defm BUFFER_ATOMIC_SMAX_X2      : MUBUF_Real_Atomic_vi <0x66>;
-defm BUFFER_ATOMIC_UMAX_X2      : MUBUF_Real_Atomic_vi <0x67>;
-defm BUFFER_ATOMIC_AND_X2       : MUBUF_Real_Atomic_vi <0x68>;
-defm BUFFER_ATOMIC_OR_X2        : MUBUF_Real_Atomic_vi <0x69>;
-defm BUFFER_ATOMIC_XOR_X2       : MUBUF_Real_Atomic_vi <0x6a>;
-defm BUFFER_ATOMIC_INC_X2       : MUBUF_Real_Atomic_vi <0x6b>;
-defm BUFFER_ATOMIC_DEC_X2       : MUBUF_Real_Atomic_vi <0x6c>;
+defm BUFFER_ATOMIC_SWAP_X2      : MUBUF_Real_Atomic_ppu <0x60>;
+// defm BUFFER_ATOMIC_CMPSWAP_X2   : MUBUF_Real_Atomic_ppu <0x61>;
+defm BUFFER_ATOMIC_ADD_X2       : MUBUF_Real_Atomic_ppu <0x62>;
+defm BUFFER_ATOMIC_SUB_X2       : MUBUF_Real_Atomic_ppu <0x63>;
+defm BUFFER_ATOMIC_SMIN_X2      : MUBUF_Real_Atomic_ppu <0x64>;
+defm BUFFER_ATOMIC_UMIN_X2      : MUBUF_Real_Atomic_ppu <0x65>;
+defm BUFFER_ATOMIC_SMAX_X2      : MUBUF_Real_Atomic_ppu <0x66>;
+defm BUFFER_ATOMIC_UMAX_X2      : MUBUF_Real_Atomic_ppu <0x67>;
+defm BUFFER_ATOMIC_AND_X2       : MUBUF_Real_Atomic_ppu <0x68>;
+defm BUFFER_ATOMIC_OR_X2        : MUBUF_Real_Atomic_ppu <0x69>;
+defm BUFFER_ATOMIC_XOR_X2       : MUBUF_Real_Atomic_ppu <0x6a>;
+defm BUFFER_ATOMIC_INC_X2       : MUBUF_Real_Atomic_ppu <0x6b>;
+defm BUFFER_ATOMIC_DEC_X2       : MUBUF_Real_Atomic_ppu <0x6c>;
 
-def BUFFER_STORE_LDS_DWORD_vi   : MUBUF_Real_vi <0x3d, BUFFER_STORE_LDS_DWORD>;
+// def BUFFER_STORE_LDS_DWORD_ppu   : MUBUF_Real_ppu <0x3d, BUFFER_STORE_LDS_DWORD>;
 
-def BUFFER_WBINVL1_vi           : MUBUF_Real_vi <0x3e, BUFFER_WBINVL1>;
-def BUFFER_WBINVL1_VOL_vi       : MUBUF_Real_vi <0x3f, BUFFER_WBINVL1_VOL>;
-*/
+// def BUFFER_WBINVL1_ppu           : MUBUF_Real_ppu <0x3e, BUFFER_WBINVL1>;
+// def BUFFER_WBINVL1_VOL_ppu       : MUBUF_Real_ppu <0x3f, BUFFER_WBINVL1_VOL>;
 
 /*
 let SubtargetPredicate = HasAtomicFaddInsts in {

@@ -101,30 +101,32 @@ PPUFunctionArgInfo::getPreloadedValue(
   case PPUFunctionArgInfo::WORKGROUP_ID_Z:
     return std::make_pair(WorkGroupIDZ ? &WorkGroupIDZ : nullptr,
                           &PPU::SPR_32RegClass);
-    /*
   case PPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET:
     return std::make_pair(
       PrivateSegmentWaveByteOffset ? &PrivateSegmentWaveByteOffset : nullptr,
-      &PPU::SGPR_32RegClass);
+      &PPU::SPR_32RegClass);
   case PPUFunctionArgInfo::KERNARG_SEGMENT_PTR:
     return std::make_pair(KernargSegmentPtr ? &KernargSegmentPtr : nullptr,
-                          &PPU::SGPR_64RegClass);
+                          &PPU::SPR_64RegClass);
+    /*
   case PPUFunctionArgInfo::IMPLICIT_ARG_PTR:
     return std::make_pair(ImplicitArgPtr ? &ImplicitArgPtr : nullptr,
                           &PPU::SGPR_64RegClass);
+                          */
   case PPUFunctionArgInfo::DISPATCH_ID:
     return std::make_pair(DispatchID ? &DispatchID : nullptr,
-                          &PPU::SGPR_64RegClass);
+                          &PPU::SPR_64RegClass);
+    /*
   case PPUFunctionArgInfo::FLAT_SCRATCH_INIT:
     return std::make_pair(FlatScratchInit ? &FlatScratchInit : nullptr,
                           &PPU::SGPR_64RegClass);
+                          */
   case PPUFunctionArgInfo::DISPATCH_PTR:
     return std::make_pair(DispatchPtr ? &DispatchPtr : nullptr,
-                          &PPU::SGPR_64RegClass);
+                          &PPU::SPR_64RegClass);
   case PPUFunctionArgInfo::QUEUE_PTR:
     return std::make_pair(QueuePtr ? &QueuePtr : nullptr,
-                          &PPU::SGPR_64RegClass);
-                          */
+                          &PPU::SPR_64RegClass);
   case PPUFunctionArgInfo::WORKITEM_ID_X:
     return std::make_pair(WorkItemIDX ? &WorkItemIDX : nullptr,
                           &PPU::VPR_32RegClass);
