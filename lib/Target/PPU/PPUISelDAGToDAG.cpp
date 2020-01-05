@@ -87,7 +87,7 @@ static SDNode *packConstantV2I16(const SDNode *N, SelectionDAG &DAG,
     uint32_t K = Negate ?
       (-LHSVal & 0xffff) | (-RHSVal << 16) :
       (LHSVal & 0xffff) | (RHSVal << 16);
-    return DAG.getMachineNode(PPU::SMOV, SL, N->getValueType(0),
+    return DAG.getMachineNode(PPU::S_MOV_B32, SL, N->getValueType(0),
                               DAG.getTargetConstant(K, SL, MVT::i32));
   }
 
@@ -165,7 +165,8 @@ public:
   explicit PPUDAGToDAGISel(PPUTargetMachine *TM = nullptr,
                               CodeGenOpt::Level OptLevel = CodeGenOpt::Default)
       : PPUBaseDAGToDAGISel(*TM, OptLevel) {
-    EnableReconvergeCFG = TM->getSubtargetImpl()->enableReconvergeCFG();
+    // EnableReconvergeCFG = TM->getSubtargetImpl()->enableReconvergeCFG();
+    EnableReconvergeCFG = TM->EnableReconvergeCFG;
   }
 
   StringRef getPassName() const override {
@@ -217,6 +218,7 @@ private:
 
   bool isVGPRImm(const SDNode *N) const;
   bool isUniformLoad(const SDNode *N) const;
+  bool isUniformStore(const SDNode *N) const;
   bool isUniformBr(const SDNode *N) const;
 
   MachineSDNode *buildSMovImm64(SDLoc &DL, uint64_t Val, EVT VT) const;
@@ -699,10 +701,8 @@ bool PPUDAGToDAGISel::matchLoadD16FromBuildVector(SDNode *N) const {
 }
 
 void PPUDAGToDAGISel::PreprocessISelDAG() {
-    /* RISCV have LH, LHU
   if (!Subtarget->d16PreservesUnusedBits())
     return;
-    */
 
   SelectionDAG::allnodes_iterator Position = CurDAG->allnodes_end();
 
@@ -739,25 +739,6 @@ bool PPUDAGToDAGISel::isNoNanSrc(SDValue N) const {
   return CurDAG->isKnownNeverNaN(N);
 }
 
-/* looks old version, need delete
-bool PPUDAGToDAGISel::isInlineImmediate(const SDNode *N) const {
-  const PPUInstrInfo *TII = Subtarget->getInstrInfo();
-  bool IsVALU = TII->isVALU(N->getOpcode());
-  unsigned BitSize = N->getValueType(0).getSizeInBits();
-
-  if (BitSize == 64 && IsVALU == false) {
-    return false;
-  }
-
-  if (const ConstantSDNode *C = dyn_cast<ConstantSDNode>(N))
-    return TII->isInlineConstant(C->getAPIntValue());
-
-  if (const ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(N))
-    return TII->isInlineConstant(C->getValueAPF().bitcastToAPInt());
-
-  return false;
-}
-*/
 bool PPUDAGToDAGISel::isInlineImmediate(const SDNode *N,
                                            bool Negated) const {
   if (N->isUndef())
@@ -884,9 +865,9 @@ static unsigned selectSGPRVectorRegClassID(unsigned NumVectorElts) {
     return PPU::SReg_32RegClassID;
   case 2:
     return PPU::SReg_64RegClassID;
-    /* FIXME
   case 4:
     return PPU::SReg_128RegClassID;
+    /* FIXME
   case 8:
     return PPU::SReg_256RegClassID;
   case 16:
@@ -910,12 +891,12 @@ void PPUDAGToDAGISel::SelectBuildVector(SDNode *N, unsigned RegClassID) {
     return;
   }
 
-  assert(NumVectorElts <= 16 && "Vectors with more than 16 elements not "
+  assert(NumVectorElts <= 32 && "Vectors with more than 16 elements not "
                                 "supported yet");
-  // 16 = Max Num Vector Elements
+  // 32 = Max Num Vector Elements
   // 2 = 2 REG_SEQUENCE operands per element (value, subreg index)
   // 1 = Vector Register Class
-  SmallVector<SDValue, 16 * 2 + 1> RegSeqArgs(NumVectorElts * 2 + 1);
+  SmallVector<SDValue, 32 * 2 + 1> RegSeqArgs(NumVectorElts * 2 + 1);
 
   RegSeqArgs[0] = CurDAG->getTargetConstant(RegClassID, DL, MVT::i32);
   bool IsRegSeq = true;
@@ -1027,12 +1008,9 @@ void PPUDAGToDAGISel::Select(SDNode *N) {
     SDValue RC, SubReg0, SubReg1;
     SDLoc DL(N);
     if (N->getValueType(0) == MVT::i128) {
-      llvm_unreachable("Unhandled value type for BUILD_PAIR");
-      /*
       RC = CurDAG->getTargetConstant(PPU::SReg_128RegClassID, DL, MVT::i32);
       SubReg0 = CurDAG->getTargetConstant(PPU::sub0_sub1, DL, MVT::i32);
       SubReg1 = CurDAG->getTargetConstant(PPU::sub2_sub3, DL, MVT::i32);
-      */
     } else if (N->getValueType(0) == MVT::i64) {
       RC = CurDAG->getTargetConstant(PPU::SReg_64RegClassID, DL, MVT::i32);
       SubReg0 = CurDAG->getTargetConstant(PPU::sub0, DL, MVT::i32);
@@ -1972,10 +1950,12 @@ bool PPUDAGToDAGISel::SelectSMRDImm(SDValue Addr, SDValue &SBase,
   bool Imm;
   return SelectSMRD(Addr, SBase, Offset, Imm) && Imm;
 }
-/*
+
 bool PPUDAGToDAGISel::SelectSMRDImm32(SDValue Addr, SDValue &SBase,
                                          SDValue &Offset) const {
-
+    llvm_unreachable("FIXME on SelectSMRDImm32");
+    return false;
+    /*
   if (Subtarget->getGeneration() != AMDGPUSubtarget::SEA_ISLANDS)
     return false;
 
@@ -1984,8 +1964,8 @@ bool PPUDAGToDAGISel::SelectSMRDImm32(SDValue Addr, SDValue &SBase,
     return false;
 
   return !Imm && isa<ConstantSDNode>(Offset);
+  */
 }
-*/
 
 bool PPUDAGToDAGISel::SelectSMRDSgpr(SDValue Addr, SDValue &SBase,
                                         SDValue &Offset) const {
@@ -1999,9 +1979,11 @@ bool PPUDAGToDAGISel::SelectSMRDBufferImm(SDValue Addr,
   bool Imm;
   return SelectSMRDOffset(Addr, Offset, Imm) && Imm;
 }
-/*
+
 bool PPUDAGToDAGISel::SelectSMRDBufferImm32(SDValue Addr,
                                                SDValue &Offset) const {
+    return false;
+    /*
   if (Subtarget->getGeneration() != AMDGPUSubtarget::SEA_ISLANDS)
     return false;
 
@@ -2010,8 +1992,9 @@ bool PPUDAGToDAGISel::SelectSMRDBufferImm32(SDValue Addr,
     return false;
 
   return !Imm && isa<ConstantSDNode>(Offset);
+  */
 }
-*/
+
 bool PPUDAGToDAGISel::SelectMOVRELOffset(SDValue Index,
                                             SDValue &Base,
                                             SDValue &Offset) const {
@@ -2357,9 +2340,7 @@ void PPUDAGToDAGISel::SelectATOMIC_CMP_SWAP(SDNode *N) {
   MachineMemOperand *MMO = Mem->getMemOperand();
   CurDAG->setNodeMemRefs(CmpSwap, {MMO});
 
-  assert(Is32);
-  // unsigned SubReg = Is32 ? PPU::sub0 : PPU::sub0_sub1;
-  unsigned SubReg = PPU::sub0;
+  unsigned SubReg = Is32 ? PPU::sub0 : PPU::sub0_sub1;
 
   SDValue Extract
     = CurDAG->getTargetExtractSubreg(SubReg, SL, VT, SDValue(CmpSwap, 0));
@@ -2889,6 +2870,31 @@ bool PPUDAGToDAGISel::isUniformLoad(const SDNode * N) const {
         );
 }
 
+bool PPUDAGToDAGISel::isUniformStore(const SDNode * N) const {
+  auto St = cast<StoreSDNode>(N);
+
+  // FIXME I copied from isUniformLoad, but not sure correct. for collber wheck MemoryDependenceAnalysis
+  return St->getAlignment() >= 4 &&
+        (
+          /*(
+            (
+              St->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS       ||
+              St->getAddressSpace() == AMDGPUAS::CONSTANT_ADDRESS_32BIT
+            )
+            &&
+            !N->isDivergent()
+          )
+          ||*/
+          (
+            Subtarget->getScalarizeGlobalBehavior() &&
+            St->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS &&
+            !St->isVolatile() &&
+            !N->isDivergent() /*&&
+            static_cast<const PPUTargetLowering *>(
+              getTargetLowering())->isMemOpHasNoClobberedMemOperand(N)*/
+          )
+        );
+}
 
 void PPUDAGToDAGISel::PostprocessISelDAG() {
   if (!PPU::isCompute(CurDAG)) {

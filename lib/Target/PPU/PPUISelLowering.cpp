@@ -121,7 +121,6 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::f64, &PPU::VReg_64RegClass);
   addRegisterClass(MVT::v2i32, &PPU::SReg_64RegClass);
   addRegisterClass(MVT::v2f32, &PPU::VReg_64RegClass);
-/* TODO
   addRegisterClass(MVT::v3i32, &PPU::SPR_96RegClass);
   addRegisterClass(MVT::v3f32, &PPU::VReg_96RegClass);
 
@@ -131,6 +130,7 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::v4i32, &PPU::SReg_128RegClass);
   addRegisterClass(MVT::v4f32, &PPU::VReg_128RegClass);
 
+/* TODO
   addRegisterClass(MVT::v5i32, &PPU::SGPR_160RegClass);
   addRegisterClass(MVT::v5f32, &PPU::VReg_160RegClass);
 
@@ -193,7 +193,7 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::GlobalAddress, MVT::i64, Custom);
 
   setOperationAction(ISD::SELECT, MVT::i1, Promote);
-  setOperationAction(ISD::SELECT, MVT::i64, Custom);
+  setOperationAction(ISD::SELECT, MVT::i64, Custom); // FIXME why i32 is not here
   setOperationAction(ISD::SELECT, MVT::f64, Promote);
   AddPromotedToType(ISD::SELECT, MVT::f64, MVT::i64);
 
@@ -1987,15 +1987,16 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   FunctionType *FType = MF.getFunction().getFunctionType();
   PPUMachineFunctionInfo *Info = MF.getInfo<PPUMachineFunctionInfo>();
 
+  if (!PPU::isCompute(CallConv)) {
+      return PPUBaseTargetLowering::LowerFormalArguments(Chain, CallConv, isVarArg, Ins, DL,
+              DAG, InVals);
+  }
+
   if (Subtarget->isPPSOS() && !PPU::isKernel(CallConv)) {
-      /*
     DiagnosticInfoUnsupported NoGraphicsHSA(
         Fn, "unsupported non-compute shaders with HSA", DL.getDebugLoc());
     DAG.getContext()->diagnose(NoGraphicsHSA);
     return DAG.getEntryNode();
-    */
-      PPUBaseTargetLowering::LowerFormalArguments(Chain, CallConv, isVarArg, Ins, DL,
-              DAG, InVals);
   }
 
   SmallVector<ISD::InputArg, 16> Splits;
@@ -2065,10 +2066,9 @@ SDValue PPUTargetLowering::LowerFormalArguments(
         DAG, VT, MemVT, DL, Chain, Offset, Align, Ins[i].Flags.isSExt(), &Ins[i]);
       Chains.push_back(Arg.getValue(1));
 
-      /* FIXME
       auto *ParamTy =
         dyn_cast<PointerType>(FType->getParamType(Ins[i].getOrigArgIndex()));
-      if (Subtarget->getGeneration() == PPUSubtarget::SOUTHERN_ISLANDS &&
+      if (/*Subtarget->getGeneration() == PPUSubtarget::SOUTHERN_ISLANDS &&*/
           ParamTy && (ParamTy->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS ||
                       ParamTy->getAddressSpace() == AMDGPUAS::REGION_ADDRESS)) {
         // On SI local pointers are just offsets into LDS, so they are always
@@ -2077,7 +2077,6 @@ SDValue PPUTargetLowering::LowerFormalArguments(
         Arg = DAG.getNode(ISD::AssertZext, DL, Arg.getValueType(), Arg,
                           DAG.getValueType(MVT::i16));
       }
-      */
 
       InVals.push_back(Arg);
       continue;
@@ -2088,7 +2087,6 @@ SDValue PPUTargetLowering::LowerFormalArguments(
         Chains.push_back(Val.getValue(1));
       continue;
     }
-
     assert(VA.isRegLoc() && "Parameter must be in a register!");
 
     Register Reg = VA.getLocReg();
@@ -3125,7 +3123,7 @@ static MachineBasicBlock::iterator emitLoadM0FromVGPRLoop(
     .addReg(IdxReg.getReg(), getUndefRegState(IdxReg.isUndef()));
 
   // Compare the just read M0 value to all possible Idx values.
-  BuildMI(LoopBB, I, DL, TII->get(PPU::V_CMP_EQ_U32_e32), CondReg)
+  BuildMI(LoopBB, I, DL, TII->get(PPU::V_CMP_EQ_U32_e64), CondReg)
     .addReg(CurrentIdxReg)
     .addReg(IdxReg.getReg(), 0, IdxReg.getSubReg());
 
@@ -3168,7 +3166,7 @@ static MachineBasicBlock::iterator emitLoadM0FromVGPRLoop(
   // Update EXEC, switch all done bits to 0 and all todo bits to 1.
   unsigned Exec = PPU::TMSK;
   MachineInstr *InsertPt =
-    BuildMI(LoopBB, I, DL, TII->get(PPU::S_XOR_B32), Exec)
+    BuildMI(LoopBB, I, DL, TII->get(PPU::S_XOR_B32_term), Exec)
     // BuildMI(LoopBB, I, DL, TII->get(PPU::S_XOR_B32_term), Exec)
       .addReg(Exec)
       .addReg(NewExec);
@@ -3209,7 +3207,7 @@ static MachineBasicBlock::iterator loadM0FromVGPR(const PPUInstrInfo *TII,
   Register SaveExec = MRI.createVirtualRegister(BoolXExecRC);
   Register TmpExec = MRI.createVirtualRegister(BoolXExecRC);
   unsigned Exec = PPU::TMSK;
-  unsigned MovExecOpc = PPU::SMOV ;
+  unsigned MovExecOpc = PPU::S_MOV_B32;
 
   BuildMI(MBB, I, DL, TII->get(TargetOpcode::IMPLICIT_DEF), TmpExec);
 
@@ -3755,8 +3753,7 @@ MachineBasicBlock *PPUTargetLowering::EmitInstrWithCustomInserter(
 
     bool NeedClampOperand = false;
     if (TII->pseudoToMCOpcode(Opc) == -1) {
-      assert("FIXME in for PPU::getVOPe64");
-      // FIXME schi Opc = PPU::getVOPe64(Opc);
+      Opc = PPU::getVOPe64(Opc);
       NeedClampOperand = true;
     }
 
@@ -10529,13 +10526,13 @@ PPUTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       case 64:
         RC = &PPU::SReg_64RegClass;
         break;
-        /*
       case 96:
         RC = &PPU::SReg_96RegClass;
         break;
       case 128:
         RC = &PPU::SReg_128RegClass;
         break;
+        /*
       case 160:
         RC = &PPU::SReg_160RegClass;
         break;
@@ -10559,13 +10556,13 @@ PPUTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
       case 64:
         RC = &PPU::VReg_64RegClass;
         break;
-        /*
       case 96:
         RC = &PPU::VReg_96RegClass;
         break;
       case 128:
         RC = &PPU::VReg_128RegClass;
         break;
+        /*
       case 160:
         RC = &PPU::VReg_160RegClass;
         break;

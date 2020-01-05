@@ -72,7 +72,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "bi-lower-control-flow"
+#define DEBUG_TYPE "ppu-lower-control-flow"
 
 namespace {
 
@@ -146,7 +146,7 @@ char &llvm::PPULowerControlFlowID = PPULowerControlFlow::ID;
 
 static bool isSimpleIf(const MachineInstr &MI, const MachineRegisterInfo *MRI,
                        const PPUInstrInfo *TII) {
-  unsigned SaveTmskReg = MI.getOperand(0).getReg();
+  Register SaveTmskReg = MI.getOperand(0).getReg();
   auto U = MRI->use_instr_nodbg_begin(SaveTmskReg);
 
   if (U == MRI->use_instr_nodbg_end() ||
@@ -201,21 +201,18 @@ void PPULowerControlFlow::emitIf(MachineInstr &MI) {
   // will interfere with trying to form s_and_saveexec_b64 later.
   Register CopyReg = SimpleIf ? SaveTmskReg
                        : MRI->createVirtualRegister(BoolRC);
-                       // FIXME : MRI->createVirtualRegister(&PPU::SReg_64RegClass);
+
   MachineInstr *CopyExec =
     BuildMI(MBB, I, DL, TII->get(PPU::COPY), CopyReg)
     .addReg(Exec)
     .addReg(Exec, RegState::ImplicitDefine);
 
   Register Tmp = MRI->createVirtualRegister(BoolRC);
-  // FIXME unsigned Tmp = MRI->createVirtualRegister(&PPU::SReg_64RegClass);
 
   MachineInstr *And =
     BuildMI(MBB, I, DL, TII->get(AndOpc), Tmp)
     .addReg(CopyReg)
-    .addReg(Cond.getReg());
-    // .addReg(Cond);
-    //.addReg(Exec)
+    .add(Cond);
 
   setImpSCCDefDead(*And, true);
 
@@ -255,8 +252,7 @@ void PPULowerControlFlow::emitIf(MachineInstr &MI) {
   LIS->InsertMachineInstrInMaps(*SetExec);
   LIS->InsertMachineInstrInMaps(*NewBr);
 
-  // LIS->removeRegUnit(*MCRegUnitIterator(Exec, TRI));
-  LIS->removeAllRegUnitsForPhysReg(Exec);
+  LIS->removeAllRegUnitsForPhysReg(PPU::TMSK);
   MI.eraseFromParent();
 
   // FIXME: Is there a better way of adjusting the liveness? It shouldn't be
@@ -282,21 +278,18 @@ void PPULowerControlFlow::emitElse(MachineInstr &MI) {
   // We are running before TwoAddressInstructions, and si_else's operands are
   // tied. In order to correctly tie the registers, split this into a copy of
   // the src like it does.
-  // FIXME unsigned CopyReg = MRI->createVirtualRegister(&PPU::SReg_64RegClass);
-  unsigned CopyReg = MRI->createVirtualRegister(BoolRC);
+  Register CopyReg = MRI->createVirtualRegister(BoolRC);
   MachineInstr *CopyExec =
     BuildMI(MBB, Start, DL, TII->get(PPU::COPY), CopyReg)
       .add(MI.getOperand(1)); // Saved EXEC
 
   // This must be inserted before phis and any spill code inserted before the
   // else.
-  unsigned SaveReg = ExecModified ?
+  Register SaveReg = ExecModified ?
     MRI->createVirtualRegister(BoolRC) : DstReg;
-   //  FIXME MRI->createVirtualRegister(&PPU::SReg_64RegClass) : DstReg;
   MachineInstr *OrSaveTmsk =
     BuildMI(MBB, Start, DL, TII->get(OrSaveExecOpc), SaveReg)
     .addReg(CopyReg);
-    // FIXME .addReg(Exec);
 
   MachineBasicBlock *DestBB = MI.getOperand(2).getMBB();
 
@@ -343,8 +336,7 @@ void PPULowerControlFlow::emitElse(MachineInstr &MI) {
     LIS->createAndComputeVirtRegInterval(SaveReg);
 
   // Let this be recomputed.
-  // FIXME LIS->removeRegUnit(*MCRegUnitIterator(Exec, TRI));
-  LIS->removeAllRegUnitsForPhysReg(Exec);
+  LIS->removeAllRegUnitsForPhysReg(PPU::TMSK);
 }
 
 void PPULowerControlFlow::emitIfBreak(MachineInstr &MI) {
@@ -396,15 +388,15 @@ void PPULowerControlFlow::emitLoop(MachineInstr &MI) {
       BuildMI(MBB, &MI, DL, TII->get(Andn2TermOpc), Exec)
           .addReg(Exec)
           .add(MI.getOperand(0));
-/* FIXME schi
+
   MachineInstr *Branch =
-      BuildMI(MBB, &MI, DL, TII->get(PPU::CBRANCH_TMSKNZ))//S_CBRANCH_EXECNZ
+      BuildMI(MBB, &MI, DL, TII->get(PPU::S_CBRANCH_TMSKNZ))
           .add(MI.getOperand(1));
+
   if (LIS) {
     LIS->ReplaceMachineInstrInMaps(MI, *AndN2);
     LIS->InsertMachineInstrInMaps(*Branch);
   }
-*/
 
   MI.eraseFromParent();
 }
@@ -447,7 +439,7 @@ void PPULowerControlFlow::findMaskOperands(MachineInstr &MI, unsigned OpNo,
   // A copy with implcitly defined exec inserted earlier is an exclusion, it
   // does not really modify exec.
   for (auto I = Def->getIterator(); I != MI.getIterator(); ++I)
-    if (I->modifiesRegister(Exec, TRI) &&
+    if (I->modifiesRegister(PPU::TMSK, TRI) &&
         !(I->isCopy() && I->getOperand(0).getReg() != Exec))
       return;
 
@@ -458,8 +450,8 @@ void PPULowerControlFlow::findMaskOperands(MachineInstr &MI, unsigned OpNo,
 }
 
 // Search and combine pairs of equivalent instructions, like
-// S_AND_B64 x, (S_AND_B64 x, y) => SL_AND_B64 x, y
-// S_OR_B64  x, (S_OR_B64  x, y) => SL_OR_B64  x, y
+// S_AND_B64 x, (S_AND_B64 x, y) => S_AND_B64 x, y
+// S_OR_B64  x, (S_OR_B64  x, y) => S_OR_B64  x, y
 // One of the operands is exec mask.
 void PPULowerControlFlow::combineMasks(MachineInstr &MI) {
   assert(MI.getNumExplicitOperands() == 3);
@@ -493,13 +485,13 @@ bool PPULowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
   MRI = &MF.getRegInfo();
   BoolRC = TRI->getBoolRC();
 
-    AndOpc = PPU::AND;
-    OrOpc = PPU::OR;
-    XorOpc = PPU::XOR;
-    MovTermOpc = PPU::SMOV;
-    Andn2TermOpc = PPU::AND; // FIXME schi  ANDN2;
-    XorTermrOpc = PPU::XOR;
-    OrSaveExecOpc = PPU::OR; // FIXME  schi PPU::S_OR_SAVEEXEC_B32;
+    AndOpc = PPU::S_AND_B32;
+    OrOpc = PPU::S_OR_B32;
+    XorOpc = PPU::S_XOR_B32;
+    MovTermOpc = PPU::S_MOV_B32_term;
+    Andn2TermOpc = PPU::S_ANDN2_B32_term;
+    XorTermrOpc = PPU::S_XOR_B32_term;
+    OrSaveExecOpc = PPU::S_OR_SAVETMSK_B32;
     Exec = PPU::TMSK;
 
   MachineFunction::iterator NextBB;
@@ -535,10 +527,10 @@ bool PPULowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
         emitEndCf(MI);
         break;
 
-      // case PPU::S_AND_B64:
-      // case PPU::S_OR_B64:
-      case PPU::AND:
-      case PPU::OR:
+      case PPU::S_AND_B64:
+      case PPU::S_OR_B64:
+      case PPU::S_AND_B32:
+      case PPU::S_OR_B32:
         // Cleanup bit manipulations on exec mask
         combineMasks(MI);
         Last = I;

@@ -1541,15 +1541,14 @@ const TargetRegisterClass *PPURegisterInfo::getPhysRegClass(unsigned Reg) const 
     &PPU::VReg_64RegClass,
     &PPU::SReg_64RegClass,
     &PPU::SReg_32RegClass,
-    &PPU::SCC_CLASSRegClass,
-    &PPU::Pseudo_SReg_32RegClass,
-    &PPU::Pseudo_SReg_64RegClass
     /*
     &PPU::AReg_64RegClass,
+    */
     &PPU::VReg_96RegClass,
     &PPU::SReg_96RegClass,
     &PPU::VReg_128RegClass,
     &PPU::SReg_128RegClass,
+    /*
     &PPU::AReg_128RegClass,
     &PPU::VReg_160RegClass,
     &PPU::SReg_160RegClass,
@@ -1561,10 +1560,11 @@ const TargetRegisterClass *PPURegisterInfo::getPhysRegClass(unsigned Reg) const 
     &PPU::SReg_1024RegClass,
     &PPU::VReg_1024RegClass,
     &PPU::AReg_1024RegClass,
+    */
     &PPU::SCC_CLASSRegClass,
     &PPU::Pseudo_SReg_32RegClass,
-    &PPU::Pseudo_SReg_128RegClass,
-    */
+    &PPU::Pseudo_SReg_64RegClass
+    // &PPU::Pseudo_SReg_128RegClass
   };
 
   for (const TargetRegisterClass *BaseClass : BaseClasses) {
@@ -1586,11 +1586,11 @@ bool PPURegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
     return getCommonSubClass(&PPU::VPR_32RegClass, RC) != nullptr;
   case 64:
     return getCommonSubClass(&PPU::VReg_64RegClass, RC) != nullptr;
-    /*
   case 96:
     return getCommonSubClass(&PPU::VReg_96RegClass, RC) != nullptr;
   case 128:
     return getCommonSubClass(&PPU::VReg_128RegClass, RC) != nullptr;
+    /*
   case 160:
     return getCommonSubClass(&PPU::VReg_160RegClass, RC) != nullptr;
   case 256:
@@ -1612,11 +1612,11 @@ const TargetRegisterClass *PPURegisterInfo::getEquivalentVGPRClass(
     return &PPU::VPR_32RegClass;
   case 64:
     return &PPU::VReg_64RegClass;
-    /*
   case 96:
     return &PPU::VReg_96RegClass;
   case 128:
     return &PPU::VReg_128RegClass;
+    /*
   case 160:
     return &PPU::VReg_160RegClass;
   case 256:
@@ -1636,13 +1636,13 @@ const TargetRegisterClass *PPURegisterInfo::getEquivalentSGPRClass(
   switch (getRegSizeInBits(*VRC)) {
   case 32:
     return &PPU::SPR_32RegClass;
-    /*
   case 64:
     return &PPU::SReg_64RegClass;
   case 96:
     return &PPU::SReg_96RegClass;
   case 128:
     return &PPU::SReg_128RegClass;
+    /*
   case 160:
     return &PPU::SReg_160RegClass;
   case 256:
@@ -1668,13 +1668,13 @@ const TargetRegisterClass *PPURegisterInfo::getSubRegClass(
     switch (Count) {
     case 1:
       return &PPU::SPR_32RegClass;
-      /*
     case 2:
       return &PPU::SReg_64RegClass;
     case 3:
       return &PPU::SReg_96RegClass;
     case 4:
       return &PPU::SReg_128RegClass;
+      /*
     case 5:
       return &PPU::SReg_160RegClass;
     case 8:
@@ -1690,13 +1690,13 @@ const TargetRegisterClass *PPURegisterInfo::getSubRegClass(
     switch (Count) {
     case 1:
       return &PPU::VPR_32RegClass;
-      /*
     case 2:
       return &PPU::VReg_64RegClass;
     case 3:
       return &PPU::VReg_96RegClass;
     case 4:
       return &PPU::VReg_128RegClass;
+      /*
     case 5:
       return &PPU::VReg_160RegClass;
     case 8:
@@ -2051,13 +2051,13 @@ PPURegisterInfo::getRegClassForSizeOnBank(unsigned Size,
   case 64:
     return RB.getID() == PPU::VPRRegBankID ? &PPU::VReg_64RegClass :
                                                  &PPU::SReg_64RegClass;
-  /*case 96:
-    return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_96RegClass :
+  case 96:
+    return RB.getID() == PPU::VPRRegBankID ? &PPU::VReg_96RegClass :
                                                  &PPU::SReg_96RegClass;
   case 128:
-    return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_128RegClass :
+    return RB.getID() == PPU::VPRRegBankID ? &PPU::VReg_128RegClass :
                                                  &PPU::SReg_128RegClass;
-  case 160:
+  /*case 160:
     return RB.getID() == PPU::VGPRRegBankID ? &PPU::VReg_160RegClass :
                                                  &PPU::SReg_160RegClass;
   case 256:

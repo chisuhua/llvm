@@ -177,7 +177,7 @@ unsigned PPUMachineFunctionInfo::addPrivateSegmentBuffer(
   ArgInfo.PrivateSegmentBuffer =
     ArgDescriptor::createRegister(getNextUserSPR());
   NumUserSGPRs += 1;
-    // ArgDescriptor::createRegister(TRI.getMatchingSuperReg(getNextUserSPR());
+    // FIXME ArgDescriptor::createRegister(TRI.getMatchingSuperReg(getNextUserSPR());
     // getNextUserSGPR(), PPU::sub0, &PPU::SReg_128RegClass));
     // NumUserSGPRs += 4;
   return ArgInfo.PrivateSegmentBuffer.getRegister();

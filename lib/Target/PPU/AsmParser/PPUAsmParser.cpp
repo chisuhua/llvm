@@ -664,9 +664,9 @@ static int getRegClass(RegisterKind Is, unsigned RegWidth) {
       default: return -1;
       case 1: return PPU::VPR_32RegClassID;
       case 2: return PPU::VReg_64RegClassID;
-      /*
       case 3: return PPU::VReg_96RegClassID;
       case 4: return PPU::VReg_128RegClassID;
+      /*
       case 5: return PPU::VReg_160RegClassID;
       case 8: return PPU::VReg_256RegClassID;
       case 16: return PPU::VReg_512RegClassID;
@@ -689,8 +689,8 @@ static int getRegClass(RegisterKind Is, unsigned RegWidth) {
       default: return -1;
       case 1: return PPU::SPR_32RegClassID;
       case 2: return PPU::SPR_64RegClassID;
+      case 4: return PPU::SPR_128RegClassID;
       /*
-      case 4: return PPU::SGPR_128RegClassID;
       case 8: return PPU::SGPR_256RegClassID;
       case 16: return PPU::SGPR_512RegClassID;
       */

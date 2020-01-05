@@ -86,6 +86,7 @@ PPUInstructionSelector::PPUInstructionSelector(
     const PPURegisterBankInfo &RBI)
     : InstructionSelector(), STI(STI), TII(*STI.getInstrInfo()),
       TRI(*STI.getRegisterInfo()), RBI(RBI), TM(TM),
+//    EnableLateStructurizeCFG(STI.EnableLateStructurizeCFG),
       EnableReconvergeCFG(STI.enableReconvergeCFG()),
 
 #define GET_GLOBALISEL_PREDICATES_INIT

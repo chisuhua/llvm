@@ -876,15 +876,13 @@ bool PPUInstrInfo::getMemOperandWithOffset(const MachineInstr &LdSt,
     if (VAddr) {
       // Can't analyze 2 offsets.
       // FIXME don't have saddr in PPU
-      // if (getNamedOperand(LdSt, PPU::OpName::saddr))
-      //   return false;
+      if (getNamedOperand(LdSt, PPU::OpName::saddr))
+         return false;
 
       BaseOp = VAddr;
     } else {
       // scratch instructions have either vaddr or saddr.
-      // FIXME don't have saddr
-      // BaseOp = getNamedOperand(LdSt, PPU::OpName::saddr);
-      return false;
+      BaseOp = getNamedOperand(LdSt, PPU::OpName::saddr);
     }
 
     Offset = getNamedOperand(LdSt, PPU::OpName::offset)->getImm();
@@ -1488,7 +1486,7 @@ void PPUInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     // to make sure we are using the correct register class.
     if (Register::isVirtualRegister(SrcReg) && SpillSize == 4) {
       MachineRegisterInfo &MRI = MF->getRegInfo();
-      MRI.constrainRegClass(SrcReg, &PPU::GPRRegClass);
+      MRI.constrainRegClass(SrcReg, &PPU::SReg_32RegClass);
     }
 
     MachineInstrBuilder Spill = BuildMI(MBB, MI, DL, OpDesc)
@@ -1785,25 +1783,21 @@ bool PPUInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   DebugLoc DL = MBB.findDebugLoc(MI);
   switch (MI.getOpcode()) {
   default: return TargetInstrInfo::expandPostRAPseudo(MI);
-/*
-  case PPU::S_MOV_B64_term:
+  /*case PPU::S_MOV_B64_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(get(PPU::S_MOV_B64));
-    break;
-*/
+    break;*/
   case PPU::S_MOV_B32_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(get(PPU::S_MOV_B32));
     break;
-/*
-  case PPU::S_XOR_B64_term:
+  /*case PPU::S_XOR_B64_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(get(PPU::S_XOR_B64));
-    break;
-*/
+    break;*/
   case PPU::S_XOR_B32_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
@@ -1815,13 +1809,11 @@ bool PPUInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // register allocation.
     MI.setDesc(get(PPU::S_OR_B32));
     break;
-/*
-  case PPU::S_ANDN2_B64_term:
+  /*case PPU::S_ANDN2_B64_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(get(PPU::S_ANDN2_B64));
-    break;
-*/
+    break;*/
   case PPU::S_ANDN2_B32_term:
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
@@ -1868,10 +1860,10 @@ bool PPUInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     break;
   }
-  /*
+#if 0
   case PPU::V_SET_INACTIVE_B64: {
-    unsigned NotOpc = ST.isWave32() ? PPU::S_NOT_B32 : PPU::S_NOT_B64;
-    unsigned Exec = ST.isWave32() ? PPU::EXEC_LO : PPU::EXEC;
+    unsigned NotOpc = /*ST.isWave32() ?*/ PPU::S_NOT_B32 /*: PPU::S_NOT_B64*/;
+    unsigned Exec = /*ST.isWave32() ? PPU::EXEC_LO :*/ PPU::TMSK;
     BuildMI(MBB, MI, DL, get(NotOpc), Exec)
       .addReg(Exec);
     MachineInstr *Copy = BuildMI(MBB, MI, DL, get(PPU::V_MOV_B64_PSEUDO),
@@ -1910,7 +1902,7 @@ bool PPUInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.eraseFromParent();
     break;
   }
-  */
+#endif
   case PPU::SI_PC_ADD_REL_OFFSET: {
     MachineFunction &MF = *MBB.getParent();
     Register Reg = MI.getOperand(0).getReg();
@@ -2716,7 +2708,7 @@ bool PPUInstrInfo::FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
   unsigned Opc = UseMI.getOpcode();
   if (Opc == PPU::COPY) {
     bool isVGPRCopy = RI.isVGPR(*MRI, UseMI.getOperand(0).getReg());
-    unsigned NewOpc = isVGPRCopy ? PPU::VMOV : PPU::SMOV;
+    unsigned NewOpc = isVGPRCopy ? PPU::V_MOV_B32_e32 : PPU::S_MOV_B32;
     UseMI.setDesc(get(NewOpc));
     UseMI.getOperand(1).ChangeToImmediate(ImmOp->getImm());
     UseMI.addImplicitDefUseOperands(*UseMI.getParent()->getParent());
@@ -2978,7 +2970,7 @@ static int64_t getFoldableImm(const MachineOperand* MO) {
   const MachineFunction *MF = MO->getParent()->getParent()->getParent();
   const MachineRegisterInfo &MRI = MF->getRegInfo();
   auto Def = MRI.getUniqueVRegDef(MO->getReg());
-  if (Def && Def->getOpcode() == PPU::VMOV &&
+  if (Def && Def->getOpcode() == PPU::V_MOV_B32_e32 &&
       Def->getOperand(1).isImm())
     return Def->getOperand(1).getImm();
   return PPU::NoRegister;
@@ -3096,7 +3088,7 @@ MachineInstr *PPUInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB
 static bool changesVGPRIndexingMode(const MachineInstr &MI) {
   switch (MI.getOpcode()) {
   case PPU::S_SET_GPR_IDX_ON:
-  // case PPU::S_SET_GPR_IDX_MODE:  why miss FIXME
+  case PPU::S_SET_GPR_IDX_MODE:  // why miss FIXME
   case PPU::S_SET_GPR_IDX_OFF:
     return true;
   default:
@@ -4367,7 +4359,6 @@ bool PPUInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
   }
 
   return isImmOperandLegal(MI, OpIdx, *MO);
-
 }
 
 void PPUInstrInfo::legalizeOperandsVOP2(MachineRegisterInfo &MRI,
@@ -4689,7 +4680,7 @@ emitLoadSRsrcFromVGPRLoop(const PPUInstrInfo &TII, MachineRegisterInfo &MRI,
       .addReg(VRsrc, VRsrcUndef, PPU::sub0);
   BuildMI(LoopBB, I, DL, TII.get(PPU::V_READFIRSTLANE_B32), SRsrcSub1)
       .addReg(VRsrc, VRsrcUndef, PPU::sub1);
-  /*
+  /* FIXME
   BuildMI(LoopBB, I, DL, TII.get(PPU::V_READFIRSTLANE_B32), SRsrcSub2)
       .addReg(VRsrc, VRsrcUndef, PPU::sub2);
   BuildMI(LoopBB, I, DL, TII.get(PPU::V_READFIRSTLANE_B32), SRsrcSub3)
@@ -4825,8 +4816,8 @@ extractRsrcPtr(const PPUInstrInfo &TII, MachineInstr &MI, MachineOperand &Rsrc) 
 
   // Create an empty resource descriptor
   Register Zero64 = MRI.createVirtualRegister(&PPU::SReg_64RegClass);
-  Register SRsrcFormatLo = MRI.createVirtualRegister(&PPU::GPRRegClass);
-  Register SRsrcFormatHi = MRI.createVirtualRegister(&PPU::GPRRegClass);
+  Register SRsrcFormatLo = MRI.createVirtualRegister(&PPU::SPR_32RegClass);
+  Register SRsrcFormatHi = MRI.createVirtualRegister(&PPU::SPR_32RegClass);
   Register NewSRsrc = MRI.createVirtualRegister(&PPU::SReg_128RegClass);
   uint64_t RsrcDataFormat = TII.getDefaultRsrcDataFormat();
 
@@ -5150,7 +5141,6 @@ void PPUInstrInfo::legalizeOperands(MachineInstr &MI,
     }
   }
 }
-
 
 void PPUInstrInfo::moveToVALU(MachineInstr &TopInst,
                              MachineDominatorTree *MDT) const {
@@ -6633,6 +6623,7 @@ static PPUEncodingFamily subtargetEncodingFamily(const PPUSubtarget &ST) {
     llvm_unreachable("FIXME Unknown subtarget generation in subtargetEncodingFamily!");
     break;
   case PPUSubtarget::PPU:
+  case PPUSubtarget::PPT:
     return PPUEncodingFamily::PPU;
   }
   llvm_unreachable("Unknown subtarget generation!");

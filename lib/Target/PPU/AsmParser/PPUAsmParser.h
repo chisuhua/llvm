@@ -395,9 +395,9 @@ public:
 
   bool isVReg() const {
     return isRegClass(PPU::VPR_32RegClassID) ||
-           isRegClass(PPU::VReg_64RegClassID); /* ||
+           isRegClass(PPU::VReg_64RegClassID) ||
            isRegClass(PPU::VReg_96RegClassID) ||
-           isRegClass(PPU::VReg_128RegClassID) ||
+           isRegClass(PPU::VReg_128RegClassID); /*||
            isRegClass(PPU::VReg_160RegClassID) ||
            isRegClass(PPU::VReg_256RegClassID) ||
            isRegClass(PPU::VReg_512RegClassID) ||

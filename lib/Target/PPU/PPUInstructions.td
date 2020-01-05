@@ -244,6 +244,17 @@ def PPUtrig_preop : SDNode<"PPUISD::TRIG_PREOP", PPUTrigPreOp>;
 def PPUstore_mskor : SDNode<"PPUISD::STORE_MSKOR",
                         SDTypeProfile<0, 2, []>,
                         [SDNPHasChain, SDNPMayStore, SDNPMemOperand]>;
+
+def PPUatomic_cmp_swap : SDNode<"PPUISD::ATOMIC_CMP_SWAP",
+                            SDTypeProfile<1, 2, [SDTCisPtrTy<1>, SDTCisVec<2>]>,
+                            [SDNPHasChain, SDNPMayStore, SDNPMayLoad,
+                             SDNPMemOperand]>;
+
+
+
+
+
+
 // This argument to this node is a dword address.
 def PPUdwordaddr : SDNode<"PPUISD::DWORDADDR", SDTIntUnaryOp>;
 
@@ -838,6 +849,27 @@ class global_binary_atomic_op_frag<SDNode atomic_op> : PatFrag<
     (ops node:$ptr, node:$value),
     (atomic_op node:$ptr, node:$value),
     [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;}]>;
+
+// Legacy.
+def PPUatomic_cmp_swap_global : PatFrag<
+  (ops node:$ptr, node:$value),
+  (PPUatomic_cmp_swap node:$ptr, node:$value)>, GlobalAddress;
+
+def atomic_cmp_swap_global : PatFrag<
+  (ops node:$ptr, node:$cmp, node:$value),
+  (atomic_cmp_swap node:$ptr, node:$cmp, node:$value)>, GlobalAddress;
+
+
+def atomic_cmp_swap_global_noret : PatFrag<
+  (ops node:$ptr, node:$cmp, node:$value),
+  (atomic_cmp_swap node:$ptr, node:$cmp, node:$value),
+  [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS && (SDValue(N, 0).use_empty());}]>;
+
+def atomic_cmp_swap_global_ret : PatFrag<
+  (ops node:$ptr, node:$cmp, node:$value),
+  (atomic_cmp_swap node:$ptr, node:$cmp, node:$value),
+  [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS && (!SDValue(N, 0).use_empty());}]>;
+
 
 //===----------------------------------------------------------------------===//
 // Misc Pattern Fragments

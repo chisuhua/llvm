@@ -50,6 +50,102 @@ PPUSubtarget &PPUSubtarget::initializeSubtargetDependencies(
 
   TargetABI = PPUABI::computeTargetABI(TT, getFeatureBits(), ABIName);
   PPUFeatures::validate(TT, getFeatureBits());
+  // return *this;
+
+  // Below is AMD part
+
+
+  // Determine default and user-specified characteristics
+  // On SI+, we want FP64 denormals to be on by default. FP32 denormals can be
+  // enabled, but some instructions do not respect them and they run at the
+  // double precision rate, so don't enable by default.
+  //
+  // We want to be able to turn these off, but making this a subtarget feature
+  // for SI has the unhelpful behavior that it unsets everything else if you
+  // disable it.
+  //
+  // Similarly we want enable-prt-strict-null to be on by default and not to
+  // unset everything else if it is disabled
+
+  // Assuming ECC is enabled is the conservative default.
+  // SmallString<256> FullFS("+promote-alloca,+load-store-opt,+sram-ecc,+xnack,");
+  SmallString<256> FullFS("+promote-alloca,+load-store-opt,");
+
+  if (isPPSOS()) // Turn on FlatForGlobal for HSA.
+    FullFS += "+flat-for-global,+unaligned-buffer-access,+trap-handler,";
+
+  // FIXME: I don't think think Evergreen has any useful support for
+  // denormals, but should be checked. Should we issue a warning somewhere
+  // if someone tries to enable these?
+  if (getGeneration() >= PPUSubtarget::PPT) {
+    FullFS += "+fp64-fp16-denormals,";
+  } else {
+    FullFS += "-fp32-denormals,";
+  }
+
+  // TODO FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
+
+  // Disable mutually exclusive bits.
+  /*
+  if (FS.find_lower("+wavefrontsize") != StringRef::npos) {
+    if (FS.find_lower("wavefrontsize16") == StringRef::npos)
+      FullFS += "-wavefrontsize16,";
+    if (FS.find_lower("wavefrontsize32") == StringRef::npos)
+      FullFS += "-wavefrontsize32,";
+    if (FS.find_lower("wavefrontsize64") == StringRef::npos)
+      FullFS += "-wavefrontsize64,";
+  }
+  */
+
+  // TODO FullFS += FS;
+
+  ParseSubtargetFeatures(CPU, FullFS);
+
+  // We don't support FP64 for EG/NI atm.
+  // assert(!hasFP64() || (getGeneration() >= AMDGPUSubtarget::SOUTHERN_ISLANDS));
+
+  // Unless +-flat-for-global is specified, turn on FlatForGlobal for all OS-es
+  // on VI and newer hardware to avoid assertion failures due to missing ADDR64
+  // variants of MUBUF instructions.
+  if (!hasAddr64() && !FS.contains("flat-for-global")) {
+    FlatForGlobal = true;
+  }
+
+  // Set defaults if needed.
+  if (MaxPrivateElementSize == 0)
+    MaxPrivateElementSize = 4;
+
+  if (LDSBankCount == 0)
+    LDSBankCount = 32;
+
+  if (TT.getArch() == Triple::ppu) {
+    if (LocalMemorySize == 0)
+      LocalMemorySize = 32768;
+
+    // Do something sensible for unspecified target.
+    // if (!HasMovrel && !HasVPRIndexMode)
+    //  HasMovrel = true;
+  }
+
+  // Don't crash on invalid devices.
+  if (WavefrontSize == 0)
+    WavefrontSize = 32;
+
+  HasFminFmaxLegacy = false; // getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
+
+  // if (DoesNotSupportXNACK && EnableXNACK) {
+  //   ToggleFeature(AMDGPU::FeatureXNACK);
+  //  EnableXNACK = false;
+  // }
+
+  // ECC is on by default, but turn it off if the hardware doesn't support it
+  // anyway. This matters for the gfx9 targets with d16 loads, but don't support
+  // ECC.
+  // if (DoesNotSupportSRAMECC && EnableSRAMECC) {
+  //   ToggleFeature(AMDGPU::FeatureSRAMECC);
+  //  EnableSRAMECC = false;
+  // }
+
   return *this;
 }
 
@@ -257,8 +353,11 @@ unsigned PPUBaseSubtarget::getOccupancyWithLocalMemSize(uint32_t Bytes,
 PPUSubtarget::PPUSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
                                StringRef ABIName, const TargetMachine &TM)
     : PPUBaseSubtarget(TT, CPU, FS)
-    , FrameLowering(initializeSubtargetDependencies(TT, CPU, FS, ABIName))
-    , InstrInfo(*this), RegInfo(*this, getHwMode()), TLInfo(TM, *this) {
+    , InstrItins(getInstrItineraryForCPU(CPU))
+    , InstrInfo(initializeSubtargetDependencies(TT, CPU, FS, ABIName))
+    , FrameLowering(*this, TargetFrameLowering::StackGrowsDown, getStackAlignment(), 0) // TODO amd is StackGrowsUp
+    , RegInfo(*this, getHwMode())
+    , TLInfo(TM, *this) {
   MaxWavesPerEU = PPU::IsaInfo::getMaxWavesPerEU(this);
   CallLoweringInfo.reset(new PPUCallLowering(*getTargetLowering()));
   Legalizer.reset(new PPULegalizerInfo(*this));

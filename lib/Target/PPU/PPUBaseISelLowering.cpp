@@ -81,38 +81,39 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
 
   // TODO copied from rvv
   if (STI.hasStdExtV())
-    addRegisterClass(MVT::nxv1i32, &PPU::TPRRegClass);
+    addRegisterClass(MVT::nxv1i32, &PPU::VPR_32RegClass);
 
 
   // Compute derived properties from the register classes.
-  computeRegisterProperties(STI.getRegisterInfo());
+  // computeRegisterProperties(STI.getRegisterInfo());  // PPUISel call it
 
   setStackPointerRegisterToSaveRestore(PPU::X2);
 
-  for (auto N : {ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD})
-    setLoadExtAction(N, XLenVT, MVT::i1, Promote);
+  // for (auto N : {ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD})
+  //  setLoadExtAction(N, XLenVT, MVT::i1, Promote);  redefined in PPUBaseISel
 
   // TODO: add all necessary setOperationAction calls.
-  setOperationAction(ISD::DYNAMIC_STACKALLOC, XLenVT, Expand);
+  setOperationAction(ISD::DYNAMIC_STACKALLOC, XLenVT, Expand); // conflit with PPUBaseISel
 
-  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
-  setOperationAction(ISD::BR_CC, XLenVT, Expand);
-  setOperationAction(ISD::SELECT, XLenVT, Custom);
-  setOperationAction(ISD::SELECT_CC, XLenVT, Expand);
+  // setOperationAction(ISD::BR_JT, MVT::Other, Expand);    // redefine in PPUBaseISel
+  // setOperationAction(ISD::BR_CC, XLenVT, Expand);       // redefine in PPUISel
+  // setOperationAction(ISD::SELECT, XLenVT, Custom);      //  redefine in PPUISel
+  setOperationAction(ISD::SELECT_CC, XLenVT, Expand);   // same as PPUISel
 
-  setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
-  setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
+  setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);   // onlny in rv
+  setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand); // only in rv
 
-  setOperationAction(ISD::VASTART, MVT::Other, Custom);
-  setOperationAction(ISD::VAARG, MVT::Other, Expand);
-  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
-  setOperationAction(ISD::VAEND, MVT::Other, Expand);
+  setOperationAction(ISD::VASTART, MVT::Other, Custom);   // only in rv
+  setOperationAction(ISD::VAARG, MVT::Other, Expand);   // only in rv
+  setOperationAction(ISD::VACOPY, MVT::Other, Expand);   // only in rv
+  setOperationAction(ISD::VAEND, MVT::Other, Expand);   // only in rv
 
   for (auto VT : {MVT::i1, MVT::i8, MVT::i16})
-    setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
+    setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);  // PPUISel use Custon on vector
 
+  // FIXME to use PPU Instr
   if (Subtarget.is64Bit()) {
-    setOperationAction(ISD::ADD, MVT::i32, Custom);
+    setOperationAction(ISD::ADD, MVT::i32, Custom);  // PPUISel use ADDCARRAY on i32, PPUBaseISel use ADDC
     setOperationAction(ISD::SUB, MVT::i32, Custom);
     setOperationAction(ISD::SHL, MVT::i32, Custom);
     setOperationAction(ISD::SRA, MVT::i32, Custom);
@@ -160,6 +161,7 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
   ISD::NodeType FPOpToExtend[] = {
       ISD::FSIN, ISD::FCOS, ISD::FSINCOS, ISD::FPOW, ISD::FREM};
 
+/* TODO use PPU float/double inst instead
   if (Subtarget.hasStdExtF()) {
     setOperationAction(ISD::FMINNUM, MVT::f32, Legal);
     setOperationAction(ISD::FMAXNUM, MVT::f32, Legal);
@@ -174,7 +176,8 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.hasStdExtF() && Subtarget.is64Bit())
     setOperationAction(ISD::BITCAST, MVT::i32, Custom);
-
+  */
+/*
   if (Subtarget.hasStdExtD()) {
     setOperationAction(ISD::FMINNUM, MVT::f64, Legal);
     setOperationAction(ISD::FMAXNUM, MVT::f64, Legal);
@@ -188,15 +191,16 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
     for (auto Op : FPOpToExtend)
       setOperationAction(Op, MVT::f64, Expand);
   }
+  */
 
-  setOperationAction(ISD::GlobalAddress, XLenVT, Custom);
+  setOperationAction(ISD::GlobalAddress, XLenVT, Custom); // redefine in PPU
   setOperationAction(ISD::BlockAddress, XLenVT, Custom);
   setOperationAction(ISD::ConstantPool, XLenVT, Custom);
 
   setOperationAction(ISD::GlobalTLSAddress, XLenVT, Custom);
 
   // TODO copied from rvv
-  setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom);
+  // setOperationAction(ISD::INTRINSIC_WO_CHAIN, MVT::Other, Custom); // redifine in PPUISel
 
   // TODO: On M-mode only targets, the cycle[h] CSR may not be present.
   // Unfortunately this can't be determined just from the ISA naming string.
@@ -3232,7 +3236,7 @@ void PPUBaseTargetLowering::PPUBaseTargetLowering_compute() {
   setOperationAction(ISD::BRIND, MVT::Other, Expand);
 
   // This is totally unsupported, just custom lower to produce an error.
-  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Custom);
+  // TODO setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Custom); conflict with rv
 
   // Library functions.  These default to Expand, but we have instructions
   // for them.

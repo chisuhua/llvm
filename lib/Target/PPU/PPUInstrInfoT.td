@@ -205,6 +205,7 @@ def SIbuffer_atomic_cmpswap : SDNode <"PPUISD::BUFFER_ATOMIC_CMPSWAP",
      SDTCisVT<9, i1>]>,  // idxen(imm)
   [SDNPMemOperand, SDNPHasChain, SDNPMayLoad, SDNPMayStore]
 >;
+*/
 
 class SDGlobalAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
   SDTypeProfile<0, 2,
@@ -215,7 +216,6 @@ class SDGlobalAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
 
 def SIglobal_atomic_fadd    : SDGlobalAtomicNoRtn <"PPUISD::ATOMIC_FADD", f32>;
 def SIglobal_atomic_pk_fadd : SDGlobalAtomicNoRtn <"PPUISD::ATOMIC_PK_FADD", v2f16>;
-*/
 
 def SIpc_add_rel_offset : SDNode<"PPUISD::PC_ADD_REL_OFFSET",
   SDTypeProfile<1, 2, [SDTCisVT<0, iPTR>, SDTCisSameAs<0,1>, SDTCisSameAs<0,2>]>
@@ -311,7 +311,6 @@ defm atomic_load_fmax_#as : binary_atomic_op<SIatomic_fmax, 0>;
 } // End let AddressSpaces = ...
 } // End foreach AddrSpace
 
-/*
 def atomic_fadd_global_noret : PatFrag<
   (ops node:$ptr, node:$value),
   (SIglobal_atomic_fadd node:$ptr, node:$value)> {
@@ -329,7 +328,7 @@ def atomic_pk_fadd_global_noret : PatFrag<
   let IsAtomic = 1;
   let AddressSpaces = StoreAddress_global.AddrSpaces;
 }
-*/
+
 
 //===----------------------------------------------------------------------===//
 // SDNodes PatFrags for loads/stores with a glue input.
@@ -1954,7 +1953,6 @@ def getAtomicNoRetOp : InstrMapping {
 }
 
 // Maps a GLOBAL to its SADDR form.
-/*
 def getGlobalSaddrOp : InstrMapping {
   let FilterClass = "GlobalSaddrTable";
   let RowFields = ["SaddrOp"];
@@ -1962,7 +1960,6 @@ def getGlobalSaddrOp : InstrMapping {
   let KeyCol = ["0"];
   let ValueCols = [["1"]];
 }
-*/
 
 // Maps a v_cmpx opcode with sdst to opcode without sdst.
 def getVCMPXNoSDstOp : InstrMapping {
@@ -1994,11 +1991,13 @@ include "PPUInstrFormatsT_VOP3P.td"
 include "PPUInstrFormatsT_VOPC.td"
 
 include "PPUInstrFormatsT_SM.td"
-// include "PPUInstrFormatsT_FLAT.td"
+
+include "PPUInstrFormatsT_FLAT.td"
 include "PPUInstrFormatsT_BUF.td"
 include "PPUInstrFormatsT_LDS.td"
 
 
+include "PPUInstrInfoT_SM.td"
 
 include "PPUInstrInfoT_SOP.td"
 // VOP
@@ -2008,8 +2007,7 @@ include "PPUInstrInfoT_VOP3.td"
 include "PPUInstrInfoT_VOP3P.td"
 include "PPUInstrInfoT_VOPC.td"
 
-include "PPUInstrInfoT_SM.td"
-// include "PPUInstrInfoT_FLAT.td"
+include "PPUInstrInfoT_FLAT.td"
 include "PPUInstrInfoT_BUF.td"
 include "PPUInstrInfoT_LDS.td"
 
