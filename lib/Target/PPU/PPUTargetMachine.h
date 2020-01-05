@@ -26,15 +26,16 @@ namespace llvm {
 class PPUTargetMachine : public LLVMTargetMachine {
 protected:
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
-  PPUSubtarget Subtarget;
 
   StringRef getFeatureString(const Function &F) const;
 
+  // PPUSubtarget Subtarget;
   // PPUIntrinsicInfo IntrinsicInfo;
   mutable StringMap<std::unique_ptr<PPUSubtarget>> SubtargetMap;
 
 public:
-  // static bool EnableReconvergeCFG;
+  // const TargetOptions Options;
+  static bool EnableReconvergeCFG;
   static bool EnableLateStructurizeCFG;
   static bool EnableFunctionCalls;
 
@@ -42,16 +43,13 @@ public:
                      StringRef FS, const TargetOptions &Options,
                      Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
                      CodeGenOpt::Level OL, bool JIT);
-
+/*
   const PPUSubtarget *getSubtargetImpl() const
   {
     return &Subtarget;
   }
-
-  const PPUSubtarget *getSubtargetImpl(const Function &) const override
-  {
-    return &Subtarget;
-  }
+*/
+  const PPUSubtarget *getSubtargetImpl(const Function &) const override;
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 

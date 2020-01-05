@@ -102,10 +102,8 @@ private:
   getSaluInsertionAtEnd(MachineBasicBlock &MBB) const;
 
   bool isVreg1(unsigned Reg) const {
-      /* FIXME
     return Register::isVirtualRegister(Reg) &&
            MRI->getRegClass(Reg) == &PPU::VReg_1RegClass;
-           */
   }
 
   bool isLaneMaskReg(unsigned Reg) const {
@@ -431,11 +429,9 @@ FunctionPass *llvm::createPPULowerI1CopiesPass() {
 }
 
 static unsigned createLaneMaskReg(MachineFunction &MF) {
-    /* FIXME
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   return MRI.createVirtualRegister(&PPU::SReg_32RegClass);
-  */
 }
 
 static unsigned insertUndefLaneMask(MachineBasicBlock &MBB) {
@@ -457,35 +453,34 @@ static unsigned insertUndefLaneMask(MachineBasicBlock &MBB) {
 /// Then we lower all defs of vreg_1 registers. Phi nodes are lowered before
 /// all others, because phi lowering looks through copies and can therefore
 /// often make copy lowering unnecessary.
-bool PPULowerI1Copies::runOnMachineFunction(MachineFunction &MF) {
-#if 0
-  MRI = MF.getRegInfo();
+bool PPULowerI1Copies::runOnMachineFunction(MachineFunction &TheMF) {
+  MF = &TheMF;
+  MRI = &MF->getRegInfo();
   DT = &getAnalysis<MachineDominatorTree>();
   PDT = &getAnalysis<MachinePostDominatorTree>();
 
   ST = &MF->getSubtarget<PPUSubtarget>();
   TII = ST->getInstrInfo();
-  const TargetRegisterInfo *TRI = &TII->getRegisterInfo();
 
-  ExecReg = PPU::EXEC;
-  MovOp = PPU::SMOV;
-  AndOp = PPU::AND;
-  OrOp = PPU::OR;
-  XorOp = PPU::XOR;
-  AndN2Op = PPU::AND;  // FIXME ANDN2;
-  OrN2Op = PPU::OR; // FIXME ORN2;
+    ExecReg = PPU::TMSK;
+    MovOp = PPU::S_MOV_B32;
+    AndOp = PPU::S_AND_B32;
+    OrOp = PPU::S_OR_B32;
+    XorOp = PPU::S_XOR_B32;
+    AndN2Op = PPU::S_ANDN2_B32;
+    OrN2Op = PPU::S_ORN2_B32;
 
   lowerCopiesFromI1();
   lowerPhis();
   lowerCopiesToI1();
 
   for (unsigned Reg : ConstrainRegs)
-    MRI->constrainRegClass(Reg, &PPU::SReg_1_XEXECRegClass);
+    MRI->constrainRegClass(Reg, &PPU::SReg_1RegClass);
   ConstrainRegs.clear();
-#endif
+
   return true;
 }
-#if 0
+
 void PPULowerI1Copies::lowerCopiesFromI1() {
   SmallVector<MachineInstr *, 4> DeadCopies;
 
@@ -861,4 +856,3 @@ void PPULowerI1Copies::buildMergeLaneMasks(MachineBasicBlock &MBB,
         .addReg(CurMaskedReg ? CurMaskedReg : ExecReg);
   }
 }
-#endif

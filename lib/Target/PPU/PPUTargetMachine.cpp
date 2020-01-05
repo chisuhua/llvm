@@ -47,13 +47,13 @@
 using namespace llvm;
 
 // Option to use reconverging CFG
-/* FIXME schi we use feature instead of option
+///* FIXME schi we use feature instead of option
 static cl::opt<bool, true> EnableReconvergeCFG(
   "ppu-EnableReconvergeCFG",
   cl::desc("Use reconverging CFG instead of structurization"),
   cl::location(PPUTargetMachine::EnableReconvergeCFG),
   cl::Hidden);
-*/
+
 static cl::opt<bool> EnableSROA(
   "ppu-sroa",
   cl::desc("Run SROA after promote alloca pass"),
@@ -254,15 +254,26 @@ static MachineSchedRegistry PPUILPSchedRegistry(
         createIterativeILPMachineScheduler);
 
 static StringRef computeDataLayout(const Triple &TT) {
-  return "e-m:e-p:32:32-i64:64-n32-S128";
-  /* TODO PPU
+  // odl riscv return "e-m:e-p:32:32-i64:64-n32-S128";
+  // TODO PPU
+  // 
   // 32-bit private, local, and region pointers. 64-bit global, constant and
   // flat, non-integral buffer fat pointers.
     return "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:32-p6:32:32"
          "-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128"
          "-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-n32:64-S32-A5"
          "-ni:7";
-         */
+}
+
+LLVM_READNONE
+static StringRef getCPUOrDefault(const Triple &TT, StringRef CPU) {
+  if (!CPU.empty())
+    return CPU;
+
+  // Need to default to a target with flat support for HSA.
+  assert(TT.getArch() == Triple::ppu);
+  // assert(TT.getOS() == Triple::PPS);
+  return "generic-ppu";
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
@@ -278,15 +289,16 @@ PPUTargetMachine::PPUTargetMachine(const Target &T, const Triple &TT,
                                        Optional<Reloc::Model> RM,
                                        Optional<CodeModel::Model> CM,
                                        CodeGenOpt::Level OL, bool JIT)
-    : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
-                        getEffectiveRelocModel(TT, RM),
+    : LLVMTargetMachine(T, computeDataLayout(TT), TT, getCPUOrDefault(TT, CPU),
+                        FS, Options, getEffectiveRelocModel(TT, RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      TLOF(std::make_unique<PPUELFTargetObjectFile>()),
-      Subtarget(TT, CPU, FS, Options.MCOptions.getABIName(), *this) {
+      TLOF(std::make_unique<PPUELFTargetObjectFile>())
+      // Options(Options)
+      /*Subtarget(TT, CPU, FS, Options.MCOptions.getABIName(), *this)*/ {
   initAsmInfo();
 }
 
-// bool PPUTargetMachine::EnableReconvergeCFG = false;
+bool PPUTargetMachine::EnableReconvergeCFG = true;
 bool PPUTargetMachine::EnableLateStructurizeCFG = false;
 bool PPUTargetMachine::EnableFunctionCalls = false;
 
@@ -366,12 +378,12 @@ void PPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
       PM.add(createPPULowerKernelAttributesPass());
   });
 }
-/*
+
 const PPUSubtarget *PPUTargetMachine::getSubtargetImpl(const Function &F) const {
-  StringRef GPU = "PPU;
+  StringRef CPU = getTargetCPU(); // "PPU";
   StringRef FS = getFeatureString(F);
 
-  SmallString<128> SubtargetKey(GPU);
+  SmallString<128> SubtargetKey(CPU);
   SubtargetKey.append(FS);
 
   auto &I = SubtargetMap[SubtargetKey];
@@ -380,14 +392,13 @@ const PPUSubtarget *PPUTargetMachine::getSubtargetImpl(const Function &F) const 
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
-    I = std::make_unique<GCNSubtarget>(TargetTriple, GPU, FS, *this);
+    I = std::make_unique<PPUSubtarget>(TargetTriple, CPU, FS, Options.MCOptions.getABIName(), *this);
   }
 
   I->setScalarizeGlobalBehavior(ScalarizeGlobal);
 
   return I.get();
 }
-*/
 
 TargetTransformInfo
 PPUTargetMachine::getTargetTransformInfo(const Function &F) {
@@ -399,7 +410,6 @@ class PPUPassConfig : public TargetPassConfig {
 public:
   PPUPassConfig(PPUTargetMachine &TM, PassManagerBase &PM)
       : TargetPassConfig(TM, PM)
-      , EnableReconvergeCFG(TM.getSubtargetImpl()->enableReconvergeCFG())
   {
     // Exceptions and StackMaps are not supported, so these passes will never do
     // anything.

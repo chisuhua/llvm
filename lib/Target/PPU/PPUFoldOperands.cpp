@@ -89,6 +89,7 @@ public:
   const PPUInstrInfo *TII;
   const PPURegisterInfo *TRI;
   const PPUSubtarget *ST;
+  const PPUMachineFunctionInfo *MFI;
 
   void foldOperand(MachineOperand &OpToFold,
                    MachineInstr *UseMI,
@@ -136,12 +137,12 @@ static bool isInlineConstantIfFolded(const PPUInstrInfo *TII,
                                      const MachineOperand &OpToFold) {
   if (TII->isInlineConstant(UseMI, OpNo, OpToFold))
     return true;
-  return false;
-#if 0
+
   unsigned Opc = UseMI.getOpcode();
   switch (Opc) {
-  case PPU::ML_MAC_F32:
-  case PPU::ML_MAC_F16: {
+  case PPU::V_MAC_F32_e64:
+  case PPU::V_MAC_F16_e64:
+  case PPU::V_FMAC_F32_e64: {
     // Special case for mac. Since this is replaced with mad when folded into
     // src2, we need to check the legality for the final instruction.
     int Src2Idx = PPU::getNamedOperandIdx(Opc, PPU::OpName::src2);
@@ -159,7 +160,6 @@ static bool isInlineConstantIfFolded(const PPUInstrInfo *TII,
   default:
     return false;
   }
-#endif
 }
 
 // TODO: Add heuristic that the frame index might not fit in the addressing mode
@@ -168,12 +168,10 @@ static bool frameIndexMayFold(const PPUInstrInfo *TII,
                               const MachineInstr &UseMI,
                               int OpNo,
                               const MachineOperand &OpToFold) {
-    /* FIXME
   return OpToFold.isFI() &&
     (TII->isMUBUF(UseMI) || TII->isFLATScratch(UseMI)) &&
     OpNo == PPU::getNamedOperandIdx(UseMI.getOpcode(), PPU::OpName::vaddr);
-    */
-    return false;
+    // return false;
 }
 
 FunctionPass *llvm::createPPUFoldOperandsPass() {
@@ -187,7 +185,6 @@ static bool updateOperand(FoldCandidate &Fold,
   MachineInstr *MI = Fold.UseMI;
   MachineOperand &Old = MI->getOperand(Fold.UseOpNo);
   assert(Old.isReg());
-/* FIXME
   if (Fold.isImm()) {
     if (MI->getDesc().TSFlags & PPUInstrFlags::IsPacked &&
         !(MI->getDesc().TSFlags & PPUInstrFlags::IsMAI) &&
@@ -208,7 +205,7 @@ static bool updateOperand(FoldCandidate &Fold,
       ModIdx = PPU::getNamedOperandIdx(Opcode, ModIdx);
       MachineOperand &Mod = MI->getOperand(ModIdx);
       unsigned Val = Mod.getImm();
-      if ((Val & SISrcMods::OP_SEL_0) || !(Val & SISrcMods::OP_SEL_1))
+      if ((Val & PPUSrcMods::OP_SEL_0) || !(Val & PPUSrcMods::OP_SEL_1))
         return false;
       // Only apply the following transformation if that operand requries
       // a packed immediate.
@@ -220,12 +217,12 @@ static bool updateOperand(FoldCandidate &Fold,
         // If upper part is all zero we do not need op_sel_hi.
         if (!isUInt<16>(Fold.ImmToFold)) {
           if (!(Fold.ImmToFold & 0xffff)) {
-            Mod.setImm(Mod.getImm() | SISrcMods::OP_SEL_0);
-            Mod.setImm(Mod.getImm() & ~SISrcMods::OP_SEL_1);
+            Mod.setImm(Mod.getImm() | PPUSrcMods::OP_SEL_0);
+            Mod.setImm(Mod.getImm() & ~PPUSrcMods::OP_SEL_1);
             Old.ChangeToImmediate((Fold.ImmToFold >> 16) & 0xffff);
             return true;
           }
-          Mod.setImm(Mod.getImm() & ~SISrcMods::OP_SEL_1);
+          Mod.setImm(Mod.getImm() & ~PPUSrcMods::OP_SEL_1);
           Old.ChangeToImmediate(Fold.ImmToFold & 0xffff);
           return true;
         }
@@ -275,7 +272,7 @@ static bool updateOperand(FoldCandidate &Fold,
       TII.commuteInstruction(*Inst32, false);
     return true;
   }
-*/
+
   assert(!Fold.needsShrink() && "not handled");
 
   if (Fold.isImm()) {
@@ -314,7 +311,6 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
                              MachineOperand *OpToFold,
                              const PPUInstrInfo *TII) {
   if (!TII->isOperandLegal(*MI, OpNo, OpToFold)) {
-#if 0
     // Special case for v_mac_{f16, f32}_e64 if we are trying to fold into src2
     unsigned Opc = MI->getOpcode();
     if ((Opc == PPU::V_MAC_F32_e64 || Opc == PPU::V_MAC_F16_e64 ||
@@ -335,15 +331,13 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
       }
       MI->setDesc(TII->get(Opc));
     }
-#endif
     // Special case for s_setreg_b32
-#if 0
     if (Opc == PPU::S_SETREG_B32 && OpToFold->isImm()) {
       MI->setDesc(TII->get(PPU::S_SETREG_IMM32_B32));
       FoldList.push_back(FoldCandidate(MI, OpNo, OpToFold));
       return true;
     }
-#endif
+
     // If we are already folding into another operand of MI, then
     // we can't commute the instruction, otherwise we risk making the
     // other fold illegal.
@@ -377,7 +371,7 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
     if (!CanCommute ||
         !TII->commuteInstruction(*MI, false, CommuteIdx0, CommuteIdx1))
       return false;
-/* FIXME
+
     if (!TII->isOperandLegal(*MI, CommuteOpNo, OpToFold)) {
       if ((Opc == PPU::V_ADD_I32_e64 ||
            Opc == PPU::V_SUB_I32_e64 ||
@@ -407,7 +401,6 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
       TII->commuteInstruction(*MI, false, CommuteIdx0, CommuteIdx1);
       return false;
     }
-    */
 
     FoldList.push_back(FoldCandidate(MI, CommuteOpNo, OpToFold, true));
     return true;
@@ -555,7 +548,7 @@ void PPUFoldOperands::foldOperand(
 
   if (tryToFoldACImm(TII, OpToFold, UseMI, UseOpIdx, FoldList))
     return;
-/* FIXME
+
   if (frameIndexMayFold(TII, *UseMI, UseOpIdx, OpToFold)) {
     // Sanity check that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
@@ -574,7 +567,7 @@ void PPUFoldOperands::foldOperand(
     SOff->setReg(MFI->getStackPtrOffsetReg());
     return;
   }
-*/
+
   bool FoldingImmLike =
       OpToFold.isImm() || OpToFold.isFI() || OpToFold.isGlobal();
 
@@ -656,9 +649,8 @@ void PPUFoldOperands::foldOperand(
     }
 
     unsigned UseOpc = UseMI->getOpcode();
-    /* FIXME
-    if (UseOpc == PPU::VREAD1stLANE ||
-        (UseOpc == PPU::VREADLANE &&
+    if (UseOpc == PPU::V_READFIRSTLANE_B32 ||
+        (UseOpc == PPU::V_READLANE_B32 &&
          (int)UseOpIdx ==
          PPU::getNamedOperandIdx(UseOpc, PPU::OpName::src0))) {
       // %vgpr = V_MOV_B32 imm
@@ -666,13 +658,13 @@ void PPUFoldOperands::foldOperand(
       // =>
       // %sgpr = S_MOV_B32 imm
       if (FoldingImmLike) {
-        if (execMayBeModifiedBeforeUse(*MRI,
+        if (PPU::execMayBeModifiedBeforeUse(*MRI,
                                        UseMI->getOperand(UseOpIdx).getReg(),
                                        *OpToFold.getParent(),
                                        *UseMI))
           return;
 
-        UseMI->setDesc(TII->get(PPU::SMOV));
+        UseMI->setDesc(TII->get(PPU::S_MOV_B32));
 
         // FIXME: ChangeToImmediate should clear subreg
         UseMI->getOperand(1).setSubReg(0);
@@ -685,7 +677,7 @@ void PPUFoldOperands::foldOperand(
       }
 
       if (OpToFold.isReg() && TRI->isSGPRReg(*MRI, OpToFold.getReg())) {
-        if (execMayBeModifiedBeforeUse(*MRI,
+        if (PPU::execMayBeModifiedBeforeUse(*MRI,
                                        UseMI->getOperand(UseOpIdx).getReg(),
                                        *OpToFold.getParent(),
                                        *UseMI))
@@ -703,7 +695,6 @@ void PPUFoldOperands::foldOperand(
         return;
       }
     }
-    */
 
     const MCInstrDesc &UseDesc = UseMI->getDesc();
 
@@ -729,7 +720,6 @@ void PPUFoldOperands::foldOperand(
   const TargetRegisterClass *FoldRC =
     TRI->getRegClass(FoldDesc.OpInfo[0].RegClass);
 
-  /* FIXME
   // Split 64-bit constants into 32-bits for folding.
   if (UseOp.getSubReg() && PPU::getRegBitWidth(FoldRC->getID()) == 64) {
     Register UseReg = UseOp.getReg();
@@ -750,7 +740,6 @@ void PPUFoldOperands::foldOperand(
     tryAddToFoldList(FoldList, UseMI, UseOpIdx, &ImmOp, TII);
     return;
   }
-  */
 
   tryAddToFoldList(FoldList, UseMI, UseOpIdx, &OpToFold, TII);
 }
@@ -758,7 +747,6 @@ void PPUFoldOperands::foldOperand(
 static bool evalBinaryInstruction(unsigned Opcode, int32_t &Result,
                                   uint32_t LHS, uint32_t RHS) {
   switch (Opcode) {
-    /* FIXME
   case PPU::V_AND_B32_e64:
   case PPU::V_AND_B32_e32:
   case PPU::S_AND_B32:
@@ -802,15 +790,13 @@ static bool evalBinaryInstruction(unsigned Opcode, int32_t &Result,
   case PPU::V_ASHRREV_I32_e32:
     Result = static_cast<int32_t>(RHS) >> (LHS & 31);
     return true;
-    */
   default:
     return false;
   }
 }
 
 static unsigned getMovOpc(bool IsScalar) {
-  // return IsScalar ? PPU::SL_MOV_B32 : PPU::ML_MOV_B32;
-  return IsScalar ? PPU::SMOV : PPU::VMOV;
+  return IsScalar ? PPU::S_MOV_B32 : PPU::V_MOV_B32_e32;
 }
 
 /// Remove any leftover implicit operands from mutating the instruction. e.g.
@@ -857,7 +843,6 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
                               const PPUInstrInfo *TII,
                               MachineInstr *MI,
                               MachineOperand *ImmOp) {
-    /* FIXME
   unsigned Opc = MI->getOpcode();
   if (Opc == PPU::V_NOT_B32_e64 || Opc == PPU::V_NOT_B32_e32 ||
       Opc == PPU::S_NOT_B32) {
@@ -918,8 +903,9 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
   }
 
   int32_t Src1Val = static_cast<int32_t>(Src1->getImm());
-  if (Opc == PPU::VOR ||
-      Opc == PPU::OR) {
+  if (Opc == PPU::V_OR_B32_e64 ||
+      Opc == PPU::V_OR_B32_e32 ||
+      Opc == PPU::S_OR_B32) {
     if (Src1Val == 0) {
       // y = or x, 0 => y = copy x
       MI->RemoveOperand(Src1Idx);
@@ -927,19 +913,20 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
     } else if (Src1Val == -1) {
       // y = or x, -1 => y = v_mov_b32 -1
       MI->RemoveOperand(Src1Idx);
-      mutateCopyOp(*MI, TII->get(getMovOpc(Opc == PPU::SL_OR_B32)));
+      mutateCopyOp(*MI, TII->get(getMovOpc(Opc == PPU::S_OR_B32)));
     } else
       return false;
 
     return true;
   }
 
-  if (MI->getOpcode() == PPU::VAND ||
-      MI->getOpcode() == PPU::AND) {
+  if (MI->getOpcode() == PPU::V_AND_B32_e64 ||
+      MI->getOpcode() == PPU::V_AND_B32_e32 ||
+      MI->getOpcode() == PPU::S_AND_B32) {
     if (Src1Val == 0) {
       // y = and x, 0 => y = v_mov_b32 0
       MI->RemoveOperand(Src0Idx);
-      mutateCopyOp(*MI, TII->get(getMovOpc(Opc == PPU::SL_AND_B32)));
+      mutateCopyOp(*MI, TII->get(getMovOpc(Opc == PPU::S_AND_B32)));
     } else if (Src1Val == -1) {
       // y = and x, -1 => y = copy x
       MI->RemoveOperand(Src1Idx);
@@ -951,8 +938,9 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
     return true;
   }
 
-  if (MI->getOpcode() == PPU::VXOR ||
-      MI->getOpcode() == PPU::XOR) {
+  if (MI->getOpcode() == PPU::V_XOR_B32_e64 ||
+      MI->getOpcode() == PPU::V_XOR_B32_e32 ||
+      MI->getOpcode() == PPU::S_XOR_B32) {
     if (Src1Val == 0) {
       // y = xor x, 0 => y = copy x
       MI->RemoveOperand(Src1Idx);
@@ -960,7 +948,6 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
       return true;
     }
   }
-      */
 
   return false;
 }
@@ -969,25 +956,7 @@ static bool tryConstantFoldOp(MachineRegisterInfo &MRI,
 static bool tryFoldInst(const PPUInstrInfo *TII,
                         MachineInstr *MI) {
   unsigned Opc = MI->getOpcode();
-/* FIXME
-  if (Opc == PPU::ML_CSEL_B32    ||
-      Opc == PPU::ML_CNDMASK_B64_PSEUDO) {
-    const MachineOperand *Src0 = TII->getNamedOperand(*MI, PPU::OpName::src0);
-    const MachineOperand *Src1 = TII->getNamedOperand(*MI, PPU::OpName::src1);
-    if (Src1->isIdenticalTo(*Src0)) {
-      LLVM_DEBUG(dbgs() << "Folded " << *MI << " into ");
-      int Src2Idx = PPU::getNamedOperandIdx(Opc, PPU::OpName::src2);
-      if (Src2Idx != -1)
-        MI->RemoveOperand(Src2Idx);
-      MI->RemoveOperand(PPU::getNamedOperandIdx(Opc, PPU::OpName::src1));
-      mutateCopyOp(*MI, TII->get(Src0->isReg() ? (unsigned)PPU::COPY
-                                               : getMovOpc(false)));
-      LLVM_DEBUG(dbgs() << *MI << '\n');
-      return true;
-    }
-  }
-  */
-  /* AMD
+
   if (Opc == PPU::V_CNDMASK_B32_e32    ||
       Opc == PPU::V_CNDMASK_B32_e64    ||
       Opc == PPU::V_CNDMASK_B64_PSEUDO) {
@@ -1014,7 +983,6 @@ static bool tryFoldInst(const PPUInstrInfo *TII,
       return true;
     }
   }
-  */
 
   return false;
 }
@@ -1139,65 +1107,60 @@ void PPUFoldOperands::foldInstOperand(MachineInstr &MI,
 
 // Clamp patterns are canonically selected to v_max_* instructions, so only
 // handle them.
-// const MachineOperand *PPUFoldOperands::isClamp(const MachineInstr &MI) const {
-//   return nullptr;
-// #if 0
-//   unsigned Op = MI.getOpcode();
-//   switch (Op) {
-//   case PPU::V_MAX_F32_e64:
-//   case PPU::V_MAX_F16_e64:
-//   case PPU::V_MAX_F64: {
-//     if (!TII->getNamedOperand(MI, PPU::OpName::clamp)->getImm())
-//       return nullptr;
+const MachineOperand *PPUFoldOperands::isClamp(const MachineInstr &MI) const {
+  unsigned Op = MI.getOpcode();
+  switch (Op) {
+  case PPU::V_MAX_F32_e64:
+  case PPU::V_MAX_F16_e64:
+  /*case PPU::V_MAX_F64:*/ {
+    if (!TII->getNamedOperand(MI, PPU::OpName::clamp)->getImm())
+      return nullptr;
 
-//     // Make sure sources are identical.
-//     const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
-//     const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
-//     if (!Src0->isReg() || !Src1->isReg() ||
-//         Src0->getReg() != Src1->getReg() ||
-//         Src0->getSubReg() != Src1->getSubReg() ||
-//         Src0->getSubReg() != PPU::NoSubRegister)
-//       return nullptr;
+    // Make sure sources are identical.
+    const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
+    const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
+    if (!Src0->isReg() || !Src1->isReg() ||
+        Src0->getReg() != Src1->getReg() ||
+        Src0->getSubReg() != Src1->getSubReg() ||
+        Src0->getSubReg() != PPU::NoSubRegister)
+      return nullptr;
 
-//     // Can't fold up if we have modifiers.
-//     if (TII->hasModifiersSet(MI, PPU::OpName::omod))
-//       return nullptr;
+    // Can't fold up if we have modifiers.
+    if (TII->hasModifiersSet(MI, PPU::OpName::omod))
+      return nullptr;
 
-//     unsigned Src0Mods
-//       = TII->getNamedOperand(MI, PPU::OpName::src0_modifiers)->getImm();
-//     unsigned Src1Mods
-//       = TII->getNamedOperand(MI, PPU::OpName::src1_modifiers)->getImm();
+    unsigned Src0Mods
+      = TII->getNamedOperand(MI, PPU::OpName::src0_modifiers)->getImm();
+    unsigned Src1Mods
+      = TII->getNamedOperand(MI, PPU::OpName::src1_modifiers)->getImm();
 
-//     // Having a 0 op_sel_hi would require swizzling the output in the source
-//     // instruction, which we can't do.
-//     unsigned UnsetMods = 0;
-//     if (Src0Mods != UnsetMods && Src1Mods != UnsetMods)
-//       return nullptr;
-//     return Src0;
-//   }
-//   default:
-//     return nullptr;
-//   }
-// #endif
-// }
+    // Having a 0 op_sel_hi would require swizzling the output in the source
+    // instruction, which we can't do.
+    unsigned UnsetMods = 0;
+    if (Src0Mods != UnsetMods && Src1Mods != UnsetMods)
+      return nullptr;
+    return Src0;
+  }
+  default:
+    return nullptr;
+  }
+}
 
 // We obviously have multiple uses in a clamp since the register is used twice
 // in the same instruction.
-// static bool hasOneNonDBGUseInst(const MachineRegisterInfo &MRI, unsigned Reg) {
-//   int Count = 0;
-//   for (auto I = MRI.use_instr_nodbg_begin(Reg), E = MRI.use_instr_nodbg_end();
-//        I != E; ++I) {
-//     if (++Count > 1)
-//       return false;
-//   }
+static bool hasOneNonDBGUseInst(const MachineRegisterInfo &MRI, unsigned Reg) {
+  int Count = 0;
+  for (auto I = MRI.use_instr_nodbg_begin(Reg), E = MRI.use_instr_nodbg_end();
+       I != E; ++I) {
+    if (++Count > 1)
+      return false;
+  }
 
-//   return true;
-// }
+  return true;
+}
 
 // FIXME: Clamp for v_mad_mixhi_f16 handled during isel.
 bool PPUFoldOperands::tryFoldClamp(MachineInstr &MI) {
-  return false;
-#if 0
   const MachineOperand *ClampSrc = isClamp(MI);
   if (!ClampSrc || !hasOneNonDBGUseInst(*MRI, ClampSrc->getReg()))
     return false;
@@ -1220,118 +1183,115 @@ bool PPUFoldOperands::tryFoldClamp(MachineInstr &MI) {
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
   return true;
-#endif
 }
 
-// static int getOModValue(unsigned Opc, int64_t Val) {
-//   switch (Opc) {
-//   case PPU::ML_MUL_F32: {
-//     switch (static_cast<uint32_t>(Val)) {
-//     case 0x3f000000: // 0.5
-//       return SIOutMods::DIV2;
-//     case 0x40000000: // 2.0
-//       return SIOutMods::MUL2;
-//     case 0x40800000: // 4.0
-//       return SIOutMods::MUL4;
-//     default:
-//       return SIOutMods::NONE;
-//     }
-//   }
-//   case PPU::ML_MUL_F16: {
-//     switch (static_cast<uint16_t>(Val)) {
-//     case 0x3800: // 0.5
-//       return SIOutMods::DIV2;
-//     case 0x4000: // 2.0
-//       return SIOutMods::MUL2;
-//     case 0x4400: // 4.0
-//       return SIOutMods::MUL4;
-//     default:
-//       return SIOutMods::NONE;
-//     }
-//   }
-//   default:
-//     llvm_unreachable("invalid mul opcode");
-//   }
-// }
+static int getOModValue(unsigned Opc, int64_t Val) {
+  switch (Opc) {
+  case PPU::V_MUL_F32_e64: {
+    switch (static_cast<uint32_t>(Val)) {
+    case 0x3f000000: // 0.5
+      return PPUOutMods::DIV2;
+    case 0x40000000: // 2.0
+      return PPUOutMods::MUL2;
+    case 0x40800000: // 4.0
+      return PPUOutMods::MUL4;
+    default:
+      return PPUOutMods::NONE;
+    }
+  }
+  case PPU::V_MUL_F16_e64: {
+    switch (static_cast<uint16_t>(Val)) {
+    case 0x3800: // 0.5
+      return PPUOutMods::DIV2;
+    case 0x4000: // 2.0
+      return PPUOutMods::MUL2;
+    case 0x4400: // 4.0
+      return PPUOutMods::MUL4;
+    default:
+      return PPUOutMods::NONE;
+    }
+  }
+  default:
+    llvm_unreachable("invalid mul opcode");
+  }
+}
 
 // FIXME: Does this really not support denormals with f16?
 // FIXME: Does this need to check IEEE mode bit? SNaNs are generally not
 // handled, so will anything other than that break?
-//std::pair<const MachineOperand *, int>
-//SIFoldOperands::isOMod(const MachineInstr &MI) const {
-//  unsigned Op = MI.getOpcode();
-//  switch (Op) {
-//  case PPU::V_MUL_F32_e64:
-//  case PPU::V_MUL_F16_e64: {
-//    // If output denormals are enabled, omod is ignored.
-//    if ((Op == PPU::V_MUL_F32_e64 && ST->hasFP32Denormals()) ||
-//        (Op == PPU::V_MUL_F16_e64 && ST->hasFP16Denormals()))
-//      return std::make_pair(nullptr, SIOutMods::NONE);
-//
-//    const MachineOperand *RegOp = nullptr;
-//    const MachineOperand *ImmOp = nullptr;
-//    const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
-//    const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
-//    if (Src0->isImm()) {
-//      ImmOp = Src0;
-//      RegOp = Src1;
-//    } else if (Src1->isImm()) {
-//      ImmOp = Src1;
-//      RegOp = Src0;
-//    } else
-//      return std::make_pair(nullptr, SIOutMods::NONE);
-//
-//    int OMod = getOModValue(Op, ImmOp->getImm());
-//    if (OMod == SIOutMods::NONE ||
-//        TII->hasModifiersSet(MI, PPU::OpName::src0_modifiers) ||
-//        TII->hasModifiersSet(MI, PPU::OpName::src1_modifiers) ||
-//        TII->hasModifiersSet(MI, PPU::OpName::omod) ||
-//        TII->hasModifiersSet(MI, PPU::OpName::clamp))
-//      return std::make_pair(nullptr, SIOutMods::NONE);
-//
-//    return std::make_pair(RegOp, OMod);
-//  }
-//  case PPU::V_ADD_F32_e64:
-//  case PPU::V_ADD_F16_e64: {
-//    // If output denormals are enabled, omod is ignored.
-//    if ((Op == PPU::V_ADD_F32_e64 && ST->hasFP32Denormals()) ||
-//        (Op == PPU::V_ADD_F16_e64 && ST->hasFP16Denormals()))
-//      return std::make_pair(nullptr, SIOutMods::NONE);
-//
-//    // Look through the DAGCombiner canonicalization fmul x, 2 -> fadd x, x
-//    const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
-//    const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
-//
-//    if (Src0->isReg() && Src1->isReg() && Src0->getReg() == Src1->getReg() &&
-//        Src0->getSubReg() == Src1->getSubReg() &&
-//        !TII->hasModifiersSet(MI, PPU::OpName::src0_modifiers) &&
-//        !TII->hasModifiersSet(MI, PPU::OpName::src1_modifiers) &&
-//        !TII->hasModifiersSet(MI, PPU::OpName::clamp) &&
-//        !TII->hasModifiersSet(MI, PPU::OpName::omod))
-//      return std::make_pair(Src0, SIOutMods::MUL2);
-//
-//    return std::make_pair(nullptr, SIOutMods::NONE);
-//  }
-//  default:
-//    return std::make_pair(nullptr, SIOutMods::NONE);
-//  }
-//}
+std::pair<const MachineOperand *, int>
+PPUFoldOperands::isOMod(const MachineInstr &MI) const {
+  unsigned Op = MI.getOpcode();
+  switch (Op) {
+  case PPU::V_MUL_F32_e64:
+  case PPU::V_MUL_F16_e64: {
+    // If output denormals are enabled, omod is ignored.
+    if ((Op == PPU::V_MUL_F32_e64 && ST->hasFP32Denormals()) ||
+        (Op == PPU::V_MUL_F16_e64 && ST->hasFP16Denormals()))
+      return std::make_pair(nullptr, PPUOutMods::NONE);
+
+    const MachineOperand *RegOp = nullptr;
+    const MachineOperand *ImmOp = nullptr;
+    const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
+    const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
+    if (Src0->isImm()) {
+      ImmOp = Src0;
+      RegOp = Src1;
+    } else if (Src1->isImm()) {
+      ImmOp = Src1;
+      RegOp = Src0;
+    } else
+      return std::make_pair(nullptr, PPUOutMods::NONE);
+
+    int OMod = getOModValue(Op, ImmOp->getImm());
+    if (OMod == PPUOutMods::NONE ||
+        TII->hasModifiersSet(MI, PPU::OpName::src0_modifiers) ||
+        TII->hasModifiersSet(MI, PPU::OpName::src1_modifiers) ||
+        TII->hasModifiersSet(MI, PPU::OpName::omod) ||
+        TII->hasModifiersSet(MI, PPU::OpName::clamp))
+      return std::make_pair(nullptr, PPUOutMods::NONE);
+
+    return std::make_pair(RegOp, OMod);
+  }
+  case PPU::V_ADD_F32_e64:
+  case PPU::V_ADD_F16_e64: {
+    // If output denormals are enabled, omod is ignored.
+    if ((Op == PPU::V_ADD_F32_e64 && ST->hasFP32Denormals()) ||
+        (Op == PPU::V_ADD_F16_e64 && ST->hasFP16Denormals()))
+      return std::make_pair(nullptr, PPUOutMods::NONE);
+
+    // Look through the DAGCombiner canonicalization fmul x, 2 -> fadd x, x
+    const MachineOperand *Src0 = TII->getNamedOperand(MI, PPU::OpName::src0);
+    const MachineOperand *Src1 = TII->getNamedOperand(MI, PPU::OpName::src1);
+
+    if (Src0->isReg() && Src1->isReg() && Src0->getReg() == Src1->getReg() &&
+        Src0->getSubReg() == Src1->getSubReg() &&
+        !TII->hasModifiersSet(MI, PPU::OpName::src0_modifiers) &&
+        !TII->hasModifiersSet(MI, PPU::OpName::src1_modifiers) &&
+        !TII->hasModifiersSet(MI, PPU::OpName::clamp) &&
+        !TII->hasModifiersSet(MI, PPU::OpName::omod))
+      return std::make_pair(Src0, PPUOutMods::MUL2);
+
+    return std::make_pair(nullptr, PPUOutMods::NONE);
+  }
+  default:
+    return std::make_pair(nullptr, PPUOutMods::NONE);
+  }
+}
 
 // FIXME: Does this need to check IEEE bit on function?
 bool PPUFoldOperands::tryFoldOMod(MachineInstr &MI) {
-  return false;
-#if 0
   const MachineOperand *RegOp;
   int OMod;
   std::tie(RegOp, OMod) = isOMod(MI);
-  if (OMod == SIOutMods::NONE || !RegOp->isReg() ||
+  if (OMod == PPUOutMods::NONE || !RegOp->isReg() ||
       RegOp->getSubReg() != PPU::NoSubRegister ||
       !hasOneNonDBGUseInst(*MRI, RegOp->getReg()))
     return false;
 
   MachineInstr *Def = MRI->getVRegDef(RegOp->getReg());
   MachineOperand *DefOMod = TII->getNamedOperand(*Def, PPU::OpName::omod);
-  if (!DefOMod || DefOMod->getImm() != SIOutMods::NONE)
+  if (!DefOMod || DefOMod->getImm() != PPUOutMods::NONE)
     return false;
 
   // Clamp is applied after omod. If the source already has clamp set, don't
@@ -1345,13 +1305,12 @@ bool PPUFoldOperands::tryFoldOMod(MachineInstr &MI) {
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
   return true;
-#endif
 }
 
 bool PPUFoldOperands::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()))
     return false;
-/* FIXME
+
   MRI = &MF.getRegInfo();
   ST = &MF.getSubtarget<PPUSubtarget>();
   TII = ST->getInstrInfo();
@@ -1398,7 +1357,7 @@ bool PPUFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       //
       //    %3 = COPY %vgpr0; VGPR_32:%3
       //    ...
-      //    %vgpr0 = ML_MOV_B32 1, implicit %exec
+      //    %vgpr0 = V_MOV_B32 1, implicit %exec
       MachineOperand &Dst = MI.getOperand(0);
       if (Dst.isReg() && !Register::isVirtualRegister(Dst.getReg()))
         continue;
@@ -1406,6 +1365,5 @@ bool PPUFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       foldInstOperand(MI, OpToFold);
     }
   }
-  */
   return false;
 }

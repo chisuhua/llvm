@@ -177,7 +177,7 @@ struct MUBUFInfo {
 #define GET_MUBUFInfoTable_DECL
 #define GET_MUBUFInfoTable_IMPL
 #include "PPUGenSearchableTables.inc"
-/*
+
 int getMUBUFBaseOpcode(unsigned Opc) {
   const MUBUFInfo *Info = getMUBUFInfoFromOpcode(Opc);
   return Info ? Info->BaseOpcode : -1;
@@ -207,7 +207,6 @@ bool getMUBUFHasSoffset(unsigned Opc) {
   const MUBUFInfo *Info = getMUBUFOpcodeHelper(Opc);
   return Info ? Info->has_soffset : false;
 }
-*/
 
 // Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
 // header files, so we need to wrap it in a function that takes unsigned
@@ -936,6 +935,7 @@ bool isCompute(const MachineFunction *MF) {
   return isCompute(const_cast<MachineFunction*>(MF));
 }
 
+// better change to is__global__
 bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
@@ -946,6 +946,7 @@ bool isEntryFunctionCC(CallingConv::ID CC) {
   }
 }
 
+// better change is__device__, and only keep AMDGPU_CS here
 bool isKernel(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:

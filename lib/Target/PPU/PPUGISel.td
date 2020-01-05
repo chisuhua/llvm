@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 include "PPU.td"
-/*
+
 def sd_vsrc0 : ComplexPattern<i32, 1, "">;
 def gi_vsrc0 :
     GIComplexOperandMatcher<s32, "selectVSRC0">,
@@ -185,4 +185,4 @@ def : GISelVop3Pat2ModsPat <int_minnum, V_MIN_F64, f64>;
 foreach Ty = [i64, p0, p1, p4] in {
   defm : SMRD_Pattern <"S_LOAD_DWORDX2",  Ty>;
 }
-*/
+

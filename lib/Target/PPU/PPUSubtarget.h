@@ -309,8 +309,8 @@ public:
   };
 
 protected:
-  unsigned Gen;
-  // TODO InstrItineraryData InstrItins;
+  Generation Gen {PPT};
+  InstrItineraryData InstrItins;
   int LDSBankCount {0};
   unsigned MaxPrivateElementSize {0};
 
@@ -352,8 +352,8 @@ protected:
   bool CIInsts;
   bool GFX8Insts;
   */
-  bool GFX9Insts;
-  bool GFX10Insts;
+  bool GFX9Insts{false};
+  bool GFX10Insts{false};
   /*
   bool GFX7GFX8GFX9Insts;
   bool SGPRInitBug;
@@ -372,7 +372,7 @@ protected:
   bool HasSDWAMac;
   bool HasSDWAOutModsVOPC;
   */
-  bool HasDPP;
+  bool HasDPP {false};
   /*
   bool HasDPP8;
   bool HasR128A16;
@@ -395,11 +395,11 @@ protected:
   bool HasNoDataDepHazard {false};
   bool HasRegisterBanking;
   bool HasMAIInsts;
-  bool FlatAddressSpace;
-  bool FlatInstOffsets;
-  bool FlatGlobalInsts;
-  bool FlatScratchInsts;
-  bool ScalarFlatScratchInsts;
+  bool FlatAddressSpace {false};
+  bool FlatInstOffsets {false};
+  bool FlatGlobalInsts {false};
+  bool FlatScratchInsts {false};
+  bool ScalarFlatScratchInsts {false};
   bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
   /*
@@ -455,11 +455,11 @@ public:
   const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
+*/
 
   const InstrItineraryData *getInstrItineraryData() const override {
     return &InstrItins;
   }
-*/
 
   Generation getGeneration() const { return (Generation)Gen; }
 

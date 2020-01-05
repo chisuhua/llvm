@@ -517,7 +517,7 @@ def SPR_64Regs : PPURegisterTuples<getSubRegs<2>.ret, SPR_32, 105, 2, 2, "s">;
 def SPR_96Regs : PPURegisterTuples<getSubRegs<3>.ret, SPR_32, 105, 3, 3, "s">;
 
 // SPR 128-bit registers
-def SPR_128b : PPURegisterTuples<getSubRegs<4>.ret, SPR_32, 105, 4, 4, "s">;
+def SPR_128Regs : PPURegisterTuples<getSubRegs<4>.ret, SPR_32, 105, 4, 4, "s">;
 /*
 // SPR 160-bit registers. No operations use these, but for symmetry with 160-bit VGPRs.
 def SPR_160b : PPURegisterTuples<getSubRegs<5>.ret, SPR_32, 123, 4, 5, "s">;
@@ -652,9 +652,9 @@ def SReg_1 : RegisterClass<"PPU", [i1], 32,
 let CopyCost = 2 in {
 // There are no 3-component scalar instructions, but this is needed
 // for symmetry with VGPRs.
-/*
+
 def SPR_96 : RegisterClass<"PPU", [v3i32, v3f32], 32,
-  (add SPR_96b)> {
+  (add SPR_96Regs)> {
   let AllocationPriority = 14;
 }
 
@@ -664,7 +664,7 @@ def SReg_96 : RegisterClass<"PPU", [v3i32, v3f32], 32,
 }
 
 def SPR_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64], 32,
-  (add SPR_128b)> {
+  (add SPR_128Regs)> {
   let AllocationPriority = 15;
 }
 
@@ -673,7 +673,7 @@ def SReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
   (add SPR_128)> {
   let AllocationPriority = 15;
 }
-*/
+
 
 } // End CopyCost = 2
 
@@ -746,7 +746,7 @@ def VReg_64 : RegisterClass<"PPU", [i64, f64, v2i32, v2f32, v4f16, v4i16, p0, p1
   let CopyCost = 2;
   let AllocationPriority = 2;
 }
-/*
+
 def VReg_96 : RegisterClass<"PPU", [v3i32, v3f32], 32, (add VPR_96b)> {
   let Size = 96;
 
@@ -754,8 +754,8 @@ def VReg_96 : RegisterClass<"PPU", [v3i32, v3f32], 32, (add VPR_96b)> {
   let CopyCost = 3;
   let AllocationPriority = 3;
 }
-*/
-/*
+
+
 def VReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
                              (add VPR_128b)> {
   let Size = 128;
@@ -764,7 +764,7 @@ def VReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
   let CopyCost = 4;
   let AllocationPriority = 4;
 }
-*/
+
 
 /*
 def VReg_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,

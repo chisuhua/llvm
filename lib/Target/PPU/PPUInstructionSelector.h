@@ -155,7 +155,7 @@ private:
   // Subtarget variable.
   const PPUSubtarget *Subtarget = &STI;
 
-  // bool EnableLateStructurizeCFG;
+  bool EnableLateStructurizeCFG;
   bool EnableReconvergeCFG;
 #define GET_GLOBALISEL_PREDICATES_DECL
 // #define PPUSubtarget PPUSubtarget

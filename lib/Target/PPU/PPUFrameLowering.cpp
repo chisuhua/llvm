@@ -32,13 +32,11 @@ static ArrayRef<MCPhysReg> getAllSPR64(const PPUSubtarget &ST,
 
 static ArrayRef<MCPhysReg> getAllSPR128(const PPUSubtarget &ST,
                                          const MachineFunction &MF) {
-    /* FIXME
-  return makeArrayRef(PPU::SPR_128RegClass.begin(),
+  return makeArrayRef(PPU::SReg_128RegClass.begin(),
                       ST.getMaxNumSGPRs(MF) / 4);
-                      */
 
-  return makeArrayRef(PPU::SPR_64RegClass.begin(),
-                      ST.getMaxNumSGPRs(MF) / 4);
+  // return makeArrayRef(PPU::SPR_64RegClass.begin(),
+  //                    ST.getMaxNumSGPRs(MF) / 4);
 }
 
 
@@ -91,7 +89,7 @@ static unsigned findScratchNonCalleeSaveRegister(MachineRegisterInfo &MRI,
   return PPU::NoRegister;
 }
 
-static MCPhysReg findUnusedGPRNonCalleeSaved(MachineRegisterInfo &MRI) {
+static MCPhysReg findUnusedSGPRNonCalleeSaved(MachineRegisterInfo &MRI) {
   LivePhysRegs LiveRegs;
   LiveRegs.init(*MRI.getTargetRegisterInfo());
   return findScratchNonCalleeSaveRegister(
@@ -109,7 +107,7 @@ static void buildPrologSpill(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
   MachineFrameInfo &MFI = MF->getFrameInfo();
 
   int64_t Offset = MFI.getObjectOffset(FI);
-/* FIXME
+
   MachineMemOperand *MMO = MF->getMachineMemOperand(
       MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore, 4,
       MFI.getObjectAlignment(FI));
@@ -129,9 +127,9 @@ static void buildPrologSpill(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
   }
 
   MCPhysReg OffsetReg = findScratchNonCalleeSaveRegister(
-    MF->getRegInfo(), LiveRegs, PPU::TPR_32RegClass);
+    MF->getRegInfo(), LiveRegs, PPU::VPR_32RegClass);
 
-  BuildMI(MBB, I, DebugLoc(), TII->get(PPU::VMOV), OffsetReg)
+  BuildMI(MBB, I, DebugLoc(), TII->get(PPU::V_MOV_B32_e32), OffsetReg)
     .addImm(Offset);
 
   BuildMI(MBB, I, DebugLoc(), TII->get(PPU::BUFFER_STORE_DWORD_OFFEN))
@@ -145,47 +143,52 @@ static void buildPrologSpill(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
     .addImm(0) // tfe
     .addImm(0) // dlc
     .addMemOperand(MMO);
-    */
 }
 
-// Find a scratch register that we can use at the start of the prologue to
-// re-align the stack pointer.  We avoid using callee-save registers since they
-// may appear to be free when this is called from canUseAsPrologue (during
-// shrink wrapping), but then no longer be free when this is called from
-// emitPrologue.
-//
-// FIXME: This is a bit conservative, since in the above case we could use one
-// of the callee-save registers as a scratch temp to re-align the stack pointer,
-// but we would then have to make sure that we were in fact saving at least one
-// callee-save register in the prologue, which is additional complexity that
-// doesn't seem worth the benefit.
-static unsigned findScratchNonCalleeSaveRegister(MachineBasicBlock &MBB) {
+static void buildEpilogReload(LivePhysRegs &LiveRegs, MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator I,
+                              const PPUInstrInfo *TII, unsigned SpillReg,
+                              unsigned ScratchRsrcReg, unsigned SPReg, int FI) {
   MachineFunction *MF = MBB.getParent();
+  MachineFrameInfo &MFI = MF->getFrameInfo();
+  int64_t Offset = MFI.getObjectOffset(FI);
 
-  const PPUSubtarget &Subtarget = MF->getSubtarget<PPUSubtarget>();
-  const PPURegisterInfo &TRI = *Subtarget.getRegisterInfo();
-  LivePhysRegs LiveRegs(TRI);
-  LiveRegs.addLiveIns(MBB);
+  MachineMemOperand *MMO = MF->getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad, 4,
+      MFI.getObjectAlignment(FI));
 
-  // Mark callee saved registers as used so we will not choose them.
-  const MCPhysReg *CSRegs = TRI.getCalleeSavedRegs(MF);
-  for (unsigned i = 0; CSRegs[i]; ++i)
-    LiveRegs.addReg(CSRegs[i]);
-
-  MachineRegisterInfo &MRI = MF->getRegInfo();
-
-  for (unsigned Reg : PPU::SReg_32RegClass) {
-    if (LiveRegs.available(MRI, Reg))
-      return Reg;
+  if (isUInt<12>(Offset)) {
+    BuildMI(MBB, I, DebugLoc(),
+            TII->get(PPU::BUFFER_LOAD_DWORD_OFFSET), SpillReg)
+      .addReg(ScratchRsrcReg)
+      .addReg(SPReg)
+      .addImm(Offset)
+      .addImm(0) // glc
+      .addImm(0) // slc
+      .addImm(0) // tfe
+      .addImm(0) // dlc
+      .addMemOperand(MMO);
+    return;
   }
 
-  return PPU::NoRegister;
-}
+  MCPhysReg OffsetReg = findScratchNonCalleeSaveRegister(
+    MF->getRegInfo(), LiveRegs, PPU::VPR_32RegClass);
 
-bool  isCompute(const MachineFunction &MF) {
-    return PPU::isCompute(MF.getFunction().getCallingConv());
-}
+  BuildMI(MBB, I, DebugLoc(), TII->get(PPU::V_MOV_B32_e32), OffsetReg)
+    .addImm(Offset);
 
+  BuildMI(MBB, I, DebugLoc(),
+          TII->get(PPU::BUFFER_LOAD_DWORD_OFFEN), SpillReg)
+    .addReg(OffsetReg, RegState::Kill)
+    .addReg(ScratchRsrcReg)
+    .addReg(SPReg)
+    .addImm(0)
+    .addImm(0) // glc
+    .addImm(0) // slc
+    .addImm(0) // tfe
+    .addImm(0) // dlc
+    .addMemOperand(MMO);
+}
 
 bool PPUFrameLowering::hasFP_compute(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -209,7 +212,7 @@ bool PPUFrameLowering::hasFP_compute(const MachineFunction &MF) const {
     MF.getSubtarget<PPUSubtarget>().getRegisterInfo()->needsStackRealignment(MF) ||
     MF.getTarget().Options.DisableFramePointerElim(MF);
 }
-
+/*
 bool PPUFrameLowering::hasSP_compute(const MachineFunction &MF) const {
   const PPURegisterInfo *TRI = MF.getSubtarget<PPUSubtarget>().getRegisterInfo();
   // All stack operations are relative to the frame offset SGPR.
@@ -217,9 +220,10 @@ bool PPUFrameLowering::hasSP_compute(const MachineFunction &MF) const {
   return MFI.hasCalls() || MFI.hasVarSizedObjects() ||
     TRI->needsStackRealignment(MF);
 }
+*/
 
 bool PPUFrameLowering::hasFP(const MachineFunction &MF) const {
-  if (isCompute(const_cast<MachineFunction&>(MF)))
+  if (PPU::isCompute(&MF))
       return hasFP_compute(MF);
 
   const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
@@ -335,35 +339,105 @@ void PPUFrameLowering::emitPrologue_compute(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc DL;
 
-  // XXX - Is this the right predicate?
-
-  bool NeedFP = hasFP(MF);
+  bool HasFP = false;
   uint32_t NumBytes = MFI.getStackSize();
   uint32_t RoundedSize = NumBytes;
-  const bool NeedsRealignment = TRI.needsStackRealignment(MF);
 
-  if (NeedsRealignment) {
-    assert(NeedFP);
+  // To avoid clobbering VGPRs in lanes that weren't active on function entry,
+  // turn on all lanes before doing the spill to memory.
+  unsigned ScratchExecCopy = PPU::NoRegister;
+
+  // Emit the copy if we need an FP, and are using a free SGPR to save it.
+  if (FuncInfo->SGPRForFPSaveRestoreCopy != PPU::NoRegister) {
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::COPY), FuncInfo->SGPRForFPSaveRestoreCopy)
+      .addReg(FramePtrReg)
+      .setMIFlag(MachineInstr::FrameSetup);
+  }
+
+  for (const PPUMachineFunctionInfo::SGPRSpillVGPRCSR &Reg
+         : FuncInfo->getSGPRSpillVGPRs()) {
+    if (!Reg.FI.hasValue())
+      continue;
+
+    if (ScratchExecCopy == PPU::NoRegister) {
+      if (LiveRegs.empty()) {
+        LiveRegs.init(TRI);
+        LiveRegs.addLiveIns(MBB);
+        if (FuncInfo->SGPRForFPSaveRestoreCopy)
+          LiveRegs.removeReg(FuncInfo->SGPRForFPSaveRestoreCopy);
+      }
+
+      ScratchExecCopy
+        = findScratchNonCalleeSaveRegister(MRI, LiveRegs,
+                                           *TRI.getWaveMaskRegClass());
+      assert(FuncInfo->SGPRForFPSaveRestoreCopy != ScratchExecCopy);
+
+      const unsigned OrSaveExec = PPU::S_OR_SAVETMSK_B32;
+      BuildMI(MBB, MBBI, DL, TII->get(OrSaveExec),
+              ScratchExecCopy)
+        .addImm(-1);
+    }
+
+    buildPrologSpill(LiveRegs, MBB, MBBI, TII, Reg.VGPR,
+                     FuncInfo->getScratchRSrcReg(),
+                     StackPtrReg,
+                     Reg.FI.getValue());
+  }
+
+  if (ScratchExecCopy != PPU::NoRegister) {
+    // FIXME: Split block and make terminator.
+    unsigned ExecMov = PPU::S_MOV_B32;
+    unsigned Exec = PPU::TMSK;
+    BuildMI(MBB, MBBI, DL, TII->get(ExecMov), Exec)
+      .addReg(ScratchExecCopy, RegState::Kill);
+    LiveRegs.addReg(ScratchExecCopy);
+  }
+
+  if (FuncInfo->FramePointerSaveIndex) {
+    const int FI = FuncInfo->FramePointerSaveIndex.getValue();
+    assert(!MFI.isDeadObjectIndex(FI) &&
+           MFI.getStackID(FI) == TargetStackID::SGPRSpill);
+    ArrayRef<PPUMachineFunctionInfo::SpilledReg> Spill
+      = FuncInfo->getSGPRToVGPRSpills(FI);
+    assert(Spill.size() == 1);
+
+    // Save FP before setting it up.
+    // FIXME: This should respect spillSGPRToVGPR;
+    BuildMI(MBB, MBBI, DL, TII->getMCOpcodeFromPseudo(PPU::V_WRITELANE_B32),
+            Spill[0].VGPR)
+      .addReg(FramePtrReg)
+      .addImm(Spill[0].Lane)
+      .addReg(Spill[0].VGPR, RegState::Undef);
+  }
+
+  if (TRI.needsStackRealignment(MF)) {
+    HasFP = true;
     const unsigned Alignment = MFI.getMaxAlignment();
 
     RoundedSize += Alignment;
+    if (LiveRegs.empty()) {
+      LiveRegs.init(TRI);
+      LiveRegs.addLiveIns(MBB);
+      LiveRegs.addReg(FuncInfo->SGPRForFPSaveRestoreCopy);
+    }
 
-    unsigned ScratchSPReg = findScratchNonCalleeSaveRegister(MBB);
-    assert(ScratchSPReg != PPU::NoRegister);
+    unsigned ScratchSPReg = findScratchNonCalleeSaveRegister(
+        MRI, LiveRegs, PPU::SReg_32RegClass);
+    assert(ScratchSPReg != PPU::NoRegister &&
+           ScratchSPReg != FuncInfo->SGPRForFPSaveRestoreCopy);
 
     // s_add_u32 tmp_reg, s32, NumBytes
     // s_and_b32 s32, tmp_reg, 0b111...0000
-    BuildMI(MBB, MBBI, DL, TII->get(PPU::ADD), ScratchSPReg)
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::S_ADD_U32), ScratchSPReg)
       .addReg(StackPtrReg)
       .addImm((Alignment - 1) * ST.getWavefrontSize())
       .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MBBI, DL, TII->get(PPU::AND), FramePtrReg)
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::S_AND_B32), FramePtrReg)
       .addReg(ScratchSPReg, RegState::Kill)
       .addImm(-Alignment * ST.getWavefrontSize())
       .setMIFlag(MachineInstr::FrameSetup);
     FuncInfo->setIsStackRealigned(true);
-  }
-  else if (NeedFP) {
+  } else if ((HasFP = hasFP(MF))) {
     // If we need a base pointer, set it up here. It's whatever the value of
     // the stack pointer is at this point. Any variable size objects will be
     // allocated after this, so we can still use the base pointer to reference
@@ -373,27 +447,27 @@ void PPUFrameLowering::emitPrologue_compute(MachineFunction &MF,
       .setMIFlag(MachineInstr::FrameSetup);
   }
 
-  if (RoundedSize != 0 && hasSP_compute(MF)) {
-    BuildMI(MBB, MBBI, DL, TII->get(PPU::ADD), StackPtrReg)
+  if (HasFP && RoundedSize != 0) {
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::S_ADD_U32), StackPtrReg)
       .addReg(StackPtrReg)
       .addImm(RoundedSize * ST.getWavefrontSize())
       .setMIFlag(MachineInstr::FrameSetup);
   }
 
-  for (const PPUMachineFunctionInfo::SGPRSpillVGPRCSR &Reg :
-    FuncInfo->getSGPRSpillVGPRs()) {
-    if (!Reg.FI.hasValue())
-      continue;
-    TII->storeRegToStackSlot(MBB, MBBI, Reg.VGPR, true, Reg.FI.getValue(),
-      &PPU::VPR_32RegClass,
-      &TII->getRegisterInfo());
-  }
+  assert((!HasFP || (FuncInfo->SGPRForFPSaveRestoreCopy != PPU::NoRegister ||
+                     FuncInfo->FramePointerSaveIndex)) &&
+         "Needed to save FP but didn't save it anywhere");
+
+  assert((HasFP || (FuncInfo->SGPRForFPSaveRestoreCopy == PPU::NoRegister &&
+                    !FuncInfo->FramePointerSaveIndex)) &&
+         "Saved FP but didn't need it");
+
 }
 
 void PPUFrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
-  if (isCompute(MF))
-      emitPrologue_compute(MF, MBB);
+  if (PPU::isCompute(&MF))
+      return emitPrologue_compute(MF, MBB);
 
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
 
@@ -500,43 +574,88 @@ void PPUFrameLowering::emitEpilogue_compute(MachineFunction &MF,
 
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   const PPUInstrInfo *TII = ST.getInstrInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
-
-  for (const PPUMachineFunctionInfo::SGPRSpillVGPRCSR &Reg :
-    FuncInfo->getSGPRSpillVGPRs()) {
-    if (!Reg.FI.hasValue())
-      continue;
-    TII->loadRegFromStackSlot(MBB, MBBI, Reg.VGPR, Reg.FI.getValue(),
-      &PPU::VPR_32RegClass,
-      &TII->getRegisterInfo());
-  }
-
-  unsigned StackPtrReg = FuncInfo->getStackPtrOffsetReg();
-  if (StackPtrReg == PPU::NoRegister)
-    return;
+  LivePhysRegs LiveRegs;
+  DebugLoc DL;
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   uint32_t NumBytes = MFI.getStackSize();
+  uint32_t RoundedSize = FuncInfo->isStackRealigned() ?
+    NumBytes + MFI.getMaxAlignment() : NumBytes;
 
-  DebugLoc DL;
-
-  // FIXME: Clarify distinction between no set SP and SP. For callee functions,
-  // it's really whether we need SP to be accurate or not.
-
-  if (NumBytes != 0 && hasSP_compute(MF)) {
-    uint32_t RoundedSize = FuncInfo->isStackRealigned()
-      ? NumBytes + MFI.getMaxAlignment()
-      : NumBytes;
-
-    BuildMI(MBB, MBBI, DL, TII->get(PPU::SUB), StackPtrReg)
+  if (RoundedSize != 0 && hasFP(MF)) {
+    const unsigned StackPtrReg = FuncInfo->getStackPtrOffsetReg();
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::S_SUB_U32), StackPtrReg)
       .addReg(StackPtrReg)
-      .addImm(RoundedSize * ST.getWavefrontSize());
+      .addImm(RoundedSize * ST.getWavefrontSize())
+      .setMIFlag(MachineInstr::FrameDestroy);
+  }
+
+  if (FuncInfo->SGPRForFPSaveRestoreCopy != PPU::NoRegister) {
+    BuildMI(MBB, MBBI, DL, TII->get(PPU::COPY), FuncInfo->getFrameOffsetReg())
+      .addReg(FuncInfo->SGPRForFPSaveRestoreCopy)
+      .setMIFlag(MachineInstr::FrameSetup);
+  }
+
+  if (FuncInfo->FramePointerSaveIndex) {
+    const int FI = FuncInfo->FramePointerSaveIndex.getValue();
+
+    assert(!MF.getFrameInfo().isDeadObjectIndex(FI) &&
+           MF.getFrameInfo().getStackID(FI) == TargetStackID::SGPRSpill);
+
+    ArrayRef<PPUMachineFunctionInfo::SpilledReg> Spill
+      = FuncInfo->getSGPRToVGPRSpills(FI);
+    assert(Spill.size() == 1);
+    BuildMI(MBB, MBBI, DL, TII->getMCOpcodeFromPseudo(PPU::V_READLANE_B32),
+            FuncInfo->getFrameOffsetReg())
+      .addReg(Spill[0].VGPR)
+      .addImm(Spill[0].Lane);
+  }
+
+
+  unsigned ScratchExecCopy = PPU::NoRegister;
+  for (const PPUMachineFunctionInfo::SGPRSpillVGPRCSR &Reg
+         : FuncInfo->getSGPRSpillVGPRs()) {
+    if (!Reg.FI.hasValue())
+      continue;
+
+    const PPURegisterInfo &TRI = TII->getRegisterInfo();
+    if (ScratchExecCopy == PPU::NoRegister) {
+      // See emitPrologue
+      if (LiveRegs.empty()) {
+        LiveRegs.init(*ST.getRegisterInfo());
+        LiveRegs.addLiveOuts(MBB);
+        LiveRegs.stepBackward(*MBBI);
+      }
+
+      ScratchExecCopy = findScratchNonCalleeSaveRegister(
+          MRI, LiveRegs, *TRI.getWaveMaskRegClass());
+      LiveRegs.removeReg(ScratchExecCopy);
+
+      const unsigned OrSaveExec = PPU::S_OR_SAVETMSK_B32;
+
+      BuildMI(MBB, MBBI, DL, TII->get(OrSaveExec), ScratchExecCopy)
+        .addImm(-1);
+    }
+
+    buildEpilogReload(LiveRegs, MBB, MBBI, TII, Reg.VGPR,
+                      FuncInfo->getScratchRSrcReg(),
+                      FuncInfo->getStackPtrOffsetReg(), Reg.FI.getValue());
+  }
+
+  if (ScratchExecCopy != PPU::NoRegister) {
+    // FIXME: Split block and make terminator.
+    unsigned ExecMov = PPU::S_MOV_B32;
+    unsigned Exec = PPU::TMSK;
+    BuildMI(MBB, MBBI, DL, TII->get(ExecMov), Exec)
+      .addReg(ScratchExecCopy, RegState::Kill);
   }
 }
 
 void PPUFrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
-  if (isCompute(MF))
+  if (PPU::isCompute(&MF))
       return emitEpilogue_compute(MF, MBB);
 
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
@@ -625,6 +744,23 @@ static bool allStackObjectsAreDead(const MachineFrameInfo &MFI) {
   return true;
 }
 
+#ifndef NDEBUG
+static bool allSGPRSpillsAreDead(const MachineFrameInfo &MFI,
+                                 Optional<int> FramePointerSaveIndex) {
+  for (int I = MFI.getObjectIndexBegin(), E = MFI.getObjectIndexEnd();
+       I != E; ++I) {
+    if (!MFI.isDeadObjectIndex(I) &&
+        MFI.getStackID(I) == TargetStackID::SGPRSpill &&
+        FramePointerSaveIndex && I != FramePointerSaveIndex) {
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif
+
+
 int PPUFrameLowering::getFrameIndexReference_compute(const MachineFunction &MF, int FI,
                                             unsigned &FrameReg) const {
   const PPURegisterInfo *RI = MF.getSubtarget<PPUSubtarget>().getRegisterInfo();
@@ -637,7 +773,7 @@ int PPUFrameLowering::getFrameIndexReference_compute(const MachineFunction &MF, 
 int PPUFrameLowering::getFrameIndexReference(const MachineFunction &MF,
                                                int FI,
                                                unsigned &FrameReg) const {
-  if (isCompute(MF))
+  if (PPU::isCompute(&MF))
       return getFrameIndexReference_compute(MF, FI, FrameReg);
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -679,60 +815,143 @@ int PPUFrameLowering::getFrameIndexReference(const MachineFunction &MF,
   return Offset;
 }
 
-void PPUFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
-                                               BitVector &SavedRegs,
-                                               RegScavenger *RS) const {
-  TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
-  const PPUMachineFunctionInfo *MFI = MF.getInfo<PPUMachineFunctionInfo>();
-  if (MFI->isEntryFunction())
-    return;
+void PPUFrameLowering::processFunctionBeforeFrameFinalized_compute(
+  MachineFunction &MF,
+  RegScavenger *RS) const {
+  MachineFrameInfo &MFI = MF.getFrameInfo();
 
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   const PPURegisterInfo *TRI = ST.getRegisterInfo();
+  PPUMachineFunctionInfo *FuncInfo = MF.getInfo<PPUMachineFunctionInfo>();
 
-  // The SP is specifically managed and we don't want extra spills of it.
-  SavedRegs.reset(MFI->getStackPtrOffsetReg());
-  SavedRegs.clearBitsInMask(TRI->getAllVGPRRegMask());
-}
-/*
-bool PPUFrameLowering::assignCalleeSavedSpillSlots(
-    MachineFunction &MF, const TargetRegisterInfo *TRI,
-    std::vector<CalleeSavedInfo> &CSI) const {
-  if (CSI.empty())
-    return true; // Early exit if no callee saved registers are modified!
+  FuncInfo->removeDeadFrameIndices(MFI);
+  assert(allSGPRSpillsAreDead(MFI, None) &&
+         "SGPR spill should have been removed in SILowerSGPRSpills");
 
-  const PPUMachineFunctionInfo *FuncInfo = MF.getInfo<PPUMachineFunctionInfo>();
-  if (!FuncInfo->SGPRForFPSaveRestoreCopy)
-    return false;
+  // FIXME: The other checks should be redundant with allStackObjectsAreDead,
+  // but currently hasNonSpillStackObjects is set only from source
+  // allocas. Stack temps produced from legalization are not counted currently.
+  if (!allStackObjectsAreDead(MFI)) {
+    assert(RS && "RegScavenger required if spilling");
 
-  for (auto &CS : CSI) {
-    if (CS.getReg() == FuncInfo->getFrameOffsetReg()) {
-      if (FuncInfo->SGPRForFPSaveRestoreCopy != AMDGPU::NoRegister)
-        CS.setDstReg(FuncInfo->SGPRForFPSaveRestoreCopy);
-      break;
+    if (FuncInfo->isEntryFunction()) {
+      int ScavengeFI = MFI.CreateFixedObject(
+        TRI->getSpillSize(PPU::SPR_32RegClass), 0, false);
+      RS->addScavengingFrameIndex(ScavengeFI);
+    } else {
+      int ScavengeFI = MFI.CreateStackObject(
+        TRI->getSpillSize(PPU::SPR_32RegClass),
+        TRI->getSpillAlignment(PPU::SPR_32RegClass),
+        false);
+      RS->addScavengingFrameIndex(ScavengeFI);
     }
   }
-
-  return false;
 }
-*/
+
+void PPUFrameLowering::processFunctionBeforeFrameFinalized(
+    MachineFunction &MF, RegScavenger *RS) const {
+
+  if (PPU::isCompute(&MF))
+      return processFunctionBeforeFrameFinalized_compute(MF, RS);
+
+  const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetRegisterClass *RC = &PPU::GPRRegClass;
+  // estimateStackSize has been observed to under-estimate the final stack
+  // size, so give ourselves wiggle-room by checking for stack size
+  // representable an 11-bit signed field rather than 12-bits.
+  // FIXME: It may be possible to craft a function with a small stack that
+  // still needs an emergency spill slot for branch relaxation. This case
+  // would currently be missed.
+  if (!isInt<11>(MFI.estimateStackSize(MF))) {
+    int RegScavFI = MFI.CreateStackObject(
+        RegInfo->getSpillSize(*RC), RegInfo->getSpillAlignment(*RC), false);
+    RS->addScavengingFrameIndex(RegScavFI);
+  }
+}
 
 
 // Only report VGPRs to generic code.
 void PPUFrameLowering::determineCalleeSaves_compute(MachineFunction &MF,
-                                           BitVector &SavedRegs,
+                                           BitVector &SavedVGPRs,
                                            RegScavenger *RS) const {
-  TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+  TargetFrameLowering::determineCalleeSaves(MF, SavedVGPRs, RS);
   PPUMachineFunctionInfo *MFI = MF.getInfo<PPUMachineFunctionInfo>();
 
-  // The SP is specifically managed and we don't want extra spills of it.
-  SavedRegs.reset(MFI->getStackPtrOffsetReg());
+  if (MFI->isEntryFunction())
+    return;
+
+  const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+  const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
+  const PPURegisterInfo *TRI = ST.getRegisterInfo();
+
+  // Ignore the SGPRs the default implementation found.
+  SavedVGPRs.clearBitsNotInMask(TRI->getAllVGPRRegMask());
+
+  // hasFP only knows about stack objects that already exist. We're now
+  // determining the stack slots that will be created, so we have to predict
+  // them. Stack objects force FP usage with calls.
+  //
+  // Note a new VGPR CSR may be introduced if one is used for the spill, but we
+  // don't want to report it here.
+  //
+  // FIXME: Is this really hasReservedCallFrame?
+  const bool WillHaveFP =
+      FrameInfo.hasCalls() &&
+      (SavedVGPRs.any() || !allStackObjectsAreDead(FrameInfo));
+
+  // VGPRs used for SGPR spilling need to be specially inserted in the prolog,
+  // so don't allow the default insertion to handle them.
+  for (auto SSpill : MFI->getSGPRSpillVGPRs())
+    SavedVGPRs.reset(SSpill.VGPR);
+
+  const bool HasFP = WillHaveFP || hasFP(MF);
+  if (!HasFP)
+    return;
+
+  if (MFI->haveFreeLanesForSGPRSpill(MF, 1)) {
+    int NewFI = MF.getFrameInfo().CreateStackObject(4, 4, true, nullptr,
+                                                    TargetStackID::SGPRSpill);
+
+    // If there is already a VGPR with free lanes, use it. We may already have
+    // to pay the penalty for spilling a CSR VGPR.
+    if (!MFI->allocateSGPRSpillToVGPR(MF, NewFI))
+      llvm_unreachable("allocate SGPR spill should have worked");
+
+    MFI->FramePointerSaveIndex = NewFI;
+
+    LLVM_DEBUG(
+      auto Spill = MFI->getSGPRToVGPRSpills(NewFI).front();
+      dbgs() << "Spilling FP to  " << printReg(Spill.VGPR, TRI)
+             << ':' << Spill.Lane << '\n');
+    return;
+  }
+
+  MFI->SGPRForFPSaveRestoreCopy = findUnusedSGPRNonCalleeSaved(MF.getRegInfo());
+
+  if (!MFI->SGPRForFPSaveRestoreCopy) {
+    // There's no free lane to spill, and no free register to save FP, so we're
+    // forced to spill another VGPR to use for the spill.
+    int NewFI = MF.getFrameInfo().CreateStackObject(4, 4, true, nullptr,
+                                                    TargetStackID::SGPRSpill);
+    if (!MFI->allocateSGPRSpillToVGPR(MF, NewFI))
+      llvm_unreachable("allocate SGPR spill should have worked");
+    MFI->FramePointerSaveIndex = NewFI;
+
+    LLVM_DEBUG(
+      auto Spill = MFI->getSGPRToVGPRSpills(NewFI).front();
+      dbgs() << "FP requires fallback spill to " << printReg(Spill.VGPR, TRI)
+             << ':' << Spill.Lane << '\n';);
+  } else {
+    LLVM_DEBUG(dbgs() << "Saving FP with copy to " <<
+               printReg(MFI->SGPRForFPSaveRestoreCopy, TRI) << '\n');
+  }
 }
 
 void PPUFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                               BitVector &SavedRegs,
                                               RegScavenger *RS) const {
-  if (isCompute(MF))
+  if (PPU::isCompute(&MF))
       return determineCalleeSaves_compute(MF, SavedRegs, RS);
 
   TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
@@ -774,102 +993,41 @@ void PPUFrameLowering::determineCalleeSaves(MachineFunction &MF,
   }
 }
 
-void PPUFrameLowering::processFunctionBeforeFrameFinalized_compute(
-  MachineFunction &MF,
-  RegScavenger *RS) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  if (!MFI.hasStackObjects())
+void PPUFrameLowering::determineCalleeSavesSGPR(MachineFunction &MF,
+                                               BitVector &SavedRegs,
+                                               RegScavenger *RS) const {
+  TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+  const PPUMachineFunctionInfo *MFI = MF.getInfo<PPUMachineFunctionInfo>();
+  if (MFI->isEntryFunction())
     return;
 
   const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
-  const PPUInstrInfo *TII = ST.getInstrInfo();
-  const PPURegisterInfo &TRI = TII->getRegisterInfo();
-  PPUMachineFunctionInfo *FuncInfo = MF.getInfo<PPUMachineFunctionInfo>();
-  bool AllSGPRSpilledToVGPRs = false;
+  const PPURegisterInfo *TRI = ST.getRegisterInfo();
 
-  if (TRI.spillSGPRToVGPR() && FuncInfo->hasSpilledSGPRs()) {
-    AllSGPRSpilledToVGPRs = true;
-
-    // Process all SGPR spills before frame offsets are finalized. Ideally SGPRs
-    // are spilled to VGPRs, in which case we can eliminate the stack usage.
-    //
-    // XXX - This operates under the assumption that only other SGPR spills are
-    // users of the frame index. I'm not 100% sure this is correct. The
-    // StackColoring pass has a comment saying a future improvement would be to
-    // merging of allocas with spill slots, but for now according to
-    // MachineFrameInfo isSpillSlot can't alias any other object.
-    for (MachineBasicBlock &MBB : MF) {
-      MachineBasicBlock::iterator Next;
-      for (auto I = MBB.begin(), E = MBB.end(); I != E; I = Next) {
-        MachineInstr &MI = *I;
-        Next = std::next(I);
-
-        if (TII->isSGPRSpill(MI)) {
-            /* FIXME on OpName::addr
-          int FI = TII->getNamedOperand(MI, PPU::OpName::addr)->getIndex();
-          assert(MFI.getStackID(FI) == PPUStackID::SGPR_SPILL);
-          if (FuncInfo->allocateSGPRSpillToVGPR(MF, FI)) {
-            bool Spilled = TRI.eliminateSGPRToVGPRSpillFrameIndex(MI, FI, RS);
-            (void)Spilled;
-            assert(Spilled && "failed to spill SGPR to VGPR when allocated");
-          }
-          else
-            AllSGPRSpilledToVGPRs = false;
-            */
-        }
-      }
-    }
-
-    FuncInfo->removeSGPRToVGPRFrameIndices(MFI);
-  }
-
-  // FIXME: The other checks should be redundant with allStackObjectsAreDead,
-  // but currently hasNonSpillStackObjects is set only from source
-  // allocas. Stack temps produced from legalization are not counted currently.
-  if (FuncInfo->hasNonSpillStackObjects() || FuncInfo->hasSpilledVGPRs() ||
-    !AllSGPRSpilledToVGPRs || !allStackObjectsAreDead(MFI)) {
-    assert(RS && "RegScavenger required if spilling");
-
-    // We force this to be at offset 0 so no user object ever has 0 as an
-    // address, so we may use 0 as an invalid pointer value. This is because
-    // LLVM assumes 0 is an invalid pointer in address space 0. Because alloca
-    // is required to be address space 0, we are forced to accept this for
-    // now. Ideally we could have the stack in another address space with 0 as a
-    // valid pointer, and -1 as the null value.
-    //
-    // This will also waste additional space when user stack objects require > 4
-    // byte alignment.
-    //
-    // The main cost here is losing the offset for addressing modes. However
-    // this also ensures we shouldn't need a register for the offset when
-    // emergency scavenging.
-    int ScavengeFI = MFI.CreateFixedObject(
-      TRI.getSpillSize(PPU::SPR_32RegClass), 0, false);
-    RS->addScavengingFrameIndex(ScavengeFI);
-  }
+  // The SP is specifically managed and we don't want extra spills of it.
+  SavedRegs.reset(MFI->getStackPtrOffsetReg());
+  SavedRegs.clearBitsInMask(TRI->getAllVGPRRegMask());
 }
 
-void PPUFrameLowering::processFunctionBeforeFrameFinalized(
-    MachineFunction &MF, RegScavenger *RS) const {
+bool PPUFrameLowering::assignCalleeSavedSpillSlots(
+    MachineFunction &MF, const TargetRegisterInfo *TRI,
+    std::vector<CalleeSavedInfo> &CSI) const {
+  if (CSI.empty())
+    return true; // Early exit if no callee saved registers are modified!
 
-  if (isCompute(MF))
-      return processFunctionBeforeFrameFinalized_compute(MF, RS);
+  const PPUMachineFunctionInfo *FuncInfo = MF.getInfo<PPUMachineFunctionInfo>();
+  if (!FuncInfo->SGPRForFPSaveRestoreCopy)
+    return false;
 
-  const TargetRegisterInfo *RegInfo = MF.getSubtarget().getRegisterInfo();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-  const TargetRegisterClass *RC = &PPU::GPRRegClass;
-  // estimateStackSize has been observed to under-estimate the final stack
-  // size, so give ourselves wiggle-room by checking for stack size
-  // representable an 11-bit signed field rather than 12-bits.
-  // FIXME: It may be possible to craft a function with a small stack that
-  // still needs an emergency spill slot for branch relaxation. This case
-  // would currently be missed.
-  if (!isInt<11>(MFI.estimateStackSize(MF))) {
-    int RegScavFI = MFI.CreateStackObject(
-        RegInfo->getSpillSize(*RC), RegInfo->getSpillAlignment(*RC), false);
-    RS->addScavengingFrameIndex(RegScavFI);
+  for (auto &CS : CSI) {
+    if (CS.getReg() == FuncInfo->getFrameOffsetReg()) {
+      if (FuncInfo->SGPRForFPSaveRestoreCopy != PPU::NoRegister)
+        CS.setDstReg(FuncInfo->SGPRForFPSaveRestoreCopy);
+      break;
+    }
   }
+
+  return false;
 }
 
 // Not preserve stack space within prologue for outgoing variables when the
@@ -918,7 +1076,7 @@ MachineBasicBlock::iterator PPUFrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI) const {
 
-  if (isCompute(MF))
+  if (PPU::isCompute(&MF))
       return eliminateCallFramePseudoInstr_compute(MF, MBB, MI);
 
   Register SPReg = PPU::X2;
@@ -946,6 +1104,7 @@ MachineBasicBlock::iterator PPUFrameLowering::eliminateCallFramePseudoInstr(
   return MBB.erase(MI);
 }
 
+// below is from AMDGPU
 
 unsigned PPUFrameLowering::getStackWidth(const MachineFunction &MF) const {
   // XXX: Hardcoding to 1 for now.
@@ -1030,7 +1189,7 @@ void PPUFrameLowering::emitFlatScratchInit(const PPUSubtarget &ST,
 
   // Do a 64-bit pointer add.
   if (ST.flatScratchIsPointer()) {
-      /*
+      /* FIXME use Gfx10 branch?
     if (ST.getGeneration() >= PPUSubtarget::GFX10) {
       BuildMI(MBB, I, DL, TII->get(PPU::S_ADD_U32), FlatScrInitLo)
         .addReg(FlatScrInitLo)
@@ -1050,18 +1209,17 @@ void PPUFrameLowering::emitFlatScratchInit(const PPUSubtarget &ST,
     }
     */
 
-    /* FIXME
-    BuildMI(MBB, I, DL, TII->get(PPU::ADD), PPU::FLAT_SCR_LO)
+    BuildMI(MBB, I, DL, TII->get(PPU::S_ADD_U32), PPU::FLAT_SCR_LO)
       .addReg(FlatScrInitLo)
       .addReg(ScratchWaveOffsetReg);
-    BuildMI(MBB, I, DL, TII->get(PPU::ADDC_U32), PPU::FLAT_SCR_HI)
+    BuildMI(MBB, I, DL, TII->get(PPU::S_ADDC_U32), PPU::FLAT_SCR_HI)
       .addReg(FlatScrInitHi)
       .addImm(0);
-      */
 
     return;
   }
-/* FIXME 
+  llvm_unreachable("FIXME on emitFlatScratchInit");
+/* FIXME
   // Copy the size in bytes.
   BuildMI(MBB, I, DL, TII->get(PPU::COPY), PPU::FLAT_SCR_LO)
     .addReg(FlatScrInitHi, RegState::Kill);
@@ -1203,10 +1361,6 @@ PPUFrameLowering::getReservedPrivateSegmentWaveByteOffsetReg(
 
 void PPUFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
                                                 MachineBasicBlock &MBB) const {
-  // Emit debugger prologue if "iluvatar-debugger-emit-prologue" attribute was
-  // specified.
-  const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
-
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
 
   PPUMachineFunctionInfo *MFI = MF.getInfo<PPUMachineFunctionInfo>();
@@ -1217,6 +1371,7 @@ void PPUFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
   // FIXME: We should be cleaning up these unused SGPR spill frame indices
   // somewhere.
 
+  const PPUSubtarget &ST = MF.getSubtarget<PPUSubtarget>();
   const PPUInstrInfo *TII = ST.getInstrInfo();
   const PPURegisterInfo *TRI = &TII->getRegisterInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -1234,58 +1389,45 @@ void PPUFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
   if (MFI->hasFlatScratchInit())
     emitFlatScratchInit(ST, MF, MBB);
 
-  unsigned SPReg = MFI->getStackPtrOffsetReg();
-  if (SPReg != PPU::SP_REG) {
-    assert(MRI.isReserved(SPReg) && "SPReg used but not reserved");
-
-    DebugLoc DL;
-    const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
-    int64_t StackSize = FrameInfo.getStackSize();
-
-    if (StackSize == 0) {
-      BuildMI(MBB, MBB.begin(), DL, TII->get(PPU::COPY), SPReg)
-        .addReg(MFI->getScratchWaveOffsetReg());
-    }
-    else {
-      BuildMI(MBB, MBB.begin(), DL, TII->get(PPU::S_ADD_U32), SPReg)
-        .addReg(MFI->getScratchWaveOffsetReg())
-        .addImm(StackSize * ST.getWavefrontSize());
-    }
-  }
-
-  unsigned ScratchRsrcReg =
-    getReservedPrivateSegmentBufferReg(ST, TII, TRI, MFI, MF);
+  unsigned ScratchRsrcReg
+    = getReservedPrivateSegmentBufferReg(ST, TII, TRI, MFI, MF);
 
   unsigned ScratchWaveOffsetReg;
-  std::tie(ScratchWaveOffsetReg, SPReg) =
+  bool FPAdjusted;
+  std::tie(ScratchWaveOffsetReg, FPAdjusted) =
     getReservedPrivateSegmentWaveByteOffsetReg(ST, TII, TRI, MFI, MF);
-
-  // It's possible to have uses of only ScratchWaveOffsetReg without
-  // ScratchRsrcReg if it's only used for the initialization of flat_scratch,
-  // but the inverse is not true.
-  if (ScratchWaveOffsetReg == PPU::NoRegister) {
-    assert(ScratchRsrcReg == PPU::NoRegister);
-    return;
-  }
 
   // We need to insert initialization of the scratch resource descriptor.
   unsigned PreloadedScratchWaveOffsetReg = MFI->getPreloadedReg(
     PPUFunctionArgInfo::PRIVATE_SEGMENT_WAVE_BYTE_OFFSET);
 
   unsigned PreloadedPrivateBufferReg = PPU::NoRegister;
+  if (ST.isPPSOS(F)) {
+    PreloadedPrivateBufferReg = MFI->getPreloadedReg(
+      PPUFunctionArgInfo::PRIVATE_SEGMENT_BUFFER);
+  }
 
-  bool OffsetRegUsed = MRI.isPhysRegUsed(ScratchWaveOffsetReg);
+  bool OffsetRegUsed = ScratchWaveOffsetReg != PPU::NoRegister &&
+                       MRI.isPhysRegUsed(ScratchWaveOffsetReg);
+
   bool ResourceRegUsed = ScratchRsrcReg != PPU::NoRegister &&
-    MRI.isPhysRegUsed(ScratchRsrcReg);
+                        MRI.isPhysRegUsed(ScratchRsrcReg);
+
+  // FIXME: Hack to not crash in situations which emitted an error.
+  if (PreloadedScratchWaveOffsetReg == PPU::NoRegister)
+    return;
 
   // We added live-ins during argument lowering, but since they were not used
   // they were deleted. We're adding the uses now, so add them back.
-  if (OffsetRegUsed) {
-    assert(PreloadedScratchWaveOffsetReg != PPU::NoRegister &&
-      "scratch wave offset input is required");
-    MRI.addLiveIn(PreloadedScratchWaveOffsetReg);
-    MBB.addLiveIn(PreloadedScratchWaveOffsetReg);
+  MRI.addLiveIn(PreloadedScratchWaveOffsetReg);
+  MBB.addLiveIn(PreloadedScratchWaveOffsetReg);
+
+  if (ResourceRegUsed && PreloadedPrivateBufferReg != PPU::NoRegister) {
+    assert(ST.isPPSOS(F));
+    MRI.addLiveIn(PreloadedPrivateBufferReg);
+    MBB.addLiveIn(PreloadedPrivateBufferReg);
   }
+
 
   // Make the register selected live throughout the function.
   for (MachineBasicBlock &OtherBB : MF) {
@@ -1305,37 +1447,207 @@ void PPUFrameLowering::emitEntryFunctionPrologue(MachineFunction &MF,
   // If we reserved the original input registers, we don't need to copy to the
   // reserved registers.
 
-  bool CopyBuffer = false;
-  /*
-    ResourceRegUsed && PreloadedPrivateBufferReg != PPU::NoRegister &&
-    ST.isIluCodeObjectV2(F) && ScratchRsrcReg != PreloadedPrivateBufferReg;
-    */
+  bool CopyBuffer = ResourceRegUsed &&
+    PreloadedPrivateBufferReg != PPU::NoRegister &&
+    ST.isPPSOS(F) &&
+    ScratchRsrcReg != PreloadedPrivateBufferReg;
 
   // This needs to be careful of the copying order to avoid overwriting one of
   // the input registers before it's been copied to it's final
   // destination. Usually the offset should be copied first.
-  bool CopyBufferFirst =
-    TRI->isSubRegisterEq(PreloadedPrivateBufferReg, ScratchWaveOffsetReg);
+  bool CopyBufferFirst = TRI->isSubRegisterEq(PreloadedPrivateBufferReg,
+                                              ScratchWaveOffsetReg);
   if (CopyBuffer && CopyBufferFirst) {
     BuildMI(MBB, I, DL, TII->get(PPU::COPY), ScratchRsrcReg)
       .addReg(PreloadedPrivateBufferReg, RegState::Kill);
   }
 
-  if (OffsetRegUsed && PreloadedScratchWaveOffsetReg != ScratchWaveOffsetReg) {
+  unsigned SPReg = MFI->getStackPtrOffsetReg();
+  assert(SPReg != PPU::SP_REG);
+
+  // FIXME: Remove the isPhysRegUsed checks
+  const bool HasFP = hasFP(MF);
+
+  if (HasFP || OffsetRegUsed) {
+    assert(ScratchWaveOffsetReg);
     BuildMI(MBB, I, DL, TII->get(PPU::COPY), ScratchWaveOffsetReg)
-      .addReg(PreloadedScratchWaveOffsetReg,
-        MRI.isPhysRegUsed(ScratchWaveOffsetReg) ? 0 : RegState::Kill);
+      .addReg(PreloadedScratchWaveOffsetReg, HasFP ? RegState::Kill : 0);
   }
 
   if (CopyBuffer && !CopyBufferFirst) {
     BuildMI(MBB, I, DL, TII->get(PPU::COPY), ScratchRsrcReg)
       .addReg(PreloadedPrivateBufferReg, RegState::Kill);
   }
-/*
-  if (ResourceRegUsed)
+
+  if (ResourceRegUsed) {
     emitEntryFunctionScratchSetup(ST, MF, MBB, MFI, I,
-      PreloadedPrivateBufferReg, ScratchRsrcReg);
-      */
+        PreloadedPrivateBufferReg, ScratchRsrcReg);
+  }
+
+  if (HasFP) {
+    DebugLoc DL;
+    const MachineFrameInfo &FrameInfo = MF.getFrameInfo();
+    int64_t StackSize = FrameInfo.getStackSize();
+
+    // On kernel entry, the private scratch wave offset is the SP value.
+    if (StackSize == 0) {
+      BuildMI(MBB, I, DL, TII->get(PPU::COPY), SPReg)
+        .addReg(MFI->getScratchWaveOffsetReg());
+    } else {
+      BuildMI(MBB, I, DL, TII->get(PPU::S_ADD_U32), SPReg)
+        .addReg(MFI->getScratchWaveOffsetReg())
+        .addImm(StackSize * ST.getWavefrontSize());
+    }
+  }
 }
 
+// Emit scratch setup code for AMDPAL or Mesa, assuming ResourceRegUsed is set.
+void PPUFrameLowering::emitEntryFunctionScratchSetup(const PPUSubtarget &ST,
+      MachineFunction &MF, MachineBasicBlock &MBB, PPUMachineFunctionInfo *MFI,
+      MachineBasicBlock::iterator I, unsigned PreloadedPrivateBufferReg,
+      unsigned ScratchRsrcReg) const {
+  llvm_unreachable("Invalid TargetStackID::Value");
+/*
+  const SIInstrInfo *TII = ST.getInstrInfo();
+  const SIRegisterInfo *TRI = &TII->getRegisterInfo();
+  const Function &Fn = MF.getFunction();
+  DebugLoc DL;
+
+  if (ST.isAmdPalOS()) {
+    // The pointer to the GIT is formed from the offset passed in and either
+    // the amdgpu-git-ptr-high function attribute or the top part of the PC
+    Register RsrcLo = TRI->getSubReg(ScratchRsrcReg, PPU::sub0);
+    Register RsrcHi = TRI->getSubReg(ScratchRsrcReg, PPU::sub1);
+    Register Rsrc01 = TRI->getSubReg(ScratchRsrcReg, PPU::sub0_sub1);
+
+    const MCInstrDesc &SMovB32 = TII->get(PPU::S_MOV_B32);
+
+    if (MFI->getGITPtrHigh() != 0xffffffff) {
+      BuildMI(MBB, I, DL, SMovB32, RsrcHi)
+        .addImm(MFI->getGITPtrHigh())
+        .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+    } else {
+      const MCInstrDesc &GetPC64 = TII->get(PPU::S_GETPC_B64);
+      BuildMI(MBB, I, DL, GetPC64, Rsrc01);
+    }
+    auto GitPtrLo = PPU::SGPR0; // Low GIT address passed in
+    if (ST.hasMergedShaders()) {
+      switch (MF.getFunction().getCallingConv()) {
+        case CallingConv::AMDGPU_HS:
+        case CallingConv::AMDGPU_GS:
+          // Low GIT address is passed in s8 rather than s0 for an LS+HS or
+          // ES+GS merged shader on gfx9+.
+          GitPtrLo = PPU::SGPR8;
+          break;
+        default:
+          break;
+      }
+    }
+    MF.getRegInfo().addLiveIn(GitPtrLo);
+    MBB.addLiveIn(GitPtrLo);
+    BuildMI(MBB, I, DL, SMovB32, RsrcLo)
+      .addReg(GitPtrLo)
+      .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+
+    // We now have the GIT ptr - now get the scratch descriptor from the entry
+    // at offset 0 (or offset 16 for a compute shader).
+    PointerType *PtrTy =
+      PointerType::get(Type::getInt64Ty(MF.getFunction().getContext()),
+                       AMDGPUAS::CONSTANT_ADDRESS);
+    MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
+    const MCInstrDesc &LoadDwordX4 = TII->get(PPU::S_LOAD_DWORDX4_IMM);
+    auto MMO = MF.getMachineMemOperand(PtrInfo,
+                                       MachineMemOperand::MOLoad |
+                                       MachineMemOperand::MOInvariant |
+                                       MachineMemOperand::MODereferenceable,
+                                       16, 4);
+    unsigned Offset = Fn.getCallingConv() == CallingConv::AMDGPU_CS ? 16 : 0;
+    const GCNSubtarget &Subtarget = MF.getSubtarget<GCNSubtarget>();
+    unsigned EncodedOffset = PPU::getSMRDEncodedOffset(Subtarget, Offset);
+    BuildMI(MBB, I, DL, LoadDwordX4, ScratchRsrcReg)
+      .addReg(Rsrc01)
+      .addImm(EncodedOffset) // offset
+      .addImm(0) // glc
+      .addImm(0) // dlc
+      .addReg(ScratchRsrcReg, RegState::ImplicitDefine)
+      .addMemOperand(MMO);
+    return;
+  }
+  if (ST.isMesaGfxShader(Fn)
+      || (PreloadedPrivateBufferReg == PPU::NoRegister)) {
+    assert(!ST.isAmdHsaOrMesa(Fn));
+    const MCInstrDesc &SMovB32 = TII->get(PPU::S_MOV_B32);
+
+    Register Rsrc2 = TRI->getSubReg(ScratchRsrcReg, PPU::sub2);
+    Register Rsrc3 = TRI->getSubReg(ScratchRsrcReg, PPU::sub3);
+
+    // Use relocations to get the pointer, and setup the other bits manually.
+    uint64_t Rsrc23 = TII->getScratchRsrcWords23();
+
+    if (MFI->hasImplicitBufferPtr()) {
+      Register Rsrc01 = TRI->getSubReg(ScratchRsrcReg, PPU::sub0_sub1);
+
+      if (PPU::isCompute(MF.getFunction().getCallingConv())) {
+        const MCInstrDesc &Mov64 = TII->get(PPU::S_MOV_B64);
+
+        BuildMI(MBB, I, DL, Mov64, Rsrc01)
+          .addReg(MFI->getImplicitBufferPtrUserSGPR())
+          .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+      } else {
+        const MCInstrDesc &LoadDwordX2 = TII->get(PPU::S_LOAD_DWORDX2_IMM);
+
+        PointerType *PtrTy =
+          PointerType::get(Type::getInt64Ty(MF.getFunction().getContext()),
+                           AMDGPUAS::CONSTANT_ADDRESS);
+        MachinePointerInfo PtrInfo(UndefValue::get(PtrTy));
+        auto MMO = MF.getMachineMemOperand(PtrInfo,
+                                           MachineMemOperand::MOLoad |
+                                           MachineMemOperand::MOInvariant |
+                                           MachineMemOperand::MODereferenceable,
+                                           8, 4);
+        BuildMI(MBB, I, DL, LoadDwordX2, Rsrc01)
+          .addReg(MFI->getImplicitBufferPtrUserSGPR())
+          .addImm(0) // offset
+          .addImm(0) // glc
+          .addImm(0) // dlc
+          .addMemOperand(MMO)
+          .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+
+        MF.getRegInfo().addLiveIn(MFI->getImplicitBufferPtrUserSGPR());
+        MBB.addLiveIn(MFI->getImplicitBufferPtrUserSGPR());
+      }
+    } else {
+      Register Rsrc0 = TRI->getSubReg(ScratchRsrcReg, PPU::sub0);
+      Register Rsrc1 = TRI->getSubReg(ScratchRsrcReg, PPU::sub1);
+
+      BuildMI(MBB, I, DL, SMovB32, Rsrc0)
+        .addExternalSymbol("SCRATCH_RSRC_DWORD0")
+        .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+
+      BuildMI(MBB, I, DL, SMovB32, Rsrc1)
+        .addExternalSymbol("SCRATCH_RSRC_DWORD1")
+        .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+
+    }
+
+    BuildMI(MBB, I, DL, SMovB32, Rsrc2)
+      .addImm(Rsrc23 & 0xffffffff)
+      .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+
+    BuildMI(MBB, I, DL, SMovB32, Rsrc3)
+      .addImm(Rsrc23 >> 32)
+      .addReg(ScratchRsrcReg, RegState::ImplicitDefine);
+  }
+*/
+}
+
+bool PPUFrameLowering::isSupportedStackID(TargetStackID::Value ID) const {
+  switch (ID) {
+  case TargetStackID::Default:
+  case TargetStackID::NoAlloc:
+  case TargetStackID::SGPRSpill:
+    return true;
+  }
+  llvm_unreachable("Invalid TargetStackID::Value");
+}
 

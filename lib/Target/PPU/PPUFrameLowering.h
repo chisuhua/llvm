@@ -89,12 +89,12 @@ public: // from AMD
 
   void determineCalleeSavesSGPR(MachineFunction &MF, BitVector &SavedRegs,
                                 RegScavenger *RS = nullptr) const;
-/*
+
   bool assignCalleeSavedSpillSlots(MachineFunction &MF,
                               const TargetRegisterInfo *TRI,
                               std::vector<CalleeSavedInfo> &CSI) const override;
   bool isSupportedStackID(TargetStackID::Value ID) const override;
-*/
+
 
 private:
   void emitFlatScratchInit(const PPUSubtarget &ST,
@@ -111,6 +111,12 @@ private:
   std::pair<unsigned, bool> getReservedPrivateSegmentWaveByteOffsetReg(
       const PPUSubtarget &ST, const PPUInstrInfo *TII, const PPURegisterInfo *TRI,
       PPUMachineFunctionInfo *MFI, MachineFunction &MF) const;
+
+  // Emit scratch setup code for AMDPAL or Mesa, assuming ResourceRegUsed is set.
+  void emitEntryFunctionScratchSetup(const PPUSubtarget &ST, MachineFunction &MF,
+      MachineBasicBlock &MBB, PPUMachineFunctionInfo *MFI,
+      MachineBasicBlock::iterator I, unsigned PreloadedPrivateBufferReg,
+      unsigned ScratchRsrcReg) const;
 
 };
 }

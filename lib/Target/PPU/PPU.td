@@ -108,6 +108,13 @@ def FeaturePkFmacF16Inst : SubtargetFeature<"pk-fmac-f16-inst",
   "Has v_pk_fmac_f16 instruction"
 >;
 
+def FeatureAtomicFaddInsts : SubtargetFeature<"atomic-fadd-insts",
+  "HasAtomicFaddInsts",
+  "true",
+  "Has buffer_atomic_add_f32, buffer_atomic_pk_add_f16, global_atomic_add_f32, "
+  "global_atomic_pk_add_f16 instructions"
+>;
+
 def FeatureDLInsts : SubtargetFeature<"dl-insts",
   "HasDLInsts",
   "true",
@@ -407,7 +414,7 @@ def D16PreservesUnusedBits : Predicate<"Subtarget->d16PreservesUnusedBits()">,
 def LDSRequiresM0Init : Predicate<"Subtarget->ldsRequiresM0Init()">;
 def NotLDSRequiresM0Init : Predicate<"!Subtarget->ldsRequiresM0Init()">;
 
-def HasDSAddTid : Predicate<"Subtarget->getGeneration() >= AMDGPUSubtarget::GFX9">,
+def HasDSAddTid : Predicate<"Subtarget->getGeneration() >= PPUSubtarget::PPU">,
   AssemblerPredicate<"FeatureGFX9Insts">;
 
 def HasAddNoCarryInsts : Predicate<"Subtarget->hasAddNoCarry()">,
@@ -433,6 +440,16 @@ def HasScalarStores : Predicate<"Subtarget->hasScalarStores()">,
 def HasScalarAtomics : Predicate<"Subtarget->hasScalarAtomics()">,
   AssemblerPredicate<"FeatureScalarAtomics">;
 
+
+def HasFlatAddressSpace : Predicate<"Subtarget->hasFlatAddressSpace()">,
+  AssemblerPredicate<"FeatureFlatAddressSpace">;
+
+def HasFlatGlobalInsts : Predicate<"Subtarget->hasFlatGlobalInsts()">,
+  AssemblerPredicate<"FeatureFlatGlobalInsts">;
+def HasFlatScratchInsts : Predicate<"Subtarget->hasFlatScratchInsts()">,
+  AssemblerPredicate<"FeatureFlatScratchInsts">;
+
+
 def HasScalarFlatScratchInsts : Predicate<"Subtarget->hasScalarFlatScratchInsts()">,
   AssemblerPredicate<"FeatureScalarFlatScratchInsts">;
 
@@ -450,6 +467,9 @@ def isGFX10Plus :
 
 def HasPkFmacF16Inst : Predicate<"Subtarget->hasPkFmacF16Inst()">,
   AssemblerPredicate<"FeaturePkFmacF16Inst">;
+
+def HasAtomicFaddInsts : Predicate<"Subtarget->hasAtomicFaddInsts()">,
+  AssemblerPredicate<"FeatureAtomicFaddInsts">;
 
 def HasDLInsts : Predicate<"Subtarget->hasDLInsts()">,
   AssemblerPredicate<"FeatureDLInsts">;

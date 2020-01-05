@@ -106,7 +106,6 @@ bool PPULowerKernelArguments::runOnFunction(Function &F) {
       continue;
 
     if (PointerType *PT = dyn_cast<PointerType>(ArgTy)) {
-// #if 0
       // FIXME: Hack. We rely on AssertZext to be able to fold DS addressing
       // modes on SI to know the high bits are 0 so pointer adds don't wrap. We
       // can't represent this with range metadata because it's only allowed for
@@ -115,7 +114,7 @@ bool PPULowerKernelArguments::runOnFunction(Function &F) {
            PT->getAddressSpace() == AMDGPUAS::REGION_ADDRESS))
           // && !ST.hasUsableDSOffset())
         continue;
-// #endif
+
       // FIXME: We can replace this with equivalent alias.scope/noalias
       // metadata, but this appears to be a lot of work.
       if (Arg.hasNoAliasAttr())

@@ -98,7 +98,6 @@ enum InstClassEnum {
   DS_READ,
   DS_WRITE,
   S_BUFFER_LOAD_IMM,
-  /* FIXME
   BUFFER_LOAD_OFFEN = PPU::BUFFER_LOAD_DWORD_OFFEN,
   BUFFER_LOAD_OFFSET = PPU::BUFFER_LOAD_DWORD_OFFSET,
   BUFFER_STORE_OFFEN = PPU::BUFFER_STORE_DWORD_OFFEN,
@@ -107,7 +106,6 @@ enum InstClassEnum {
   BUFFER_LOAD_OFFSET_exact = PPU::BUFFER_LOAD_DWORD_OFFSET_exact,
   BUFFER_STORE_OFFEN_exact = PPU::BUFFER_STORE_DWORD_OFFEN_exact,
   BUFFER_STORE_OFFSET_exact = PPU::BUFFER_STORE_DWORD_OFFSET_exact,
-  */
 };
 
 enum RegisterEnum {
@@ -175,13 +173,13 @@ private:
   bool findMatchingInst(CombineInfo &CI);
 
   // TODO: clean up, as PPU does not have read2/write2 instructions
-  // unsigned read2Opcode(unsigned EltSize) const;
-  // unsigned read2ST64Opcode(unsigned EltSize) const;
-  // MachineBasicBlock::iterator mergeRead2Pair(CombineInfo &CI);
+  unsigned read2Opcode(unsigned EltSize) const;
+  unsigned read2ST64Opcode(unsigned EltSize) const;
+  MachineBasicBlock::iterator mergeRead2Pair(CombineInfo &CI);
 
-  // unsigned write2Opcode(unsigned EltSize) const;
-  // unsigned write2ST64Opcode(unsigned EltSize) const;
-  // MachineBasicBlock::iterator mergeWrite2Pair(CombineInfo &CI);
+  unsigned write2Opcode(unsigned EltSize) const;
+  unsigned write2ST64Opcode(unsigned EltSize) const;
+  MachineBasicBlock::iterator mergeWrite2Pair(CombineInfo &CI);
   MachineBasicBlock::iterator mergeSBufferLoadImmPair(CombineInfo &CI);
   MachineBasicBlock::iterator mergeBufferLoadPair(CombineInfo &CI);
   MachineBasicBlock::iterator mergeBufferStorePair(CombineInfo &CI);
@@ -405,29 +403,25 @@ bool PPULoadStoreOptimizer::widthsFit(const PPUSubtarget &STM,
 
 unsigned PPULoadStoreOptimizer::getOpcodeWidth(const MachineInstr &MI) const {
   const unsigned Opc = MI.getOpcode();
-/* FIXME
+
   if (TII->isMUBUF(MI)) {
     // FIXME: Handle d16 correctly
     return PPU::getMUBUFElements(Opc);
   }
-*/
+
   switch (Opc) {
   default:
-  /* FIXME
     return 0;
   case PPU::S_BUFFER_LOAD_DWORD_IMM:
     return 1;
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
     return 2;
-  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
-  */
-    return 4;
+  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+  //  return 4;
   }
 }
 
 InstClassEnum PPULoadStoreOptimizer::getInstClass(unsigned Opc) const {
-      return UNKNOWN;
-    /* FIXME
   if (TII->isMUBUF(Opc)) {
     const int baseOpcode = PPU::getMUBUFBaseOpcode(Opc);
 
@@ -457,31 +451,28 @@ InstClassEnum PPULoadStoreOptimizer::getInstClass(unsigned Opc) const {
       return BUFFER_STORE_OFFSET_exact;
     }
   }
-  */
-/*
+
   switch (Opc) {
   default:
     return UNKNOWN;
   case PPU::S_BUFFER_LOAD_DWORD_IMM:
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
-  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
     return S_BUFFER_LOAD_IMM;
   case PPU::DS_READ_B32:
   case PPU::DS_READ_B64:
-  case PPU::DS_READ_B32_gfx9:
-  case PPU::DS_READ_B64_gfx9:
+  case PPU::DS_READ_B32_ppu:
+  case PPU::DS_READ_B64_ppu:
     return DS_READ;
   case PPU::DS_WRITE_B32:
   case PPU::DS_WRITE_B64:
-  case PPU::DS_WRITE_B32_gfx9:
-  case PPU::DS_WRITE_B64_gfx9:
+  case PPU::DS_WRITE_B32_ppu:
+  case PPU::DS_WRITE_B64_ppu:
     return DS_WRITE;
   }
-  */
 }
 
 unsigned PPULoadStoreOptimizer::getRegs(unsigned Opc) const {
-    /* FIXME
   if (TII->isMUBUF(Opc)) {
     unsigned result = 0;
 
@@ -505,19 +496,18 @@ unsigned PPULoadStoreOptimizer::getRegs(unsigned Opc) const {
     return 0;
   case PPU::S_BUFFER_LOAD_DWORD_IMM:
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
-  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
     return SBASE;
   case PPU::DS_READ_B32:
   case PPU::DS_READ_B64:
-  case PPU::DS_READ_B32_gfx9:
-  case PPU::DS_READ_B64_gfx9:
+  case PPU::DS_READ_B32_ppu:
+  case PPU::DS_READ_B64_ppu:
   case PPU::DS_WRITE_B32:
   case PPU::DS_WRITE_B64:
-  case PPU::DS_WRITE_B32_gfx9:
-  case PPU::DS_WRITE_B64_gfx9:
+  case PPU::DS_WRITE_B32_ppu:
+  case PPU::DS_WRITE_B64_ppu:
     return ADDR;
   }
-  */
 }
 
 bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
@@ -538,7 +528,7 @@ bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
   int AddrIdx[5];
   const MachineOperand *AddrReg[5];
   unsigned NumAddresses = 0;
-/* FIXME
+
   if (Regs & ADDR) {
     AddrOpName[NumAddresses++] = PPU::OpName::addr;
   }
@@ -558,7 +548,7 @@ bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
   if (Regs & VADDR) {
     AddrOpName[NumAddresses++] = PPU::OpName::vaddr;
   }
-*/
+
   for (unsigned i = 0; i < NumAddresses; i++) {
     AddrIdx[i] = PPU::getNamedOperandIdx(CI.I->getOpcode(), AddrOpName[i]);
     AddrReg[i] = &CI.I->getOperand(AddrIdx[i]);
@@ -648,7 +638,7 @@ bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
         break;
       }
     }
-/* FIXME
+
     if (Match) {
       int OffsetIdx =
           PPU::getNamedOperandIdx(CI.I->getOpcode(), PPU::OpName::offset);
@@ -680,7 +670,6 @@ bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
         if (canMoveInstsAcrossMemOp(*MBBI, CI.InstsToMove, AA))
           return true;
     }
-    */
 
     // We've found a load/store that we couldn't merge for some reason.
     // We could potentially keep looking, but we'd need to make sure that
@@ -695,190 +684,202 @@ bool PPULoadStoreOptimizer::findMatchingInst(CombineInfo &CI) {
 }
 
 // TODO: clean up, as PPU does not have read2/write2 instructions
-// unsigned PPULoadStoreOptimizer::read2Opcode(unsigned EltSize) const {
-//   if (STM->ldsRequiresM0Init())
-//     return (EltSize == 4) ? PPU::DS_READ2_B32 : PPU::DS_READ2_B64;
-//   return (EltSize == 4) ? PPU::DS_READ2_B32_gfx9
-//                         : PPU::DS_READ2_B64_gfx9;
-// }
+unsigned PPULoadStoreOptimizer::read2Opcode(unsigned EltSize) const {
+   assert(EltSize == 4);
+   if (STM->ldsRequiresM0Init())
+     return PPU::DS_READ2_B32;
+     // return (EltSize == 4) ? PPU::DS_READ2_B32 : PPU::DS_READ2_B64;
+   return /*(EltSize == 4) ? */PPU::DS_READ2_B32_ppu;
+                         // : PPU::DS_READ2_B64_ppu;
+}
 
-// unsigned PPULoadStoreOptimizer::read2ST64Opcode(unsigned EltSize) const {
-//   if (STM->ldsRequiresM0Init())
-//     return (EltSize == 4) ? PPU::DS_READ2ST64_B32
-//                           : PPU::DS_READ2ST64_B64;
+unsigned PPULoadStoreOptimizer::read2ST64Opcode(unsigned EltSize) const {
+  if (STM->ldsRequiresM0Init())
+     return PPU::DS_READ2ST64_B32;
+     // return (EltSize == 4) ? PPU::DS_READ2ST64_B32
+     //                       : PPU::DS_READ2ST64_B64;
 
-//   return (EltSize == 4) ? PPU::DS_READ2ST64_B32_gfx9
-//                         : PPU::DS_READ2ST64_B64_gfx9;
-// }
+   return PPU::DS_READ2ST64_B32_ppu;
+   // return (EltSize == 4) ? PPU::DS_READ2ST64_B32_gfx9
+   //                      : PPU::DS_READ2ST64_B64_gfx9;
+}
 
-// MachineBasicBlock::iterator
-// PPULoadStoreOptimizer::mergeRead2Pair(CombineInfo &CI) {
-//   MachineBasicBlock *MBB = CI.I->getParent();
+MachineBasicBlock::iterator
+PPULoadStoreOptimizer::mergeRead2Pair(CombineInfo &CI) {
+  MachineBasicBlock *MBB = CI.I->getParent();
 
-//   // Be careful, since the addresses could be subregisters themselves in weird
-//   // cases, like vectors of pointers.
-//   const auto *AddrReg = TII->getNamedOperand(*CI.I, PPU::OpName::addr);
+  // Be careful, since the addresses could be subregisters themselves in weird
+  // cases, like vectors of pointers.
+  const auto *AddrReg = TII->getNamedOperand(*CI.I, PPU::OpName::addr);
 
-//   const auto *Dest0 = TII->getNamedOperand(*CI.I, PPU::OpName::vdst);
-//   const auto *Dest1 = TII->getNamedOperand(*CI.Paired, PPU::OpName::vdst);
+  const auto *Dest0 = TII->getNamedOperand(*CI.I, PPU::OpName::vdst);
+  const auto *Dest1 = TII->getNamedOperand(*CI.Paired, PPU::OpName::vdst);
 
-//   unsigned NewOffset0 = CI.Offset0;
-//   unsigned NewOffset1 = CI.Offset1;
-//   unsigned Opc =
-//       CI.UseST64 ? read2ST64Opcode(CI.EltSize) : read2Opcode(CI.EltSize);
+  unsigned NewOffset0 = CI.Offset0;
+  unsigned NewOffset1 = CI.Offset1;
+  unsigned Opc =
+      CI.UseST64 ? read2ST64Opcode(CI.EltSize) : read2Opcode(CI.EltSize);
 
-//   unsigned SubRegIdx0 =
-//       (CI.EltSize == 4) ? PPU::sub0 : PPU::sub0_sub1;
-//   unsigned SubRegIdx1 =
-//       (CI.EltSize == 4) ? PPU::sub1 : PPU::sub2_sub3;
+  unsigned SubRegIdx0 = (CI.EltSize == 4) ? PPU::sub0 : PPU::sub0_sub1;
+  unsigned SubRegIdx1 = (CI.EltSize == 4) ? PPU::sub1 : PPU::sub2_sub3;
 
-//   if (NewOffset0 > NewOffset1) {
-//     // Canonicalize the merged instruction so the smaller offset comes first.
-//     std::swap(NewOffset0, NewOffset1);
-//     std::swap(SubRegIdx0, SubRegIdx1);
-//   }
+  if (NewOffset0 > NewOffset1) {
+    // Canonicalize the merged instruction so the smaller offset comes first.
+    std::swap(NewOffset0, NewOffset1);
+    std::swap(SubRegIdx0, SubRegIdx1);
+  }
 
-//   assert((isUInt<8>(NewOffset0) && isUInt<8>(NewOffset1)) &&
-//          (NewOffset0 != NewOffset1) && "Computed offset doesn't fit");
+  assert((isUInt<8>(NewOffset0) && isUInt<8>(NewOffset1)) &&
+         (NewOffset0 != NewOffset1) && "Computed offset doesn't fit");
 
-//   const MCInstrDesc &Read2Desc = TII->get(Opc);
+  const MCInstrDesc &Read2Desc = TII->get(Opc);
 
-//   const TargetRegisterClass *SuperRC = (CI.EltSize == 4)
-//                                            ? &PPU::VReg_64RegClass
-//                                            : &PPU::VReg_128RegClass;
-//   unsigned DestReg = MRI->createVirtualRegister(SuperRC);
+  const TargetRegisterClass *SuperRC = (CI.EltSize == 4)
+                                           ? &PPU::VReg_64RegClass
+                                           : &PPU::VReg_128RegClass;
+  Register DestReg = MRI->createVirtualRegister(SuperRC);
 
-//   DebugLoc DL = CI.I->getDebugLoc();
+  DebugLoc DL = CI.I->getDebugLoc();
 
-//   unsigned BaseReg = AddrReg->getReg();
-//   unsigned BaseRegFlags = 0;
-//   if (CI.BaseOff) {
-//     unsigned ImmReg = MRI->createVirtualRegister(&PPU::SGPR_32RegClass);
-//     BuildMI(*MBB, CI.Paired, DL, TII->get(PPU::SL_MOV_B32), ImmReg)
-//         .addImm(CI.BaseOff);
+  Register BaseReg = AddrReg->getReg();
+  unsigned BaseSubReg = AddrReg->getSubReg();
+  unsigned BaseRegFlags = 0;
+  if (CI.BaseOff) {
+    unsigned ImmReg = MRI->createVirtualRegister(&PPU::SPR_32RegClass);
+    BuildMI(*MBB, CI.Paired, DL, TII->get(PPU::S_MOV_B32), ImmReg)
+        .addImm(CI.BaseOff);
 
-//     BaseReg = MRI->createVirtualRegister(&PPU::VGPR_32RegClass);
-//     BaseRegFlags = RegState::Kill;
+    BaseReg = MRI->createVirtualRegister(&PPU::VPR_32RegClass);
+    BaseRegFlags = RegState::Kill;
 
-//     TII->getAddNoCarry(*MBB, CI.Paired, DL, BaseReg)
-//         .addReg(ImmReg)
-//         .addReg(AddrReg->getReg());
-//   }
+    TII->getAddNoCarry(*MBB, CI.Paired, DL, BaseReg)
+        .addReg(ImmReg)
+        .addReg(AddrReg->getReg(), 0, BaseSubReg)
+        .addImm(0); // clamp bit
+    BaseSubReg = 0;
+  }
 
-//   MachineInstrBuilder Read2 =
-//       BuildMI(*MBB, CI.Paired, DL, Read2Desc, DestReg)
-//           .addReg(BaseReg, BaseRegFlags) // addr
-//           .addImm(NewOffset0)            // offset0
-//           .addImm(NewOffset1)            // offset1
-//           .addImm(0)                     // gds
-//           .setMemRefs(CI.I->mergeMemRefsWith(*CI.Paired));
+  MachineInstrBuilder Read2 =
+      BuildMI(*MBB, CI.Paired, DL, Read2Desc, DestReg)
+          .addReg(BaseReg, BaseRegFlags, BaseSubReg) // addr
+          .addImm(NewOffset0)            // offset0
+          .addImm(NewOffset1)            // offset1
+          .addImm(0)                     // gds
+          .cloneMergedMemRefs({&*CI.I, &*CI.Paired});
 
-//   (void)Read2;
+  (void)Read2;
 
-//   const MCInstrDesc &CopyDesc = TII->get(TargetOpcode::COPY);
+  const MCInstrDesc &CopyDesc = TII->get(TargetOpcode::COPY);
 
-//   // Copy to the old destination registers.
-//   BuildMI(*MBB, CI.Paired, DL, CopyDesc)
-//       .add(*Dest0) // Copy to same destination including flags and sub reg.
-//       .addReg(DestReg, 0, SubRegIdx0);
-//   MachineInstr *Copy1 = BuildMI(*MBB, CI.Paired, DL, CopyDesc)
-//                             .add(*Dest1)
-//                             .addReg(DestReg, RegState::Kill, SubRegIdx1);
+  // Copy to the old destination registers.
+  BuildMI(*MBB, CI.Paired, DL, CopyDesc)
+      .add(*Dest0) // Copy to same destination including flags and sub reg.
+      .addReg(DestReg, 0, SubRegIdx0);
+  MachineInstr *Copy1 = BuildMI(*MBB, CI.Paired, DL, CopyDesc)
+                            .add(*Dest1)
+                            .addReg(DestReg, RegState::Kill, SubRegIdx1);
 
-//   moveInstsAfter(Copy1, CI.InstsToMove);
+  moveInstsAfter(Copy1, CI.InstsToMove);
 
-//   MachineBasicBlock::iterator Next = std::next(CI.I);
-//   CI.I->eraseFromParent();
-//   CI.Paired->eraseFromParent();
+  MachineBasicBlock::iterator Next = std::next(CI.I);
+  CI.I->eraseFromParent();
+  CI.Paired->eraseFromParent();
 
-//   LLVM_DEBUG(dbgs() << "Inserted read2: " << *Read2 << '\n');
-//   return Next;
-// }
+  LLVM_DEBUG(dbgs() << "Inserted read2: " << *Read2 << '\n');
+  return Next;
+}
 
-// unsigned PPULoadStoreOptimizer::write2Opcode(unsigned EltSize) const {
-//   if (STM->ldsRequiresM0Init())
-//     return (EltSize == 4) ? PPU::DS_WRITE2_B32 : PPU::DS_WRITE2_B64;
-//   return (EltSize == 4) ? PPU::DS_WRITE2_B32_gfx9
-//                         : PPU::DS_WRITE2_B64_gfx9;
-// }
+unsigned PPULoadStoreOptimizer::write2Opcode(unsigned EltSize) const {
+    assert(EltSize == 4);
+  if (STM->ldsRequiresM0Init())
+    return PPU::DS_WRITE2_B32;
+    // return (EltSize == 4) ? PPU::DS_WRITE2_B32 : PPU::DS_WRITE2_B64;
+  return PPU::DS_WRITE2_B32_ppu;
+  // return (EltSize == 4) ? PPU::DS_WRITE2_B32_ppu
+  //                      : PPU::DS_WRITE2_B64_ppu;
+}
 
-// unsigned PPULoadStoreOptimizer::write2ST64Opcode(unsigned EltSize) const {
-//   if (STM->ldsRequiresM0Init())
-//     return (EltSize == 4) ? PPU::DS_WRITE2ST64_B32
-//                           : PPU::DS_WRITE2ST64_B64;
+unsigned PPULoadStoreOptimizer::write2ST64Opcode(unsigned EltSize) const {
+    assert(EltSize == 4);
+  if (STM->ldsRequiresM0Init())
+    return PPU::DS_WRITE2ST64_B32;
+    // return (EltSize == 4) ? PPU::DS_WRITE2ST64_B32
+    //                      : PPU::DS_WRITE2ST64_B64;
 
-//   return (EltSize == 4) ? PPU::DS_WRITE2ST64_B32_gfx9
-//                         : PPU::DS_WRITE2ST64_B64_gfx9;
-// }
+  return PPU::DS_WRITE2ST64_B32_ppu;
+  // return (EltSize == 4) ? PPU::DS_WRITE2ST64_B32_gfx9
+  //                       : PPU::DS_WRITE2ST64_B64_gfx9;
+}
 
-// MachineBasicBlock::iterator
-// PPULoadStoreOptimizer::mergeWrite2Pair(CombineInfo &CI) {
-//   MachineBasicBlock *MBB = CI.I->getParent();
+MachineBasicBlock::iterator
+PPULoadStoreOptimizer::mergeWrite2Pair(CombineInfo &CI) {
+  MachineBasicBlock *MBB = CI.I->getParent();
 
-//   // Be sure to use .addOperand(), and not .addReg() with these. We want to be
-//   // sure we preserve the subregister index and any register flags set on them.
-//   const MachineOperand *AddrReg =
-//       TII->getNamedOperand(*CI.I, PPU::OpName::addr);
-//   const MachineOperand *Data0 =
-//       TII->getNamedOperand(*CI.I, PPU::OpName::data0);
-//   const MachineOperand *Data1 =
-//       TII->getNamedOperand(*CI.Paired, PPU::OpName::data0);
+  // Be sure to use .addOperand(), and not .addReg() with these. We want to be
+  // sure we preserve the subregister index and any register flags set on them.
+  const MachineOperand *AddrReg =
+      TII->getNamedOperand(*CI.I, PPU::OpName::addr);
+  const MachineOperand *Data0 =
+      TII->getNamedOperand(*CI.I, PPU::OpName::data0);
+  const MachineOperand *Data1 =
+      TII->getNamedOperand(*CI.Paired, PPU::OpName::data0);
 
-//   unsigned NewOffset0 = CI.Offset0;
-//   unsigned NewOffset1 = CI.Offset1;
-//   unsigned Opc =
-//       CI.UseST64 ? write2ST64Opcode(CI.EltSize) : write2Opcode(CI.EltSize);
+  unsigned NewOffset0 = CI.Offset0;
+  unsigned NewOffset1 = CI.Offset1;
+  unsigned Opc =
+      CI.UseST64 ? write2ST64Opcode(CI.EltSize) : write2Opcode(CI.EltSize);
 
-//   if (NewOffset0 > NewOffset1) {
-//     // Canonicalize the merged instruction so the smaller offset comes first.
-//     std::swap(NewOffset0, NewOffset1);
-//     std::swap(Data0, Data1);
-//   }
+  if (NewOffset0 > NewOffset1) {
+    // Canonicalize the merged instruction so the smaller offset comes first.
+    std::swap(NewOffset0, NewOffset1);
+    std::swap(Data0, Data1);
+  }
 
-//   assert((isUInt<8>(NewOffset0) && isUInt<8>(NewOffset1)) &&
-//          (NewOffset0 != NewOffset1) && "Computed offset doesn't fit");
+  assert((isUInt<8>(NewOffset0) && isUInt<8>(NewOffset1)) &&
+         (NewOffset0 != NewOffset1) && "Computed offset doesn't fit");
 
-//   const MCInstrDesc &Write2Desc = TII->get(Opc);
-//   DebugLoc DL = CI.I->getDebugLoc();
+  const MCInstrDesc &Write2Desc = TII->get(Opc);
+  DebugLoc DL = CI.I->getDebugLoc();
 
-//   unsigned BaseReg = AddrReg->getReg();
-//   unsigned BaseRegFlags = 0;
-//   if (CI.BaseOff) {
-//     unsigned ImmReg = MRI->createVirtualRegister(&PPU::SGPR_32RegClass);
-//     BuildMI(*MBB, CI.Paired, DL, TII->get(PPU::SL_MOV_B32), ImmReg)
-//         .addImm(CI.BaseOff);
+  Register BaseReg = AddrReg->getReg();
+  unsigned BaseSubReg = AddrReg->getSubReg();
+  unsigned BaseRegFlags = 0;
+  if (CI.BaseOff) {
+    Register ImmReg = MRI->createVirtualRegister(&PPU::SPR_32RegClass);
+    BuildMI(*MBB, CI.Paired, DL, TII->get(PPU::S_MOV_B32), ImmReg)
+        .addImm(CI.BaseOff);
 
-//     BaseReg = MRI->createVirtualRegister(&PPU::VGPR_32RegClass);
-//     BaseRegFlags = RegState::Kill;
+    BaseReg = MRI->createVirtualRegister(&PPU::VPR_32RegClass);
+    BaseRegFlags = RegState::Kill;
 
-//     TII->getAddNoCarry(*MBB, CI.Paired, DL, BaseReg)
-//         .addReg(ImmReg)
-//         .addReg(AddrReg->getReg());
-//         .addImm(0); // clamp bit
-//     BaseSubReg = 0;
-//   }
+    TII->getAddNoCarry(*MBB, CI.Paired, DL, BaseReg)
+        .addReg(ImmReg)
+        .addReg(AddrReg->getReg(), 0, BaseSubReg)
+        .addImm(0); // clamp bit
+    BaseSubReg = 0;
+  }
 
-//   MachineInstrBuilder Write2 =
-//       BuildMI(*MBB, CI.Paired, DL, Write2Desc)
-//           .addReg(BaseReg, BaseRegFlags) // addr
-//           .add(*Data0)                   // data0
-//           .add(*Data1)                   // data1
-//           .addImm(NewOffset0)            // offset0
-//           .addImm(NewOffset1)            // offset1
-//           .addImm(0)                     // gds
-//           .setMemRefs(CI.I->mergeMemRefsWith(*CI.Paired));
+  MachineInstrBuilder Write2 =
+      BuildMI(*MBB, CI.Paired, DL, Write2Desc)
+          .addReg(BaseReg, BaseRegFlags, BaseSubReg) // addr
+          .add(*Data0)                   // data0
+          .add(*Data1)                   // data1
+          .addImm(NewOffset0)            // offset0
+          .addImm(NewOffset1)            // offset1
+          .addImm(0)                     // gds
+          .cloneMergedMemRefs({&*CI.I, &*CI.Paired});
 
-//   moveInstsAfter(Write2, CI.InstsToMove);
+  moveInstsAfter(Write2, CI.InstsToMove);
 
-//   MachineBasicBlock::iterator Next = std::next(CI.I);
-//   CI.I->eraseFromParent();
-//   CI.Paired->eraseFromParent();
+  MachineBasicBlock::iterator Next = std::next(CI.I);
+  CI.I->eraseFromParent();
+  CI.Paired->eraseFromParent();
 
-//   LLVM_DEBUG(dbgs() << "Inserted write2 inst: " << *Write2 << '\n');
-//   return Next;
-// }
+  LLVM_DEBUG(dbgs() << "Inserted write2 inst: " << *Write2 << '\n');
+  return Next;
+}
 
-/*
+
 MachineBasicBlock::iterator
 PPULoadStoreOptimizer::mergeSBufferLoadImmPair(CombineInfo &CI) {
   MachineBasicBlock *MBB = CI.I->getParent();
@@ -928,11 +929,9 @@ PPULoadStoreOptimizer::mergeSBufferLoadImmPair(CombineInfo &CI) {
   CI.Paired->eraseFromParent();
   return Next;
 }
-*///deleted by ywang
 
 MachineBasicBlock::iterator
 PPULoadStoreOptimizer::mergeBufferLoadPair(CombineInfo &CI) {
-#if 0
   MachineBasicBlock *MBB = CI.I->getParent();
   DebugLoc DL = CI.I->getDebugLoc();
 
@@ -990,13 +989,9 @@ PPULoadStoreOptimizer::mergeBufferLoadPair(CombineInfo &CI) {
   CI.I->eraseFromParent();
   CI.Paired->eraseFromParent();
   return Next;
-#endif
-  MachineBasicBlock::iterator Next = std::next(CI.I);
-  return Next;
 }
 
 unsigned PPULoadStoreOptimizer::getNewOpcode(const CombineInfo &CI) {
-#if 0
   const unsigned Width = CI.Width0 + CI.Width1;
 
   switch (CI.InstClass) {
@@ -1011,17 +1006,15 @@ unsigned PPULoadStoreOptimizer::getNewOpcode(const CombineInfo &CI) {
       return 0;
     case 2:
       return PPU::S_BUFFER_LOAD_DWORDX2_IMM;
-    case 4:
+    /*case 4:
       return PPU::S_BUFFER_LOAD_DWORDX4_IMM;
+      */
     }
   }
-#endif
 }
 
 std::pair<unsigned, unsigned>
 PPULoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI) {
-        return std::make_pair(0, 0);
-#if 0
   if (CI.Offset0 > CI.Offset1) {
     switch (CI.Width0) {
     default:
@@ -1087,25 +1080,24 @@ PPULoadStoreOptimizer::getSubRegIdxs(const CombineInfo &CI) {
       }
     }
   }
-#endif
 }
 
 const TargetRegisterClass *
 PPULoadStoreOptimizer::getTargetRegisterClass(const CombineInfo &CI) {
-      return nullptr;
-/*
   if (CI.InstClass == S_BUFFER_LOAD_IMM) {
     switch (CI.Width0 + CI.Width1) {
     default:
       return nullptr;
     case 2:
-      return &PPU::SReg_64_XEXECRegClass;
+      return &PPU::SReg_64RegClass;
     case 4:
       return &PPU::SReg_128RegClass;
+      /*
     case 8:
       return &PPU::SReg_256RegClass;
     case 16:
       return &PPU::SReg_512RegClass;
+      */
     }
   } else {
     switch (CI.Width0 + CI.Width1) {
@@ -1119,14 +1111,10 @@ PPULoadStoreOptimizer::getTargetRegisterClass(const CombineInfo &CI) {
       return &PPU::VReg_128RegClass;
     }
   }
-*/
 }
 
 MachineBasicBlock::iterator
 PPULoadStoreOptimizer::mergeBufferStorePair(CombineInfo &CI) {
-  MachineBasicBlock::iterator Next = std::next(CI.I);
-  return Next;
-#if 0
   MachineBasicBlock *MBB = CI.I->getParent();
   DebugLoc DL = CI.I->getDebugLoc();
 
@@ -1181,7 +1169,6 @@ PPULoadStoreOptimizer::mergeBufferStorePair(CombineInfo &CI) {
   CI.I->eraseFromParent();
   CI.Paired->eraseFromParent();
   return Next;
-#endif
 }
 
 MachineOperand
@@ -1193,7 +1180,7 @@ PPULoadStoreOptimizer::createRegOrImm(int32_t Val, MachineInstr &MI) {
   Register Reg = MRI->createVirtualRegister(&PPU::SReg_32RegClass);
   MachineInstr *Mov =
   BuildMI(*MI.getParent(), MI.getIterator(), MI.getDebugLoc(),
-          TII->get(PPU::SMOV), Reg)
+          TII->get(PPU::S_MOV_B32), Reg)
     .addImm(Val);
   (void)Mov;
   LLVM_DEBUG(dbgs() << "    "; Mov->dump());
@@ -1224,10 +1211,10 @@ unsigned PPULoadStoreOptimizer::computeBase(MachineInstr &MI,
   Register CarryReg = MRI->createVirtualRegister(CarryRC);
   Register DeadCarryReg = MRI->createVirtualRegister(CarryRC);
 
-  Register DestSub0 = MRI->createVirtualRegister(&PPU::TPRRegClass);
-  Register DestSub1 = MRI->createVirtualRegister(&PPU::TPRRegClass);
+  Register DestSub0 = MRI->createVirtualRegister(&PPU::VPR_32RegClass);
+  Register DestSub1 = MRI->createVirtualRegister(&PPU::VPR_32RegClass);
   MachineInstr *LoHalf =
-    BuildMI(*MBB, MBBI, DL, TII->get(PPU::VADD), DestSub0)
+    BuildMI(*MBB, MBBI, DL, TII->get(PPU::V_ADD_I32_e64), DestSub0)
       .addReg(CarryReg, RegState::Define)
       .addReg(Addr.Base.LoReg, 0, Addr.Base.LoSubReg)
       .add(OffsetLo)
@@ -1236,8 +1223,7 @@ unsigned PPULoadStoreOptimizer::computeBase(MachineInstr &MI,
   LLVM_DEBUG(dbgs() << "    "; LoHalf->dump(););
 
   MachineInstr *HiHalf =
-  // FIXME BuildMI(*MBB, MBBI, DL, TII->get(PPU::V_ADDC_U32_e64), DestSub1)
-  BuildMI(*MBB, MBBI, DL, TII->get(PPU::VADD), DestSub1)
+  BuildMI(*MBB, MBBI, DL, TII->get(PPU::V_ADDC_U32_e64), DestSub1)
     .addReg(DeadCarryReg, RegState::Define | RegState::Dead)
     .addReg(Addr.Base.HiReg, 0, Addr.Base.HiSubReg)
     .add(OffsetHi)
@@ -1245,7 +1231,7 @@ unsigned PPULoadStoreOptimizer::computeBase(MachineInstr &MI,
     .addImm(0); // clamp bit
   (void)HiHalf;
   LLVM_DEBUG(dbgs() << "    "; HiHalf->dump(););
-/* FIXME
+
   Register FullDestReg = MRI->createVirtualRegister(&PPU::VReg_64RegClass);
   MachineInstr *FullBase =
     BuildMI(*MBB, MBBI, DL, TII->get(TargetOpcode::REG_SEQUENCE), FullDestReg)
@@ -1255,19 +1241,16 @@ unsigned PPULoadStoreOptimizer::computeBase(MachineInstr &MI,
       .addImm(PPU::sub1);
   (void)FullBase;
   LLVM_DEBUG(dbgs() << "    "; FullBase->dump(); dbgs() << "\n";);
+
   return FullDestReg;
-*/
-  return 0;
 }
 
 // Update base and offset with the NewBase and NewOffset in MI.
 void PPULoadStoreOptimizer::updateBaseAndOffset(MachineInstr &MI,
                                                unsigned NewBase,
                                                int32_t NewOffset) {
-    /* FIXME
   TII->getNamedOperand(MI, PPU::OpName::vaddr)->setReg(NewBase);
   TII->getNamedOperand(MI, PPU::OpName::offset)->setImm(NewOffset);
-  */
 }
 
 Optional<int32_t>
@@ -1279,7 +1262,7 @@ PPULoadStoreOptimizer::extractConstOffset(const MachineOperand &Op) {
     return None;
 
   MachineInstr *Def = MRI->getUniqueVRegDef(Op.getReg());
-  if (!Def || Def->getOpcode() != PPU::SMOV ||
+  if (!Def || Def->getOpcode() != PPU::S_MOV_B32 ||
       !Def->getOperand(1).isImm())
     return None;
 
@@ -1313,11 +1296,7 @@ void PPULoadStoreOptimizer::processBaseWithConstOffset(const MachineOperand &Bas
 
   MachineInstr *BaseLoDef = MRI->getUniqueVRegDef(BaseLo.getReg());
   MachineInstr *BaseHiDef = MRI->getUniqueVRegDef(BaseHi.getReg());
-  if (!BaseLoDef || BaseLoDef->getOpcode() != PPU::VADD ||
-      !BaseHiDef || BaseHiDef->getOpcode() != PPU::VADD)
-    return;
 
-/* FIXME
   if (!BaseLoDef || BaseLoDef->getOpcode() != PPU::V_ADD_I32_e64 ||
       !BaseHiDef || BaseHiDef->getOpcode() != PPU::V_ADDC_U32_e64)
     return;
@@ -1351,15 +1330,13 @@ void PPULoadStoreOptimizer::processBaseWithConstOffset(const MachineOperand &Bas
   Addr.Base.LoSubReg = BaseLo.getSubReg();
   Addr.Base.HiSubReg = BaseHi.getSubReg();
   Addr.Offset = (*Offset0P & 0x00000000ffffffff) | (Offset1 << 32);
-      */
 }
 
 bool PPULoadStoreOptimizer::promoteConstantOffsetToImm(
     MachineInstr &MI,
     MemInfoMap &Visited,
     SmallPtrSet<MachineInstr *, 4> &AnchorList) {
-    return false;
-#if 0
+
   // TODO: Support flat and scratch.
   if (PPU::getGlobalSaddrOp(MI.getOpcode()) < 0 ||
       TII->getNamedOperand(MI, PPU::OpName::vdata) != NULL)
@@ -1501,16 +1478,14 @@ bool PPULoadStoreOptimizer::promoteConstantOffsetToImm(
   }
 
   return false;
-#endif
 }
 
 // Scan through looking for adjacent LDS operations with constant offsets from
 // the same base register. We rely on the scheduler to do the hard work of
 // clustering nearby loads, and assume these are all adjacent.
 bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
-  return false;
-#if 0
   bool Modified = false;
+
   // Contain the list
   MemInfoMap Visited;
   // Contains the list of instructions for which constant offsets are being
@@ -1535,13 +1510,12 @@ bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
     CI.I = I;
     CI.InstClass = getInstClass(Opc);
 
-    // TODO: clean up, as PPU does not have read2/write2 instructions
     switch (CI.InstClass) {
     default:
       break;
     case DS_READ:
       CI.EltSize =
-          (Opc == PPU::DS_READ_B64 || Opc == PPU::DS_READ_B64_gfx9) ? 8
+          (Opc == PPU::DS_READ_B64 || Opc == PPU::DS_READ_B64_ppu) ? 8
                                                                           : 4;
       if (findMatchingInst(CI)) {
         Modified = true;
@@ -1552,7 +1526,7 @@ bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
       continue;
     case DS_WRITE:
       CI.EltSize =
-          (Opc == PPU::DS_WRITE_B64 || Opc == PPU::DS_WRITE_B64_gfx9) ? 8
+          (Opc == PPU::DS_WRITE_B64 || Opc == PPU::DS_WRITE_B64_ppu) ? 8
                                                                             : 4;
       if (findMatchingInst(CI)) {
         Modified = true;
@@ -1576,7 +1550,7 @@ bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
     case BUFFER_LOAD_OFFEN_exact:
     case BUFFER_LOAD_OFFSET_exact:
       CI.EltSize = 4;
-      if (findMatchingInst(CI)) {
+      if (findMatchingInst(CI) && ((CI.Width0 + CI.Width1) <= 2)) {  // TODO PPU only support X2
         Modified = true;
         I = mergeBufferLoadPair(CI);
         OptimizeAgain |= (CI.Width0 + CI.Width1) < 4;
@@ -1589,7 +1563,7 @@ bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
     case BUFFER_STORE_OFFEN_exact:
     case BUFFER_STORE_OFFSET_exact:
       CI.EltSize = 4;
-      if (findMatchingInst(CI)) {
+      if (findMatchingInst(CI) && ((CI.Width0 + CI.Width1 ) <= 2)) {
         Modified = true;
         I = mergeBufferStorePair(CI);
         OptimizeAgain |= (CI.Width0 + CI.Width1) < 4;
@@ -1603,7 +1577,6 @@ bool PPULoadStoreOptimizer::optimizeBlock(MachineBasicBlock &MBB) {
   }
 
   return Modified;
-#endif
 }
 
 bool PPULoadStoreOptimizer::runOnMachineFunction(MachineFunction &MF) {
@@ -1611,10 +1584,8 @@ bool PPULoadStoreOptimizer::runOnMachineFunction(MachineFunction &MF) {
     return false;
 
   STM = &MF.getSubtarget<PPUSubtarget>();
-  /* FIXME
   if (!STM->loadStoreOptEnabled())
     return false;
-    */
 
   TII = STM->getInstrInfo();
   TRI = &TII->getRegisterInfo();

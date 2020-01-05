@@ -432,6 +432,7 @@ struct MIMGInfo {
 
 LLVM_READONLY
 const MIMGInfo *getMIMGInfo(unsigned Opc);
+*/
 
 LLVM_READONLY
 int getMUBUFBaseOpcode(unsigned Opc);
@@ -450,7 +451,7 @@ bool getMUBUFHasSrsrc(unsigned Opc);
 
 LLVM_READONLY
 bool getMUBUFHasSoffset(unsigned Opc);
-*/
+
 
 LLVM_READONLY
 int getMCOpcode(uint16_t Opcode, unsigned Gen);
