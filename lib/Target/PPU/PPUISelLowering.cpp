@@ -1698,7 +1698,7 @@ void PPUTargetLowering::allocateSpecialInputSGPRs(
     ArgInfo.KernargSegmentPtr = allocateSGPR64Input(CCInfo);
 
   if (Info.hasDispatchID())
-    ArgInfo.DispatchID = allocateSGPR64Input(CCInfo);
+    ArgInfo.DispatchID = allocateSGPR32Input(CCInfo);  // TODO i change to 32bit
 
   // flat_scratch_init is not applicable for non-kernel functions.
 
@@ -1756,7 +1756,8 @@ void PPUTargetLowering::allocateHSAUserSGPRs(CCState &CCInfo,
 
   if (Info.hasDispatchID()) {
     unsigned DispatchIDReg = Info.addDispatchID(TRI);
-    MF.addLiveIn(DispatchIDReg, &PPU::SPR_64RegClass);
+    // MF.addLiveIn(DispatchIDReg, &PPU::SPR_64RegClass);
+    MF.addLiveIn(DispatchIDReg, &PPU::SPR_32RegClass); // TODO i change to 32bit
     CCInfo.AllocateReg(DispatchIDReg);
   }
 

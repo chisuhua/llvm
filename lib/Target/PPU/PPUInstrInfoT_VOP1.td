@@ -240,7 +240,7 @@ def VOP_SWAP_I32 : VOPProfile<[i32, i32, i32, untyped]> {
   let Ins64 = (ins);
 }
 
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
   def V_SWAP_B32 : VOP1_Pseudo<"v_swap_b32", VOP_SWAP_I32, [], 1> {
     let Constraints = "$vdst = $src1, $vdst1 = $src0";
     let DisableEncoding = "$vdst1,$src1";
@@ -373,7 +373,7 @@ def V_MOV_B32_indirect : VPseudoInst<(outs),
   PseudoInstExpansion<(V_MOV_B32_e32_ppu getVALUDstForVT<i32>.ret:$vdst,
                                         getVOPSrc0ForVT<i32>.ret:$src0)> {
   let VOP1 = 1;
-  let SubtargetPredicate = isPPT;
+  let SubtargetPredicate = IsPPT;
 }
 
 // This is a pseudo variant of the v_movreld_b32 instruction in which the
@@ -395,7 +395,7 @@ class V_MOVRELD_B32_pseudo<RegisterClass rc> : VPseudoInst <
 // def V_MOVRELD_B32_V1 : V_MOVRELD_B32_pseudo<VPR_32>;
 // def V_MOVRELD_B32_V2 : V_MOVRELD_B32_pseudo<VReg_64>;
 
-let OtherPredicates = [isPPT] in {
+let OtherPredicates = [IsPPT] in {
 def : PPUPat<
   (i32 (anyext i16:$src)),
   (COPY $src)

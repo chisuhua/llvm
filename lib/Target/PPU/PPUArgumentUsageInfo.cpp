@@ -82,16 +82,14 @@ std::pair<const ArgDescriptor *, const TargetRegisterClass *>
 PPUFunctionArgInfo::getPreloadedValue(
   PPUFunctionArgInfo::PreloadedValue Value) const {
   switch (Value) {
-      /*
   case PPUFunctionArgInfo::PRIVATE_SEGMENT_BUFFER: {
     return std::make_pair(
       PrivateSegmentBuffer ? &PrivateSegmentBuffer : nullptr,
-      &PPU::SGPR_128RegClass);
+      &PPU::SPR_64RegClass);
   }
   case PPUFunctionArgInfo::IMPLICIT_BUFFER_PTR:
     return std::make_pair(ImplicitBufferPtr ? &ImplicitBufferPtr : nullptr,
-                          &PPU::GPRRegClass);
-                          */
+                          &PPU::SPR_64RegClass);
   case PPUFunctionArgInfo::WORKGROUP_ID_X:
     return std::make_pair(WorkGroupIDX ? &WorkGroupIDX : nullptr,
                           &PPU::SPR_32RegClass);
@@ -108,19 +106,15 @@ PPUFunctionArgInfo::getPreloadedValue(
   case PPUFunctionArgInfo::KERNARG_SEGMENT_PTR:
     return std::make_pair(KernargSegmentPtr ? &KernargSegmentPtr : nullptr,
                           &PPU::SPR_64RegClass);
-    /*
   case PPUFunctionArgInfo::IMPLICIT_ARG_PTR:
     return std::make_pair(ImplicitArgPtr ? &ImplicitArgPtr : nullptr,
-                          &PPU::SGPR_64RegClass);
-                          */
+                          &PPU::SPR_64RegClass);
   case PPUFunctionArgInfo::DISPATCH_ID:
     return std::make_pair(DispatchID ? &DispatchID : nullptr,
-                          &PPU::SPR_64RegClass);
-    /*
+                          &PPU::SPR_32RegClass);  // TODO i change it to 32bit
   case PPUFunctionArgInfo::FLAT_SCRATCH_INIT:
     return std::make_pair(FlatScratchInit ? &FlatScratchInit : nullptr,
-                          &PPU::SGPR_64RegClass);
-                          */
+                          &PPU::SPR_64RegClass);
   case PPUFunctionArgInfo::DISPATCH_PTR:
     return std::make_pair(DispatchPtr ? &DispatchPtr : nullptr,
                           &PPU::SPR_64RegClass);

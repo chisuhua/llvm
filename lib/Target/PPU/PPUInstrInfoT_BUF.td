@@ -389,27 +389,27 @@ def extract_dlc : SDNodeXForm<imm, [{
 // TODO change rsrc from v4i32 to v2i32
 multiclass MUBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
                                   string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, 0, 0, i32:$soffset, imm:$offset,
               imm:$cachepolicy, 0)),
     (!cast<MUBUF_Pseudo>(opcode # _OFFSET) $rsrc, $soffset, (as_i16imm $offset),
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, 0, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$cachepolicy, 0)),
     (!cast<MUBUF_Pseudo>(opcode # _OFFEN) $voffset, $rsrc, $soffset, (as_i16imm $offset),
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, i32:$vindex, 0, i32:$soffset, imm:$offset,
               imm:$cachepolicy, imm)),
     (!cast<MUBUF_Pseudo>(opcode # _IDXEN) $vindex, $rsrc, $soffset, (as_i16imm $offset),
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, i32:$vindex, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$cachepolicy, imm)),
     (!cast<MUBUF_Pseudo>(opcode # _BOTHEN)
@@ -463,14 +463,14 @@ defm : MUBUF_LoadIntrinsicPat<SIbuffer_load_ushort,  i32, "BUFFER_LOAD_USHORT">;
 
 multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                    string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, 0, 0, i32:$soffset, imm:$offset,
               imm:$cachepolicy, 0),
     (!cast<MUBUF_Pseudo>(opcode # _OFFSET_exact) $vdata, $rsrc, $soffset, (as_i16imm $offset),
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, 0, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$cachepolicy, 0),
     (!cast<MUBUF_Pseudo>(opcode # _OFFEN_exact) $vdata, $voffset, $rsrc, $soffset,
@@ -478,7 +478,7 @@ multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, i32:$vindex, 0, i32:$soffset, imm:$offset,
               imm:$cachepolicy, imm),
     (!cast<MUBUF_Pseudo>(opcode # _IDXEN_exact) $vdata, $vindex, $rsrc, $soffset,
@@ -486,7 +486,7 @@ multiclass MUBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_slc $cachepolicy), 0,  (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, i32:$vindex, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$cachepolicy, imm),
     (!cast<MUBUF_Pseudo>(opcode # _BOTHEN_exact)
@@ -541,7 +541,7 @@ defm : MUBUF_StoreIntrinsicPat<SIbuffer_store_short, i32, "BUFFER_STORE_SHORT">;
 /*
 multiclass BufferAtomicPatterns<SDPatternOperator name, ValueType vt,
                                 string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (vt (name vt:$vdata_in, v4i32:$rsrc, 0,
           0, i32:$soffset, imm:$offset,
           imm:$cachepolicy, 0)),
@@ -549,7 +549,7 @@ multiclass BufferAtomicPatterns<SDPatternOperator name, ValueType vt,
                                         (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
           0, i32:$soffset, imm:$offset,
           imm:$cachepolicy, imm)),
@@ -557,7 +557,7 @@ multiclass BufferAtomicPatterns<SDPatternOperator name, ValueType vt,
                                        (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name vt:$vdata_in, v4i32:$rsrc, 0,
           i32:$voffset, i32:$soffset, imm:$offset,
           imm:$cachepolicy, 0)),
@@ -565,7 +565,7 @@ multiclass BufferAtomicPatterns<SDPatternOperator name, ValueType vt,
                                        (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
           i32:$voffset, i32:$soffset, imm:$offset,
           imm:$cachepolicy, imm)),
@@ -607,7 +607,7 @@ defm : BufferAtomicPatterns<SIbuffer_atomic_dec, i64, "BUFFER_ATOMIC_DEC_X2">;
 
 multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
                                        string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata_in, v4i32:$rsrc, 0,
           0, i32:$soffset, imm:$offset,
           imm:$cachepolicy, 0),
@@ -615,7 +615,7 @@ multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
                                         (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
           0, i32:$soffset, imm:$offset,
           imm:$cachepolicy, imm),
@@ -623,7 +623,7 @@ multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
                                        (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata_in, v4i32:$rsrc, 0,
           i32:$voffset, i32:$soffset, imm:$offset,
           imm:$cachepolicy, 0),
@@ -631,7 +631,7 @@ multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
                                        (as_i16imm $offset), (extract_slc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata_in, v4i32:$rsrc, i32:$vindex,
           i32:$voffset, i32:$soffset, imm:$offset,
           imm:$cachepolicy, imm),
@@ -645,7 +645,7 @@ multiclass BufferAtomicPatterns_NO_RTN<SDPatternOperator name, ValueType vt,
 defm : BufferAtomicPatterns_NO_RTN<SIbuffer_atomic_fadd, f32, "BUFFER_ATOMIC_ADD_F32">;
 defm : BufferAtomicPatterns_NO_RTN<SIbuffer_atomic_pk_fadd, v2f16, "BUFFER_ATOMIC_PK_ADD_F16">;
 
-def : PPUPat<
+def : PPTPat<
   (SIbuffer_atomic_cmpswap
       i32:$data, i32:$cmp, v4i32:$rsrc, 0,
       0, i32:$soffset, imm:$offset,
@@ -657,7 +657,7 @@ def : PPUPat<
     sub0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (SIbuffer_atomic_cmpswap
       i32:$data, i32:$cmp, v4i32:$rsrc, i32:$vindex,
       0, i32:$soffset, imm:$offset,
@@ -669,7 +669,7 @@ def : PPUPat<
     sub0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (SIbuffer_atomic_cmpswap
       i32:$data, i32:$cmp, v4i32:$rsrc, 0,
       i32:$voffset, i32:$soffset, imm:$offset,
@@ -681,7 +681,7 @@ def : PPUPat<
     sub0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (SIbuffer_atomic_cmpswap
       i32:$data, i32:$cmp, v4i32:$rsrc, i32:$vindex,
       i32:$voffset, i32:$soffset, imm:$offset,
@@ -695,7 +695,7 @@ def : PPUPat<
 >;
 
 class MUBUFLoad_PatternADDR64 <MUBUF_Pseudo Instr_ADDR64, ValueType vt,
-                              PatFrag constant_ld> : PPUPat <
+                              PatFrag constant_ld> : PPTPat <
      (vt (constant_ld (MUBUFAddr64 v4i32:$srsrc, i64:$vaddr, i32:$soffset,
                                    i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))),
      (Instr_ADDR64 $vaddr, $srsrc, $soffset, $offset, $glc, $slc, $tfe, $dlc)
@@ -703,13 +703,13 @@ class MUBUFLoad_PatternADDR64 <MUBUF_Pseudo Instr_ADDR64, ValueType vt,
 
 multiclass MUBUFLoad_Atomic_Pattern <MUBUF_Pseudo Instr_ADDR64, MUBUF_Pseudo Instr_OFFSET,
                                      ValueType vt, PatFrag atomic_ld> {
-  def : PPUPat <
+  def : PPTPat <
      (vt (atomic_ld (MUBUFAddr64 v4i32:$srsrc, i64:$vaddr, i32:$soffset,
                                    i16:$offset, i1:$slc))),
      (Instr_ADDR64 $vaddr, $srsrc, $soffset, $offset, 0, $slc, 0, 0)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (vt (atomic_ld (MUBUFOffsetNoGLC v4i32:$rsrc, i32:$soffset, i16:$offset))),
     (Instr_OFFSET $rsrc, $soffset, (as_i16imm $offset), 0, 0, 0, 0)
   >;
@@ -733,7 +733,7 @@ defm : MUBUFLoad_Atomic_Pattern <BUFFER_LOAD_DWORDX2_ADDR64, BUFFER_LOAD_DWORDX2
 multiclass MUBUFLoad_Pattern <MUBUF_Pseudo Instr_OFFSET, ValueType vt,
                                PatFrag ld> {
 
-  def : PPUPat <
+  def : PPTPat <
     (vt (ld (MUBUFOffset v2i32:$srsrc, i32:$soffset,
                           i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))),
     (Instr_OFFSET $srsrc, $soffset, $offset, $glc, $slc, $tfe, $dlc)
@@ -756,13 +756,13 @@ defm : MUBUFLoad_Pattern <BUFFER_LOAD_USHORT_OFFSET, i16, load_global>;
 multiclass MUBUFScratchLoadPat <MUBUF_Pseudo InstrOffen,
                                 MUBUF_Pseudo InstrOffset,
                                 ValueType vt, PatFrag ld> {
-  def : PPUPat <
+  def : PPTPat <
     (vt (ld (MUBUFScratchOffen v2i32:$srsrc, i32:$vaddr,
                                i32:$soffset, u16imm:$offset))),
     (InstrOffen $vaddr, $srsrc, $soffset, $offset, 0, 0, 0, 0)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (vt (ld (MUBUFScratchOffset v2i32:$srsrc, i32:$soffset, u16imm:$offset))),
     (InstrOffset $srsrc, $soffset, $offset, 0, 0, 0, 0)
   >;
@@ -772,12 +772,12 @@ multiclass MUBUFScratchLoadPat <MUBUF_Pseudo InstrOffen,
 multiclass MUBUFScratchLoadPat_D16 <MUBUF_Pseudo InstrOffen,
                                 MUBUF_Pseudo InstrOffset,
                                 ValueType vt, PatFrag ld_frag> {
-  def : PPUPat <
+  def : PPTPat <
     (ld_frag (MUBUFScratchOffen v2i32:$srsrc, i32:$vaddr, i32:$soffset, u16imm:$offset), vt:$in),
     (InstrOffen $vaddr, $srsrc, $soffset, $offset, 0, 0, 0, 0, $in)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (ld_frag (MUBUFScratchOffset v2i32:$srsrc, i32:$soffset, u16imm:$offset), vt:$in),
     (InstrOffset $srsrc, $soffset, $offset, 0, 0, 0, 0, $in)
   >;
@@ -817,13 +817,13 @@ defm : MUBUFScratchLoadPat_D16<BUFFER_LOAD_SBYTE_D16_OFFEN, BUFFER_LOAD_SBYTE_D1
 multiclass MUBUFStore_Atomic_Pattern <MUBUF_Pseudo Instr_ADDR64, MUBUF_Pseudo Instr_OFFSET,
                                       ValueType vt, PatFrag atomic_st> {
   // Store follows atomic op convention so address is forst
-  def : PPUPat <
+  def : PPTPat <
      (atomic_st (MUBUFAddr64 v2i32:$srsrc, i64:$vaddr, i32:$soffset,
                                    i16:$offset, i1:$slc), vt:$val),
      (Instr_ADDR64 $val, $vaddr, $srsrc, $soffset, $offset, 0, $slc, 0, 0)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (atomic_st (MUBUFOffsetNoGLC v4i32:$rsrc, i32:$soffset, i16:$offset), vt:$val),
     (Instr_OFFSET $val, $rsrc, $soffset, (as_i16imm $offset), 0, 0, 0, 0)
   >;
@@ -839,7 +839,7 @@ defm : MUBUFStore_Atomic_Pattern <BUFFER_STORE_DWORDX2_ADDR64, BUFFER_STORE_DWOR
 multiclass MUBUFStore_Pattern <MUBUF_Pseudo Instr_OFFSET, ValueType vt,
                                PatFrag st> {
 
-  def : PPUPat <
+  def : PPTPat <
     (st vt:$vdata, (MUBUFOffset v2i32:$srsrc, i32:$soffset,
                                       i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc)),
     (Instr_OFFSET $vdata, $srsrc, $soffset, $offset, $glc, $slc, $tfe, $dlc)
@@ -853,13 +853,13 @@ multiclass MUBUFScratchStorePat <MUBUF_Pseudo InstrOffen,
                                  MUBUF_Pseudo InstrOffset,
                                  ValueType vt, PatFrag st,
                                  RegisterClass rc = VPR_32> {
-  def : PPUPat <
+  def : PPTPat <
     (st vt:$value, (MUBUFScratchOffen v2i32:$srsrc, i32:$vaddr,
                                       i32:$soffset, u16imm:$offset)),
     (InstrOffen rc:$value, $vaddr, $srsrc, $soffset, $offset, 0, 0, 0, 0)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (st vt:$value, (MUBUFScratchOffset v2i32:$srsrc, i32:$soffset,
                                        u16imm:$offset)),
     (InstrOffset rc:$value, $srsrc, $soffset, $offset, 0, 0, 0, 0)
@@ -896,7 +896,7 @@ defm : MUBUFScratchStorePat <BUFFER_STORE_BYTE_D16_HI_OFFEN, BUFFER_STORE_BYTE_D
 
 multiclass MTBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
                                   string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, 0, 0, i32:$soffset, imm:$offset,
               imm:$format, imm:$cachepolicy, 0)),
     (!cast<MTBUF_Pseudo>(opcode # _OFFSET) $rsrc, $soffset, (as_i16imm $offset),
@@ -904,7 +904,7 @@ multiclass MTBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, i32:$vindex, 0, i32:$soffset, imm:$offset,
               imm:$format, imm:$cachepolicy, imm)),
     (!cast<MTBUF_Pseudo>(opcode # _IDXEN) $vindex, $rsrc, $soffset, (as_i16imm $offset),
@@ -912,7 +912,7 @@ multiclass MTBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, 0, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$format, imm:$cachepolicy, 0)),
     (!cast<MTBUF_Pseudo>(opcode # _OFFEN) $voffset, $rsrc, $soffset, (as_i16imm $offset),
@@ -920,7 +920,7 @@ multiclass MTBUF_LoadIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (vt (name v2i32:$rsrc, i32:$vindex, i32:$voffset, i32:$soffset, imm:$offset,
               imm:$format, imm:$cachepolicy, imm)),
     (!cast<MTBUF_Pseudo>(opcode # _BOTHEN)
@@ -954,7 +954,7 @@ let SubtargetPredicate = HasPackedD16VMem in {
 
 multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
                                    string opcode> {
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, 0, 0, i32:$soffset, imm:$offset,
           imm:$format, imm:$cachepolicy, 0),
     (!cast<MTBUF_Pseudo>(opcode # _OFFSET_exact) $vdata, $rsrc, $soffset,
@@ -962,7 +962,7 @@ multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, i32:$vindex, 0, i32:$soffset, imm:$offset,
           imm:$format, imm:$cachepolicy, imm),
     (!cast<MTBUF_Pseudo>(opcode # _IDXEN_exact) $vdata, $vindex, $rsrc, $soffset,
@@ -970,7 +970,7 @@ multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, 0, i32:$voffset, i32:$soffset, imm:$offset,
           imm:$format, imm:$cachepolicy, 0),
     (!cast<MTBUF_Pseudo>(opcode # _OFFEN_exact) $vdata, $voffset, $rsrc, $soffset,
@@ -978,7 +978,7 @@ multiclass MTBUF_StoreIntrinsicPat<SDPatternOperator name, ValueType vt,
       (extract_glc $cachepolicy), (extract_slc $cachepolicy), 0, (extract_dlc $cachepolicy))
   >;
 
-  def : PPUPat<
+  def : PPTPat<
     (name vt:$vdata, v2i32:$rsrc, i32:$vindex, i32:$voffset, i32:$soffset,
           imm:$offset, imm:$format, imm:$cachepolicy, imm),
     (!cast<MTBUF_Pseudo>(opcode # _BOTHEN_exact)
@@ -1024,7 +1024,7 @@ class MUBUF_Real_ppu <bits<7> op, MUBUF_Pseudo ps> :
   MUBUF_Real<ps>,
   Enc64,
   PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU> {
-  let AssemblerPredicate = isPPT;
+  let AssemblerPredicate = IsPPT;
   let DecoderNamespace = "PPU";
 
   // FIXME why we need below but AMD don't have
@@ -1186,7 +1186,7 @@ class MTBUF_Real_ppu <bits<4> op, MTBUF_Pseudo ps> :
   MTBUF_Real<ps>,
   Enc64,
   PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU> {
-  let AssemblerPredicate = isPPT;
+  let AssemblerPredicate = IsPPT;
   let DecoderNamespace = "PPU";
 
   // FIXME why we need below but AMD don't have

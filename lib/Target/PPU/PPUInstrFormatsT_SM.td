@@ -15,7 +15,7 @@ def smrd_offset_20 : NamedOperandU32<"SMRDOffset20",
 //===----------------------------------------------------------------------===//
 
 class SM_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> pattern=[]> :
-  PPTInst <outs, ins, "", "", pattern>,
+  PPTInst <outs, ins, opName, asmOps, pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -27,6 +27,8 @@ class SM_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> patt
   let hasSideEffects = 0;
   let UseNamedOperandTable = 1;
   let SchedRW = [WriteSMEM];
+
+  let SALU = 1;   // FIXME , why original AMD SM operation don't have this?
 
   string Mnemonic = opName;
   string AsmOperands = asmOps;
@@ -118,7 +120,7 @@ multiclass SM_Pseudo_Loads<string opName,
   def _SGPR  : SM_Load_Pseudo <opName,
                               (outs dstClass:$sdst),
                               (ins baseClass:$sbase, SReg_32:$soff, i1imm:$glc, i1imm:$dlc),
-                              " $sdst, $sbase, $offset$glc$dlc", []> {
+                              " $sdst, $sbase, $soff$glc$dlc", []> { // FIXME why soff is offset in orignal
     let BaseClass = baseClass;
     let PseudoInstr = opName # "_SGPR";
     let has_glc = 1;
@@ -140,7 +142,7 @@ multiclass SM_Pseudo_Stores<string opName,
 
   def _SGPR  : SM_Store_Pseudo <opName,
     (ins srcClass:$sdata, baseClass:$sbase, SReg_32:$soff, i1imm:$glc, i1imm:$dlc),
-    " $sdata, $sbase, $offset$glc$dlc", []> {
+    " $sdata, $sbase, $soff$glc$dlc", []> { // FIXME why soff's original is offset
     let BaseClass = baseClass;
     let SrcClass = srcClass;
     let PseudoInstr = opName # "_SGPR";

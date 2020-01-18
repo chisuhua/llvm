@@ -473,9 +473,11 @@ def CSRRWI : CSR_ii<0b101, "csrrwi">;
 def CSRRSI : CSR_ii<0b110, "csrrsi">;
 def CSRRCI : CSR_ii<0b111, "csrrci">;
 
+
 /// RV64I instructions
 
-let Predicates = [IsRV64] in {
+let OtherPredicates = [IsRV64] in {
+
 def LWU   : Load_ri<0b110, "lwu">;
 def LD    : Load_ri<0b011, "ld">;
 def SD    : Store_rri<0b011, "sd">;
@@ -494,7 +496,8 @@ def SUBW  : ALUW_rr<0b0100000, 0b000, "subw">;
 def SLLW  : ALUW_rr<0b0000000, 0b001, "sllw">;
 def SRLW  : ALUW_rr<0b0000000, 0b101, "srlw">;
 def SRAW  : ALUW_rr<0b0100000, 0b101, "sraw">;
-} // Predicates = [IsRV64]
+} // Predicates = [IsRV64, IsNotPPT]
+
 
 //===----------------------------------------------------------------------===//
 // Privileged instructions
@@ -543,6 +546,20 @@ def SFENCE_VMA : RVInstR<0b0001001, 0b000, OPC_SYSTEM, (outs),
 //===----------------------------------------------------------------------===//
 // Assembler Pseudo Instructions (User-Level ISA, Version 2.2, Chapter 20)
 //===----------------------------------------------------------------------===//
+class PPUInstAlias<string Asm, dag Result, int Emit = 1, string VariantName = "">
+      : InstAlias<Asm, Result, Emit, VariantName>, PredicateControl{
+  let SubtargetPredicate = IsNotPPT;
+  list<Predicate> OtherPredicates = [];
+}
+
+class PPUPat<dag pattern, dag result> : Pat<pattern, result>, PredicateControl {
+  let SubtargetPredicate = IsNotPPT;
+  list<Predicate> OtherPredicates = [];
+}
+
+class RequiresOtherPredicates<list<Predicate> preds> {
+  list<Predicate> OtherPredicates = preds;
+}
 
 def NOP : InstAlias<"nop",           (ADDI      X0,      X0,       0)>;
 
@@ -565,19 +582,19 @@ def PseudoSB  : PseudoStore<"sb">;
 def PseudoSH  : PseudoStore<"sh">;
 def PseudoSW  : PseudoStore<"sw">;
 
-let Predicates = [IsRV64] in {
+let OtherPredicates = [IsRV64] in {
 def PseudoLWU : PseudoLoad<"lwu">;
 def PseudoLD  : PseudoLoad<"ld">;
 def PseudoSD  : PseudoStore<"sd">;
 } // Predicates = [IsRV64]
 
-def : InstAlias<"mv $rd, $rs",   (ADDI GPR:$rd, GPR:$rs,       0)>;
-def : InstAlias<"not $rd, $rs",  (XORI GPR:$rd, GPR:$rs,      -1)>;
-def : InstAlias<"neg $rd, $rs",  (SUB  GPR:$rd,      X0, GPR:$rs)>;
+def : PPUInstAlias<"mv $rd, $rs",   (ADDI GPR:$rd, GPR:$rs,       0)>;
+def : PPUInstAlias<"not $rd, $rs",  (XORI GPR:$rd, GPR:$rs,      -1)>;
+def : PPUInstAlias<"neg $rd, $rs",  (SUB  GPR:$rd,      X0, GPR:$rs)>;
 
-let Predicates = [IsRV64] in {
-def : InstAlias<"negw $rd, $rs",   (SUBW  GPR:$rd,      X0, GPR:$rs)>;
-def : InstAlias<"sext.w $rd, $rs", (ADDIW GPR:$rd, GPR:$rs,       0)>;
+let OtherPredicates = [IsRV64] in {
+def : PPUInstAlias<"negw $rd, $rs",   (SUBW  GPR:$rd,      X0, GPR:$rs)>;
+def : PPUInstAlias<"sext.w $rd, $rs", (ADDIW GPR:$rd, GPR:$rs,       0)>;
 } // Predicates = [IsRV64]
 
 def : InstAlias<"seqz $rd, $rs", (SLTIU GPR:$rd, GPR:$rs,       1)>;
@@ -642,10 +659,10 @@ def : InstAlias<"rdinstret $rd", (CSRRS GPR:$rd, INSTRET.Encoding, X0)>;
 def : InstAlias<"rdcycle $rd",   (CSRRS GPR:$rd, CYCLE.Encoding, X0)>;
 def : InstAlias<"rdtime $rd",    (CSRRS GPR:$rd, TIME.Encoding, X0)>;
 
-let Predicates = [IsRV32] in {
-def : InstAlias<"rdinstreth $rd", (CSRRS GPR:$rd, INSTRETH.Encoding, X0)>;
-def : InstAlias<"rdcycleh $rd",   (CSRRS GPR:$rd, CYCLEH.Encoding, X0)>;
-def : InstAlias<"rdtimeh $rd",    (CSRRS GPR:$rd, TIMEH.Encoding, X0)>;
+let OtherPredicates = [IsRV32] in {
+def : PPUInstAlias<"rdinstreth $rd", (CSRRS GPR:$rd, INSTRETH.Encoding, X0)>;
+def : PPUInstAlias<"rdcycleh $rd",   (CSRRS GPR:$rd, CYCLEH.Encoding, X0)>;
+def : PPUInstAlias<"rdtimeh $rd",    (CSRRS GPR:$rd, TIMEH.Encoding, X0)>;
 } // Predicates = [IsRV32]
 
 def : InstAlias<"csrr $rd, $csr", (CSRRS GPR:$rd, csr_sysreg:$csr,      X0)>;
@@ -689,7 +706,7 @@ def : InstAlias<"sh $rs2, (${rs1})",
 def : InstAlias<"sw $rs2, (${rs1})",
                 (SW  GPR:$rs2, GPR:$rs1, 0)>;
 
-def : InstAlias<"add $rd, $rs1, $imm12",
+def : PPUInstAlias<"add $rd, $rs1, $imm12",
                 (ADDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
 def : InstAlias<"and $rd, $rs1, $imm12",
                 (ANDI  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
@@ -703,21 +720,21 @@ def : InstAlias<"srl $rd, $rs1, $shamt",
                 (SRLI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
 def : InstAlias<"sra $rd, $rs1, $shamt",
                 (SRAI  GPR:$rd, GPR:$rs1, uimmlog2xlen:$shamt)>;
-let Predicates = [IsRV64] in {
-def : InstAlias<"lwu $rd, (${rs1})",
+let OtherPredicates = [IsRV64] in {
+def : PPUInstAlias<"lwu $rd, (${rs1})",
                 (LWU  GPR:$rd, GPR:$rs1, 0)>;
-def : InstAlias<"ld $rd, (${rs1})",
+def : PPUInstAlias<"ld $rd, (${rs1})",
                 (LD  GPR:$rd, GPR:$rs1, 0)>;
-def : InstAlias<"sd $rs2, (${rs1})",
+def : PPUInstAlias<"sd $rs2, (${rs1})",
                 (SD  GPR:$rs2, GPR:$rs1, 0)>;
 
-def : InstAlias<"addw $rd, $rs1, $imm12",
+def : PPUInstAlias<"addw $rd, $rs1, $imm12",
                 (ADDIW  GPR:$rd, GPR:$rs1, simm12:$imm12)>;
-def : InstAlias<"sllw $rd, $rs1, $shamt",
+def : PPUInstAlias<"sllw $rd, $rs1, $shamt",
                 (SLLIW  GPR:$rd, GPR:$rs1, uimm5:$shamt)>;
-def : InstAlias<"srlw $rd, $rs1, $shamt",
+def : PPUInstAlias<"srlw $rd, $rs1, $shamt",
                 (SRLIW  GPR:$rd, GPR:$rs1, uimm5:$shamt)>;
-def : InstAlias<"sraw $rd, $rs1, $shamt",
+def : PPUInstAlias<"sraw $rd, $rs1, $shamt",
                 (SRAIW  GPR:$rd, GPR:$rs1, uimm5:$shamt)>;
 } // Predicates = [IsRV64]
 def : InstAlias<"slt $rd, $rs1, $imm12",
@@ -745,11 +762,11 @@ def : MnemonicAlias<"sbreak", "ebreak">;
 /// Generic pattern classes
 
 class PatGprGpr<SDPatternOperator OpNode, RVInst Inst>
-    : Pat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
+    : PPUPat<(OpNode GPR:$rs1, GPR:$rs2), (Inst GPR:$rs1, GPR:$rs2)>;
 class PatGprSimm12<SDPatternOperator OpNode, RVInstI Inst>
-    : Pat<(OpNode GPR:$rs1, simm12:$imm12), (Inst GPR:$rs1, simm12:$imm12)>;
+    : PPUPat<(OpNode GPR:$rs1, simm12:$imm12), (Inst GPR:$rs1, simm12:$imm12)>;
 class PatGprUimmLog2XLen<SDPatternOperator OpNode, RVInstIShift Inst>
-    : Pat<(OpNode GPR:$rs1, uimmlog2xlen:$shamt),
+    : PPUPat<(OpNode GPR:$rs1, uimmlog2xlen:$shamt),
           (Inst GPR:$rs1, uimmlog2xlen:$shamt)>;
 
 /// Predicates
@@ -772,10 +789,11 @@ def zexti32 : PatFrags<(ops node:$src),
 
 /// Immediates
 
-def : Pat<(simm12:$imm), (ADDI X0, simm12:$imm)>;
-def : Pat<(simm32hi20:$imm), (LUI (HI20 imm:$imm))>;
-def : Pat<(simm32:$imm), (ADDI (LUI (HI20 imm:$imm)), (LO12Sext imm:$imm))>,
-      Requires<[IsRV32]>;
+def : PPUPat<(simm12:$imm), (ADDI X0, simm12:$imm)>;
+def : PPUPat<(simm32hi20:$imm), (LUI (HI20 imm:$imm))>;
+
+def : PPUPat<(simm32:$imm), (ADDI (LUI (HI20 imm:$imm)), (LO12Sext imm:$imm))>,
+      RequiresOtherPredicates<[IsRV32]>;
 
 /// Simple arithmetic operations
 
@@ -816,9 +834,9 @@ def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
 
 /// FrameIndex calculations
 
-def : Pat<(add (i32 AddrFI:$Rs), simm12:$imm12),
+def : PPUPat<(add (i32 AddrFI:$Rs), simm12:$imm12),
           (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
-def : Pat<(IsOrAdd (i32 AddrFI:$Rs), simm12:$imm12),
+def : PPUPat<(IsOrAdd (i32 AddrFI:$Rs), simm12:$imm12),
           (ADDI (i32 AddrFI:$Rs), simm12:$imm12)>;
 
 /// Setcc
@@ -830,20 +848,20 @@ def : PatGprSimm12<setult, SLTIU>;
 
 // Define pattern expansions for setcc operations that aren't directly
 // handled by a PPU instruction.
-def : Pat<(seteq GPR:$rs1, 0), (SLTIU GPR:$rs1, 1)>;
-def : Pat<(seteq GPR:$rs1, GPR:$rs2), (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(seteq GPR:$rs1, simm12:$imm12),
+def : PPUPat<(seteq GPR:$rs1, 0), (SLTIU GPR:$rs1, 1)>;
+def : PPUPat<(seteq GPR:$rs1, GPR:$rs2), (SLTIU (XOR GPR:$rs1, GPR:$rs2), 1)>;
+def : PPUPat<(seteq GPR:$rs1, simm12:$imm12),
           (SLTIU (XORI GPR:$rs1, simm12:$imm12), 1)>;
-def : Pat<(setne GPR:$rs1, 0), (SLTU X0, GPR:$rs1)>;
-def : Pat<(setne GPR:$rs1, GPR:$rs2), (SLTU X0, (XOR GPR:$rs1, GPR:$rs2))>;
-def : Pat<(setne GPR:$rs1, simm12:$imm12),
+def : PPUPat<(setne GPR:$rs1, 0), (SLTU X0, GPR:$rs1)>;
+def : PPUPat<(setne GPR:$rs1, GPR:$rs2), (SLTU X0, (XOR GPR:$rs1, GPR:$rs2))>;
+def : PPUPat<(setne GPR:$rs1, simm12:$imm12),
           (SLTU X0, (XORI GPR:$rs1, simm12:$imm12))>;
-def : Pat<(setugt GPR:$rs1, GPR:$rs2), (SLTU GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setuge GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setule GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
-def : Pat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
+def : PPUPat<(setugt GPR:$rs1, GPR:$rs2), (SLTU GPR:$rs2, GPR:$rs1)>;
+def : PPUPat<(setuge GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
+def : PPUPat<(setule GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
+def : PPUPat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
+def : PPUPat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
+def : PPUPat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
 
 let usesCustomInserter = 1 in
 class SelectCC_rrirr<RegisterClass valty, RegisterClass cmpty>
@@ -860,7 +878,7 @@ def Select_GPR_Using_CC_GPR : SelectCC_rrirr<GPR, GPR>;
 // Match `(brcond (CondOp ..), ..)` and lower to the appropriate PPU branch
 // instruction.
 class BccPat<PatFrag CondOp, RVInstB Inst>
-    : Pat<(brcond (XLenVT (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
+    : PPUPat<(brcond (XLenVT (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
           (Inst GPR:$rs1, GPR:$rs2, simm13_lsb0:$imm12)>;
 
 def : BccPat<seteq, BEQ>;
@@ -871,7 +889,7 @@ def : BccPat<setult, BLTU>;
 def : BccPat<setuge, BGEU>;
 
 class BccSwapPat<PatFrag CondOp, RVInst InstBcc>
-    : Pat<(brcond (XLenVT (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
+    : PPUPat<(brcond (XLenVT (CondOp GPR:$rs1, GPR:$rs2)), bb:$imm12),
           (InstBcc GPR:$rs2, GPR:$rs1, bb:$imm12)>;
 
 // Condition codes that don't have matching PPU branch instructions, but
@@ -883,7 +901,7 @@ def : BccSwapPat<setule, BGEU>;
 
 // An extra pattern is needed for a brcond without a setcc (i.e. where the
 // condition was calculated elsewhere).
-def : Pat<(brcond GPR:$cond, bb:$imm12), (BNE GPR:$cond, X0, bb:$imm12)>;
+def : PPUPat<(brcond GPR:$cond, bb:$imm12), (BNE GPR:$cond, X0, bb:$imm12)>;
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
@@ -894,8 +912,8 @@ let isBarrier = 1, isBranch = 1, isIndirectBranch = 1, isTerminator = 1 in
 def PseudoBRIND : Pseudo<(outs), (ins GPR:$rs1, simm12:$imm12), []>,
                   PseudoInstExpansion<(JALR X0, GPR:$rs1, simm12:$imm12)>;
 
-def : Pat<(brind GPR:$rs1), (PseudoBRIND GPR:$rs1, 0)>;
-def : Pat<(brind (add GPR:$rs1, simm12:$imm12)),
+def : PPUPat<(brind GPR:$rs1), (PseudoBRIND GPR:$rs1, 0)>;
+def : PPUPat<(brind (add GPR:$rs1, simm12:$imm12)),
           (PseudoBRIND GPR:$rs1, simm12:$imm12)>;
 
 // PsuedoCALLReg is a generic pseudo instruction for calls which will eventually
@@ -920,12 +938,12 @@ def PseudoCALL : Pseudo<(outs), (ins call_symbol:$func), []> {
   let AsmString = "call\t$func";
 }
 
-def : Pat<(ppu_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
-def : Pat<(ppu_call texternalsym:$func), (PseudoCALL texternalsym:$func)>;
+def : PPUPat<(ppu_call tglobaladdr:$func), (PseudoCALL tglobaladdr:$func)>;
+def : PPUPat<(ppu_call texternalsym:$func), (PseudoCALL texternalsym:$func)>;
 
-def : Pat<(ppu_uret_flag), (URET X0, X0)>;
-def : Pat<(ppu_sret_flag), (SRET X0, X0)>;
-def : Pat<(ppu_mret_flag), (MRET X0, X0)>;
+def : PPUPat<(ppu_uret_flag), (URET X0, X0)>;
+def : PPUPat<(ppu_sret_flag), (SRET X0, X0)>;
+def : PPUPat<(ppu_mret_flag), (MRET X0, X0)>;
 
 let isCall = 1, Defs = [X1] in
 def PseudoCALLIndirect : Pseudo<(outs), (ins GPR:$rs1),
@@ -950,9 +968,9 @@ def PseudoTAILIndirect : Pseudo<(outs), (ins GPRTC:$rs1),
                                 [(ppu_tail GPRTC:$rs1)]>,
                          PseudoInstExpansion<(JALR X0, GPR:$rs1, 0)>;
 
-def : Pat<(ppu_tail (iPTR tglobaladdr:$dst)),
+def : PPUPat<(ppu_tail (iPTR tglobaladdr:$dst)),
           (PseudoTAIL texternalsym:$dst)>;
-def : Pat<(ppu_tail (iPTR texternalsym:$dst)),
+def : PPUPat<(ppu_tail (iPTR texternalsym:$dst)),
           (PseudoTAIL texternalsym:$dst)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, isCodeGenOnly = 0,
@@ -978,13 +996,13 @@ def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
 /// Loads
 
 multiclass LdPat<PatFrag LoadOp, RVInst Inst> {
-  def : Pat<(LoadOp GPR:$rs1), (Inst GPR:$rs1, 0)>;
-  def : Pat<(LoadOp AddrFI:$rs1), (Inst AddrFI:$rs1, 0)>;
-  def : Pat<(LoadOp (add GPR:$rs1, simm12:$imm12)),
+  def : PPUPat<(LoadOp GPR:$rs1), (Inst GPR:$rs1, 0)>;
+  def : PPUPat<(LoadOp AddrFI:$rs1), (Inst AddrFI:$rs1, 0)>;
+  def : PPUPat<(LoadOp (add GPR:$rs1, simm12:$imm12)),
             (Inst GPR:$rs1, simm12:$imm12)>;
-  def : Pat<(LoadOp (add AddrFI:$rs1, simm12:$imm12)),
+  def : PPUPat<(LoadOp (add AddrFI:$rs1, simm12:$imm12)),
             (Inst AddrFI:$rs1, simm12:$imm12)>;
-  def : Pat<(LoadOp (IsOrAdd AddrFI:$rs1, simm12:$imm12)),
+  def : PPUPat<(LoadOp (IsOrAdd AddrFI:$rs1, simm12:$imm12)),
             (Inst AddrFI:$rs1, simm12:$imm12)>;
 }
 
@@ -992,26 +1010,26 @@ defm : LdPat<sextloadi8, LB>;
 defm : LdPat<extloadi8, LB>;
 defm : LdPat<sextloadi16, LH>;
 defm : LdPat<extloadi16, LH>;
-defm : LdPat<load, LW>, Requires<[IsRV32]>;
+defm : LdPat<load, LW>, RequiresOtherPredicates<[IsRV32]>;
 defm : LdPat<zextloadi8, LBU>;
 defm : LdPat<zextloadi16, LHU>;
 
 /// Stores
 
 multiclass StPat<PatFrag StoreOp, RVInst Inst, RegisterClass StTy> {
-  def : Pat<(StoreOp StTy:$rs2, GPR:$rs1), (Inst StTy:$rs2, GPR:$rs1, 0)>;
-  def : Pat<(StoreOp StTy:$rs2, AddrFI:$rs1), (Inst StTy:$rs2, AddrFI:$rs1, 0)>;
-  def : Pat<(StoreOp StTy:$rs2, (add GPR:$rs1, simm12:$imm12)),
+  def : PPUPat<(StoreOp StTy:$rs2, GPR:$rs1), (Inst StTy:$rs2, GPR:$rs1, 0)>;
+  def : PPUPat<(StoreOp StTy:$rs2, AddrFI:$rs1), (Inst StTy:$rs2, AddrFI:$rs1, 0)>;
+  def : PPUPat<(StoreOp StTy:$rs2, (add GPR:$rs1, simm12:$imm12)),
             (Inst StTy:$rs2, GPR:$rs1, simm12:$imm12)>;
-  def : Pat<(StoreOp StTy:$rs2, (add AddrFI:$rs1, simm12:$imm12)),
+  def : PPUPat<(StoreOp StTy:$rs2, (add AddrFI:$rs1, simm12:$imm12)),
             (Inst StTy:$rs2, AddrFI:$rs1, simm12:$imm12)>;
-  def : Pat<(StoreOp StTy:$rs2, (IsOrAdd AddrFI:$rs1, simm12:$imm12)),
+  def : PPUPat<(StoreOp StTy:$rs2, (IsOrAdd AddrFI:$rs1, simm12:$imm12)),
             (Inst StTy:$rs2, AddrFI:$rs1, simm12:$imm12)>;
 }
 
 defm : StPat<truncstorei8, SB, GPR>;
 defm : StPat<truncstorei16, SH, GPR>;
-defm : StPat<store, SW, GPR>, Requires<[IsRV32]>;
+defm : StPat<store, SW, GPR>, RequiresOtherPredicates<[IsRV32]>;
 
 /// Fences
 
@@ -1019,13 +1037,13 @@ defm : StPat<store, SW, GPR>, Requires<[IsRV32]>;
 // Manual: Volume I.
 
 // fence acquire -> fence r, rw
-def : Pat<(atomic_fence (XLenVT 4), (imm)), (FENCE 0b10, 0b11)>;
+def : PPUPat<(atomic_fence (XLenVT 4), (imm)), (FENCE 0b10, 0b11)>;
 // fence release -> fence rw, w
-def : Pat<(atomic_fence (XLenVT 5), (imm)), (FENCE 0b11, 0b1)>;
+def : PPUPat<(atomic_fence (XLenVT 5), (imm)), (FENCE 0b11, 0b1)>;
 // fence acq_rel -> fence.tso
-def : Pat<(atomic_fence (XLenVT 6), (imm)), (FENCE_TSO)>;
+def : PPUPat<(atomic_fence (XLenVT 6), (imm)), (FENCE_TSO)>;
 // fence seq_cst -> fence rw, rw
-def : Pat<(atomic_fence (XLenVT 7), (imm)), (FENCE 0b11, 0b11)>;
+def : PPUPat<(atomic_fence (XLenVT 7), (imm)), (FENCE 0b11, 0b11)>;
 
 // Lowering for atomic load and store is defined in PPUInstrInfoA.td.
 // Although these are lowered to fence+load/store instructions defined in the
@@ -1045,26 +1063,26 @@ def ADJCALLSTACKUP   : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
 
 /// RV64 patterns
 
-let Predicates = [IsRV64] in {
+let OtherPredicates = [IsRV64], SubtargetPredicate = IsNotPPT in {
 
 /// sext and zext
 
-def : Pat<(sext_inreg GPR:$rs1, i32), (ADDIW GPR:$rs1, 0)>;
-def : Pat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
+def : PPUPat<(sext_inreg GPR:$rs1, i32), (ADDIW GPR:$rs1, 0)>;
+def : PPUPat<(and GPR:$rs1, 0xffffffff), (SRLI (SLLI GPR:$rs1, 32), 32)>;
 
 /// ALU operations
 
-def : Pat<(sext_inreg (add GPR:$rs1, GPR:$rs2), i32),
+def : PPUPat<(sext_inreg (add GPR:$rs1, GPR:$rs2), i32),
           (ADDW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sext_inreg (add GPR:$rs1, simm12:$imm12), i32),
+def : PPUPat<(sext_inreg (add GPR:$rs1, simm12:$imm12), i32),
           (ADDIW GPR:$rs1, simm12:$imm12)>;
-def : Pat<(sext_inreg (sub GPR:$rs1, GPR:$rs2), i32),
+def : PPUPat<(sext_inreg (sub GPR:$rs1, GPR:$rs2), i32),
           (SUBW GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sext_inreg (shl GPR:$rs1, uimm5:$shamt), i32),
+def : PPUPat<(sext_inreg (shl GPR:$rs1, uimm5:$shamt), i32),
           (SLLIW GPR:$rs1, uimm5:$shamt)>;
 // (srl (zexti32 ...), uimm5:$shamt) is matched with custom code due to the
 // need to undo manipulation of the mask value performed by DAGCombine.
-def : Pat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
+def : PPUPat<(sra (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
           (SRAIW GPR:$rs1, uimm5:$shamt)>;
 
 def : PatGprGpr<ppu_sllw, SLLW>;
@@ -1082,12 +1100,12 @@ defm : LdPat<load, LD>;
 
 defm : StPat<truncstorei32, SW, GPR>;
 defm : StPat<store, SD, GPR>;
-} // Predicates = [IsRV64]
+} // Predicates = [IsRV64], SubtargetPredicate=[IsNotPPT]
 
 /// readcyclecounter
 // On RV64, we can directly read the 64-bit "cycle" CSR.
-let Predicates = [IsRV64] in
-def : Pat<(readcyclecounter), (CSRRS CYCLE.Encoding, X0)>;
+let OtherPredicates = [IsRV64] in
+def : PPUPat<(readcyclecounter), (CSRRS CYCLE.Encoding, X0)>;
 // On RV32, ReadCycleWide will be expanded to the suggested loop reading both
 // halves of the 64-bit "cycle" CSR.
 let Predicates = [IsRV32], usesCustomInserter = 1, hasSideEffects = 0,

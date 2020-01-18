@@ -107,7 +107,7 @@ def V_TRIG_PREOP_F64 : VOP3Inst <"v_trig_preop_f64", VOP3_Profile<VOP_F64_F64_I3
 */
 
 let SchedRW = [Write64Bit] in {
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
 def V_LSHL_B64 : VOP3Inst <"v_lshl_b64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, shl>;
 def V_LSHR_B64 : VOP3Inst <"v_lshr_b64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, srl>;
 def V_ASHR_I64 : VOP3Inst <"v_ashr_i64", VOP3_Profile<VOP_PAT_GEN<VOP_I64_I64_I32>>, sra>;
@@ -119,15 +119,15 @@ def V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>, as
 } // End SubtargetPredicate = isGFX8Plus
 } // End SchedRW = [Write64Bit]
 
-def : PPUPat <
+def : PPTPat <
  (getDivergentFrag<shl>.ret i64:$x, i32:$y),
  (V_LSHLREV_B64 $y, $x)
 >;
-def : PPUPat <
+def : PPTPat <
  (getDivergentFrag<srl>.ret i64:$x, i32:$y),
  (V_LSHRREV_B64 $y, $x)
 >;
-def : PPUPat <
+def : PPTPat <
  (getDivergentFrag<sra>.ret i64:$x, i32:$y),
  (V_ASHRREV_I64 $y, $x)
 >;
@@ -137,7 +137,7 @@ let SchedRW = [Write32Bit] in {
 def V_PERM_B32 : VOP3Inst <"v_perm_b32", VOP3_Profile<VOP_I32_I32_I32_I32>, PPUperm>;
 } // End SchedRW = [Write32Bit]
 
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
 
 let Constraints = "@earlyclobber $vdst", SchedRW = [WriteQuarterRate32] in {
 def V_QSAD_PK_U16_U8 : VOP3Inst <"v_qsad_pk_u16_u8", VOP3_Profile<VOP_I64_I64_I32_I64, VOP3_CLAMP>>;
@@ -161,17 +161,17 @@ def V_DIV_FIXUP_F16 : VOP3Inst <"v_div_fixup_f16", VOP3_Profile<VOP_F16_F16_F16_
 */
 def V_DIV_FIXUP_F16_gfx9 : VOP3Inst <"v_div_fixup_f16_gfx9",
                                       VOP3_Profile<VOP_F16_F16_F16_F16, VOP3_OPSEL>, PPUdiv_fixup> {
-  let Predicates = [Has16BitInsts, isPPT];
+  let Predicates = [Has16BitInsts, IsPPT];
   let FPDPRounding = 1;
 }
 
 def V_FMA_F16 : VOP3Inst <"v_fma_f16", VOP3_Profile<VOP_F16_F16_F16_F16>, fma> {
-  let Predicates = [Has16BitInsts, isPPT];
+  let Predicates = [Has16BitInsts, IsPPT];
   let FPDPRounding = 1;
 }
 
 def V_FMA_F16_gfx9 : VOP3Inst <"v_fma_f16_gfx9", VOP3_Profile<VOP_F16_F16_F16_F16, VOP3_OPSEL>, fma> {
-  let Predicates = [Has16BitInsts, isPPT];
+  let Predicates = [Has16BitInsts, IsPPT];
   let FPDPRounding = 1;
 }
 
@@ -190,7 +190,7 @@ def V_MAD_F16_gfx9   : VOP3Inst <"v_mad_f16_gfx9", VOP3_Profile<VOP_F16_F16_F16_
 } // End SubtargetPredicate = isGFX9Only
 */
 
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
 def V_MAD_U16_gfx9   : VOP3Inst <"v_mad_u16_gfx9", VOP3_Profile<VOP_I16_I16_I16_I16, VOP3_OPSEL>>;
 def V_MAD_I16_gfx9   : VOP3Inst <"v_mad_i16_gfx9", VOP3_Profile<VOP_I16_I16_I16_I16, VOP3_OPSEL>>;
 } // End SubtargetPredicate = isGFX9Plus
@@ -202,7 +202,7 @@ let Predicates = [Has16BitInsts, isGFX6GFX7GFX8GFX9] in {
 
 multiclass Ternary_i16_Pats <SDPatternOperator op1, SDPatternOperator op2,
                              Instruction inst, SDPatternOperator op3> {
-def : PPUPat <
+def : PPTPat <
   (op2 (op1 i16:$src0, i16:$src1), i16:$src2),
   (inst i16:$src0, i16:$src1, i16:$src2, (i1 0))
 >;
@@ -219,7 +219,7 @@ let Predicates = [Has16BitInsts] in {
 
 multiclass Ternary_i16_Pats_gfx9<SDPatternOperator op1, SDPatternOperator op2,
                                  Instruction inst, SDPatternOperator op3> {
-def : PPUPat <
+def : PPTPat <
   (op2 (op1 i16:$src0, i16:$src1), i16:$src2),
   (inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1, SRCMODS.NONE, $src2, DSTCLAMP.NONE)
 >;
@@ -264,7 +264,7 @@ class ThreeOpFrag<SDPatternOperator op1, SDPatternOperator op2> : PatFrag<
   let PredicateCodeUsesOperands = 1;
 }
 
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
 def V_PACK_B32_F16 : VOP3Inst <"v_pack_b32_f16", VOP3_Profile<VOP_B32_F16_F16, VOP3_OPSEL>>;
 def V_LSHL_ADD_U32 : VOP3Inst <"v_lshl_add_u32", VOP3_Profile<VOP_I32_I32_I32_I32>>;
 def V_ADD_LSHL_U32 : VOP3Inst <"v_add_lshl_u32", VOP3_Profile<VOP_I32_I32_I32_I32>>;
@@ -300,7 +300,7 @@ def V_ADD_I32_gfx9 : VOP3Inst <"v_add_i32_gfx9", VOP3_Profile<VOP_I32_I32_I32>>;
 def V_SUB_I32_gfx9 : VOP3Inst <"v_sub_i32_gfx9", VOP3_Profile<VOP_I32_I32_I32>>;
 
 
-class ThreeOp_i32_Pats <SDPatternOperator op1, SDPatternOperator op2, Instruction inst> : PPUPat <
+class ThreeOp_i32_Pats <SDPatternOperator op1, SDPatternOperator op2, Instruction inst> : PPTPat <
   // This matches (op2 (op1 i32:$src0, i32:$src1), i32:$src2) with conditions.
   (ThreeOpFrag<op1, op2> i32:$src0, i32:$src1, i32:$src2),
   (inst i32:$src0, i32:$src1, i32:$src2)
@@ -328,7 +328,7 @@ def VOP3_PERMLANE_Profile : VOP3_Profile<VOPProfile <[i32, i32, i32, i32]>, VOP3
   let HasOMod = 0;
 }
 
-let SubtargetPredicate = isPPT in {
+let SubtargetPredicate = IsPPT in {
   def V_XOR3_B32 : VOP3Inst <"v_xor3_b32", VOP3_Profile<VOP_I32_I32_I32_I32>>;
   def : ThreeOp_i32_Pats<xor, xor, V_XOR3_B32>;
 
@@ -337,11 +337,11 @@ let SubtargetPredicate = isPPT in {
     def V_PERMLANEX16_B32 : VOP3Inst <"v_permlanex16_b32", VOP3_PERMLANE_Profile>;
   } // End $vdst = $vdst_in, DisableEncoding $vdst_in
 
-  def : PPUPat<
+  def : PPTPat<
     (int_ppu_permlane16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, imm:$fi, imm:$bc),
     (V_PERMLANE16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
   >;
-  def : PPUPat<
+  def : PPTPat<
     (int_ppu_permlanex16 i32:$vdst_in, i32:$src0, i32:$src1, i32:$src2, imm:$fi, imm:$bc),
     (V_PERMLANEX16_B32 (as_i1imm $fi), $src0, (as_i1imm $bc), $src1, 0, $src2, $vdst_in)
   >;
@@ -369,7 +369,7 @@ class getClampRes<VOPProfile P, Instruction inst> {
             ret1));
 }
 
-class IntClampPat<VOP3Inst inst, SDPatternOperator node> : PPUPat<
+class IntClampPat<VOP3Inst inst, SDPatternOperator node> : PPTPat<
   getClampPat<inst.Pfl, node>.ret,
   getClampRes<inst.Pfl, inst>.ret
 >;
@@ -450,9 +450,9 @@ def V_WRITELANE_B32 : VOP2_Pseudo<"v_writelane_b32", VOP_WRITELANE,
 
 defm V_READLANE_B32  : VOP3_Real_gfx10<0x360>;
 
-let InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in) in {
-  defm V_WRITELANE_B32 : VOP3_Real_gfx10<0x361>;
-} // End InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in)
+// FIXME let InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in) in {
+//  defm V_WRITELANE_B32 : VOP3_Real_gfx10<0x361>;
+// } // End InOperandList = (ins SSrcOrLds_b32:$src0, SCSrc_b32:$src1, VSrc_b32:$vdst_in)
 
 defm V_XOR3_B32           : VOP3_Real_gfx10<0x178>;
 defm V_LSHLREV_B64        : VOP3_Real_gfx10<0x2ff>;

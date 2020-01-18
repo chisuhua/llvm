@@ -174,39 +174,33 @@ void PPUMachineFunctionInfo::limitOccupancy(const MachineFunction &MF) {
 
 unsigned PPUMachineFunctionInfo::addPrivateSegmentBuffer(
   const PPURegisterInfo &TRI) {
-  ArgInfo.PrivateSegmentBuffer =
-    ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
-    // FIXME ArgDescriptor::createRegister(TRI.getMatchingSuperReg(getNextUserSPR());
-    // getNextUserSGPR(), PPU::sub0, &PPU::SReg_128RegClass));
-    // NumUserSGPRs += 4;
+  // FIXME, i change buffer it to 64bit reg
+  ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+        getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+  NumUserSGPRs += 2;
   return ArgInfo.PrivateSegmentBuffer.getRegister();
 }
 
 unsigned PPUMachineFunctionInfo::addDispatchPtr(const PPURegisterInfo &TRI) {
   ArgInfo.DispatchPtr = ArgDescriptor::createRegister(getNextUserSPR());
   NumUserSGPRs += 1;
-  // ArgInfo.DispatchPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-  //   getNextUserSGPR(), PPU::sub0, &PPU::SReg_64RegClass));
-  // NumUserSGPRs += 2;
+  ArgInfo.DispatchPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+        getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+  NumUserSGPRs += 2;
   return ArgInfo.DispatchPtr.getRegister();
 }
 
 unsigned PPUMachineFunctionInfo::addQueuePtr(const PPURegisterInfo &TRI) {
-  ArgInfo.QueuePtr = ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
-  // ArgInfo.QueuePtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-  //   getNextUserSGPR(), PPU::sub0, &PPU::SReg_64RegClass));
-  // NumUserSGPRs += 2;
+  ArgInfo.QueuePtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+        getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+  NumUserSGPRs += 2;
   return ArgInfo.QueuePtr.getRegister();
 }
 
 unsigned PPUMachineFunctionInfo::addKernargSegmentPtr(const PPURegisterInfo &TRI) {
-  ArgInfo.KernargSegmentPtr = ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
-  // ArgInfo.KernargSegmentPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-  //   getNextUserSGPR(), PPU::sub0, &PPU::SReg_64RegClass));
-  // NumUserSGPRs += 2;
+  ArgInfo.KernargSegmentPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+        getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+  NumUserSGPRs += 2;
   return ArgInfo.KernargSegmentPtr.getRegister();
 }
 
@@ -220,20 +214,16 @@ unsigned PPUMachineFunctionInfo::addDispatchID(const PPURegisterInfo &TRI) {
 }
 
 unsigned PPUMachineFunctionInfo::addFlatScratchInit(const PPURegisterInfo &TRI) {
-  ArgInfo.FlatScratchInit = ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
-  // ArgInfo.FlatScratchInit = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-  //   getNextUserSGPR(), PPU::sub0, &PPU::SReg_64RegClass));
-  // NumUserSGPRs += 2;
+  ArgInfo.FlatScratchInit = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+     getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+  NumUserSGPRs += 2;
   return ArgInfo.FlatScratchInit.getRegister();
 }
 
 unsigned PPUMachineFunctionInfo::addImplicitBufferPtr(const PPURegisterInfo &TRI) {
-  ArgInfo.ImplicitBufferPtr = ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
-  // ArgInfo.ImplicitBufferPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
-  //   getNextUserSGPR(), PPU::sub0, &PPU::SReg_64RegClass));
-  // NumUserSGPRs += 2;
+  ArgInfo.ImplicitBufferPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+        getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
+   NumUserSGPRs += 2;
   return ArgInfo.ImplicitBufferPtr.getRegister();
 }
 
