@@ -1218,7 +1218,7 @@ multiclass EXP_m<bit done, SDPatternOperator node> {
       def _si : EXP_Helper<done>,
                 SIMCInstr <"exp"#!if(done, "_done", ""), PPUEncodingFamily.PPU>,
                 EXPe {
-        let AssemblerPredicates = [isPPT];
+        let AssemblerPredicates = [IsPPT];
         let DecoderNamespace = "PPU";
         let DisableDecoder = DisableSIDecoder;
       }
@@ -2535,27 +2535,27 @@ def SI_PC_ADD_REL_OFFSET : SPseudoInst <
   let Defs = [SCC];
 }
 
-def : PPUPat <
+def : PPTPat <
   (SIpc_add_rel_offset tglobaladdr:$ptr_lo, 0),
   (SI_PC_ADD_REL_OFFSET $ptr_lo, (i32 0))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (PPUinit_exec i32:$src),
   (SI_INIT_TMSK (as_i32imm $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (PPUinit_exec_from_input i32:$input, i32:$shift),
   (SI_INIT_TMSK_FROM_INPUT (i32 $input), (as_i32imm $shift))
 >;
 
-def : PPUPat<
+def : PPTPat<
   (PPUtrap timm:$trapid),
   (S_TRAP $trapid)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (PPUelse i1:$src, bb:$target),
   (SI_ELSE $src, $target, 0)
 >;
@@ -2618,7 +2618,7 @@ def : RsqPat<V_RSQ_F32_e32, f32>;
 // def : RsqPat<V_RSQ_F64_e32, f64>;
 
 // Convert (x - floor(x)) to fract(x)
-def : PPUPat <
+def : PPTPat <
   (f32 (fsub (f32 (VOP3Mods f32:$x, i32:$mods)),
              (f32 (ffloor (f32 (VOP3Mods f32:$x, i32:$mods)))))),
   (V_FRACT_F32_e64 $mods, $x, DSTCLAMP.NONE, DSTOMOD.NONE)
@@ -2626,7 +2626,7 @@ def : PPUPat <
 
 // Convert (x + (-floor(x))) to fract(x)
 /*
-def : PPUPat <
+def : PPTPat <
   (f64 (fadd (f64 (VOP3Mods f64:$x, i32:$mods)),
              (f64 (fneg (f64 (ffloor (f64 (VOP3Mods f64:$x, i32:$mods)))))))),
   (V_FRACT_F64_e64 $mods, $x, DSTCLAMP.NONE, DSTOMOD.NONE)
@@ -2637,60 +2637,60 @@ def : PPUPat <
 
 
 // f16_to_fp patterns
-def : PPUPat <
+def : PPTPat <
   (f32 (f16_to_fp i32:$src0)),
   (V_CVT_F32_F16_e64 SRCMODS.NONE, $src0, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (f16_to_fp (and_oneuse i32:$src0, 0x7fff))),
   (V_CVT_F32_F16_e64 SRCMODS.ABS, $src0, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (f16_to_fp (i32 (srl_oneuse (and_oneuse i32:$src0, 0x7fff0000), (i32 16))))),
   (V_CVT_F32_F16_e64 SRCMODS.ABS, (i32 (V_LSHRREV_B32_e64 (i32 16), i32:$src0)), DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (f16_to_fp (or_oneuse i32:$src0, 0x8000))),
   (V_CVT_F32_F16_e64 SRCMODS.NEG_ABS, $src0, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (f16_to_fp (xor_oneuse i32:$src0, 0x8000))),
   (V_CVT_F32_F16_e64 SRCMODS.NEG, $src0, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
 /*
-def : PPUPat <
+def : PPTPat <
   (f64 (fpextend f16:$src)),
   (V_CVT_F64_F32_e32 (V_CVT_F32_F16_e32 $src))
 >;
 */
 
 // fp_to_fp16 patterns
-def : PPUPat <
+def : PPTPat <
   (i32 (PPUfp_to_f16 (f32 (VOP3Mods f32:$src0, i32:$src0_modifiers)))),
   (V_CVT_F16_F32_e64 $src0_modifiers, f32:$src0, DSTCLAMP.NONE, DSTOMOD.NONE)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i32 (fp_to_sint f16:$src)),
   (V_CVT_I32_F32_e32 (V_CVT_F32_F16_e32 $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i32 (fp_to_uint f16:$src)),
   (V_CVT_U32_F32_e32 (V_CVT_F32_F16_e32 $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f16 (sint_to_fp i32:$src)),
   (V_CVT_F16_F32_e32 (V_CVT_F32_I32_e32 $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f16 (uint_to_fp i32:$src)),
   (V_CVT_F16_F32_e32 (V_CVT_F32_U32_e32 $src))
 >;
@@ -2700,7 +2700,7 @@ def : PPUPat <
 //===----------------------------------------------------------------------===//
 
 multiclass FMADPat <ValueType vt, Instruction inst> {
-  def : PPUPat <
+  def : PPTPat <
     (vt (fmad (VOP3NoMods vt:$src0),
               (VOP3NoMods vt:$src1),
               (VOP3NoMods vt:$src2))),
@@ -2713,7 +2713,7 @@ defm : FMADPat <f16, V_MAC_F16_e64>;
 defm : FMADPat <f32, V_MAC_F32_e64>;
 
 class FMADModsPat<Instruction inst, SDPatternOperator mad_opr, ValueType Ty>
-  : PPUPat<
+  : PPTPat<
   (Ty (mad_opr (VOP3Mods Ty:$src0, i32:$src0_mod),
   (VOP3Mods Ty:$src1, i32:$src1_mod),
   (VOP3Mods Ty:$src2, i32:$src2_mod))),
@@ -2729,7 +2729,7 @@ def : FMADModsPat<V_MAD_F16, PPUfmad_ftz, f16> {
 */
 
 multiclass SelectPat <ValueType vt> {
-  def : PPUPat <
+  def : PPTPat <
     (vt (select i1:$src0, (VOP3Mods_f32 vt:$src1, i32:$src1_mods),
                           (VOP3Mods_f32 vt:$src2, i32:$src2_mods))),
     (V_CNDMASK_B32_e64 $src2_mods, $src2, $src1_mods, $src1, $src0)
@@ -2742,12 +2742,12 @@ defm : SelectPat <f16>;
 defm : SelectPat <f32>;
 
 let AddedComplexity = 1 in {
-def : PPUPat <
+def : PPTPat <
   (i32 (add (i32 (getDivergentFrag<ctpop>.ret i32:$popcnt)), i32:$val)),
   (V_BCNT_U32_B32_e64 $popcnt, $val)
 >;
 }
-def : PPUPat <
+def : PPTPat <
   (i16 (add (i16 (trunc (getDivergentFrag<ctpop>.ret i32:$popcnt))), i16:$val)),
   (V_BCNT_U32_B32_e64 $popcnt, $val)
 >;
@@ -2962,7 +2962,7 @@ def : BitConvert <i64, v4f16, VReg_64>;
 
 // If denormals are not enabled, it only impacts the compare of the
 // inputs. The output result is not flushed.
-class ClampPat<Instruction inst, ValueType vt> : PPUPat <
+class ClampPat<Instruction inst, ValueType vt> : PPTPat <
   (vt (PPUclamp (VOP3Mods vt:$src0, i32:$src0_modifiers))),
   (inst i32:$src0_modifiers, vt:$src0,
         i32:$src0_modifiers, vt:$src0, DSTCLAMP.ENABLE, DSTOMOD.NONE)
@@ -2973,7 +2973,7 @@ def : ClampPat<V_MAX_F32_e64, f32>;
 def : ClampPat<V_MAX_F16_e64, f16>;
 
 let SubtargetPredicate = HasVOP3PInsts in {
-def : PPUPat <
+def : PPTPat <
   (v2f16 (PPUclamp (VOP3PMods v2f16:$src0, i32:$src0_modifiers))),
   (V_PK_MAX_F16 $src0_modifiers, $src0,
                 $src0_modifiers, $src0, DSTCLAMP.ENABLE)
@@ -2986,13 +2986,13 @@ def : PPUPat <
 
 // Prevent expanding both fneg and fabs.
 
-def : PPUPat <
+def : PPTPat <
   (fneg (fabs f32:$src)),
   (S_OR_B32 $src, (S_MOV_B32(i32 0x80000000))) // Set sign bit
 >;
 
 // FIXME: Should use S_OR_B32
-def : PPUPat <
+def : PPTPat <
   (fneg (fabs f64:$src)),
   (REG_SEQUENCE VReg_64,
     (i32 (EXTRACT_SUBREG f64:$src, sub0)),
@@ -3002,17 +3002,17 @@ def : PPUPat <
     sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fabs f32:$src),
   (S_AND_B32 $src, (S_MOV_B32 (i32 0x7fffffff)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg f32:$src),
   (V_XOR_B32_e32 $src, (V_MOV_B32_e32 (i32 0x80000000)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fabs f64:$src),
   (REG_SEQUENCE VReg_64,
     (i32 (EXTRACT_SUBREG f64:$src, sub0)),
@@ -3022,7 +3022,7 @@ def : PPUPat <
      sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg f64:$src),
   (REG_SEQUENCE VReg_64,
     (i32 (EXTRACT_SUBREG f64:$src, sub0)),
@@ -3032,18 +3032,18 @@ def : PPUPat <
     sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fcopysign f16:$src0, f16:$src1),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00007fff)), $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fcopysign f32:$src0, f16:$src1),
   (V_BFI_B32 (S_MOV_B32 (i32 0x7fffffff)), $src0,
              (V_LSHLREV_B32_e64 (i32 16), $src1))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fcopysign f64:$src0, f16:$src1),
   (REG_SEQUENCE SReg_64,
     (i32 (EXTRACT_SUBREG $src0, sub0)), sub0,
@@ -3051,39 +3051,39 @@ def : PPUPat <
                (V_LSHLREV_B32_e64 (i32 16), $src1)), sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fcopysign f16:$src0, f32:$src1),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00007fff)), $src0,
              (V_LSHRREV_B32_e64 (i32 16), $src1))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fcopysign f16:$src0, f64:$src1),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00007fff)), $src0,
              (V_LSHRREV_B32_e64 (i32 16), (EXTRACT_SUBREG $src1, sub1)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg f16:$src),
   (S_XOR_B32 $src, (S_MOV_B32 (i32 0x00008000)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fabs f16:$src),
   (S_AND_B32 $src, (S_MOV_B32 (i32 0x00007fff)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg (fabs f16:$src)),
   (S_OR_B32 $src, (S_MOV_B32 (i32 0x00008000))) // Set sign bit
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg v2f16:$src),
   (S_XOR_B32 $src, (S_MOV_B32 (i32 0x80008000)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fabs v2f16:$src),
   (S_AND_B32 $src, (S_MOV_B32 (i32 0x7fff7fff)))
 >;
@@ -3092,12 +3092,12 @@ def : PPUPat <
 //
 // fabs is not reported as free because there is modifier for it in
 // VOP3P instructions, so it is turned into the bit op.
-def : PPUPat <
+def : PPTPat <
   (fneg (v2f16 (bitconvert (and_oneuse i32:$src, 0x7fff7fff)))),
   (S_OR_B32 $src, (S_MOV_B32 (i32 0x80008000))) // Set sign bit
 >;
 
-def : PPUPat <
+def : PPTPat <
   (fneg (v2f16 (fabs v2f16:$src))),
   (S_OR_B32 $src, (S_MOV_B32 (i32 0x80008000))) // Set sign bit
 >;
@@ -3106,27 +3106,27 @@ def : PPUPat <
 /********** Immediate Patterns **********/
 /********** ================== **********/
 
-def : PPUPat <
+def : PPTPat <
   (VGPRImm<(i32 imm)>:$imm),
   (V_MOV_B32_e32 imm:$imm)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (VGPRImm<(f32 fpimm)>:$imm),
   (V_MOV_B32_e32 (f32 (bitcast_fpimm_to_i32 $imm)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i32 imm:$imm),
   (S_MOV_B32 imm:$imm)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (VGPRImm<(SIlds tglobaladdr:$ga)>),
   (V_MOV_B32_e32 $ga)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (SIlds tglobaladdr:$ga),
   (S_MOV_B32 $ga)
 >;
@@ -3134,39 +3134,39 @@ def : PPUPat <
 // FIXME: Workaround for ordering issue with peephole optimizer where
 // a register class copy interferes with immediate folding.  Should
 // use s_mov_b32, which can be shrunk to s_movk_i32
-def : PPUPat <
+def : PPTPat <
   (VGPRImm<(f16 fpimm)>:$imm),
   (V_MOV_B32_e32 (f16 (bitcast_fpimm_to_i32 $imm)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 fpimm:$imm),
   (S_MOV_B32 (f32 (bitcast_fpimm_to_i32 $imm)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f16 fpimm:$imm),
   (S_MOV_B32 (i32 (bitcast_fpimm_to_i32 $imm)))
 >;
 
-def : PPUPat <
+def : PPTPat <
  (i32 frameindex:$fi),
  (V_MOV_B32_e32 (i32 (frameindex_to_targetframeindex $fi)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 InlineImm<i64>:$imm),
   (S_MOV_B64 InlineImm<i64>:$imm)
 >;
 
 // XXX - Should this use a s_cmp to set SCC?
 
-def : PPUPat <
+def : PPTPat <
   (i1 imm:$imm),
   (S_MOV_B32 (i32 (as_i32imm $imm)))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f64 InlineFPImm<f64>:$imm),
   (S_MOV_B64 (f64 (bitcast_fpimm_to_i64 InlineFPImm<f64>:$imm)))
 >;
@@ -3177,13 +3177,13 @@ def : PPUPat <
 
 // def : POW_Common <V_LOG_F32_e32, V_EXP_F32_e32, V_MUL_LEGACY_F32_e32>;
 
-def : PPUPat <
+def : PPTPat <
   (i32 (sext i1:$src0)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                      /*src1mod*/(i32 0), /*src1*/(i32 -1), $src0)
 >;
 
-class Ext32Pat <SDNode ext> : PPUPat <
+class Ext32Pat <SDNode ext> : PPTPat <
   (i32 (ext i1:$src0)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                      /*src1mod*/(i32 0), /*src1*/(i32 1), $src0)
@@ -3193,7 +3193,7 @@ def : Ext32Pat <zext>;
 def : Ext32Pat <anyext>;
 
 // The multiplication scales from [0,1] to the unsigned integer range
-def : PPUPat <
+def : PPTPat <
   (PPUurecip i32:$src0),
   (V_CVT_U32_F32_e32
     (V_MUL_F32_e32 (i32 CONST.FP_UINT_MAX_PLUS_1),
@@ -3211,11 +3211,11 @@ def : UMad24Pat<V_MAD_U32_U24, 1>;
 defm : BFIPatterns <V_BFI_B32, S_MOV_B32, SReg_64>;
 def : ROTRPattern <V_ALIGNBIT_B32>;
 
-def : PPUPat<(i32 (trunc (srl i64:$src0, (and i32:$src1, (i32 31))))),
+def : PPTPat<(i32 (trunc (srl i64:$src0, (and i32:$src1, (i32 31))))),
           (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG (i64 $src0), sub1)),
                           (i32 (EXTRACT_SUBREG (i64 $src0), sub0)), $src1)>;
 
-def : PPUPat<(i32 (trunc (srl i64:$src0, (i32 ShiftAmt32Imm:$src1)))),
+def : PPTPat<(i32 (trunc (srl i64:$src0, (i32 ShiftAmt32Imm:$src1)))),
           (V_ALIGNBIT_B32 (i32 (EXTRACT_SUBREG (i64 $src0), sub1)),
                           (i32 (EXTRACT_SUBREG (i64 $src0), sub0)), $src1)>;
 
@@ -3225,13 +3225,13 @@ def : PPUPat<(i32 (trunc (srl i64:$src0, (i32 ShiftAmt32Imm:$src1)))),
 
 multiclass SI_INDIRECT_Pattern <ValueType vt, ValueType eltvt, string VecSize> {
   // Extract with offset
-  def : PPUPat<
+  def : PPTPat<
     (eltvt (extractelt vt:$src, (MOVRELOffset i32:$idx, (i32 imm:$offset)))),
     (!cast<Instruction>("SI_INDIRECT_SRC_"#VecSize) $src, $idx, imm:$offset)
   >;
 
   // Insert with offset
-  def : PPUPat<
+  def : PPTPat<
     (insertelt vt:$src, eltvt:$val, (MOVRELOffset i32:$idx, (i32 imm:$offset))),
     (!cast<Instruction>("SI_INDIRECT_DST_"#VecSize) $src, $idx, imm:$offset, $val)
   >;
@@ -3251,14 +3251,14 @@ defm : SI_INDIRECT_Pattern <v2i32, i32, "V2">;
 // SAD Patterns
 //===----------------------------------------------------------------------===//
 
-def : PPUPat <
+def : PPTPat <
   (add (sub_oneuse (umax i32:$src0, i32:$src1),
                    (umin i32:$src0, i32:$src1)),
        i32:$src2),
   (V_SAD_U32 $src0, $src1, $src2, (i1 0))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (add (select_oneuse (i1 (setugt i32:$src0, i32:$src1)),
                       (sub i32:$src0, i32:$src1),
                       (sub i32:$src1, i32:$src0)),
@@ -3270,51 +3270,51 @@ def : PPUPat <
 // Conversion Patterns
 //===----------------------------------------------------------------------===//
 
-def : PPUPat<(i32 (sext_inreg i32:$src, i1)),
+def : PPTPat<(i32 (sext_inreg i32:$src, i1)),
   (S_BFE_I32 i32:$src, (i32 65536))>; // 0 | 1 << 16
 
 // Handle sext_inreg in i64
-def : PPUPat <
+def : PPTPat <
   (i64 (sext_inreg i64:$src, i1)),
   (S_BFE_I64 i64:$src, (i32 0x10000)) // 0 | 1 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i16 (sext_inreg i16:$src, i1)),
   (S_BFE_I32 $src, (i32 0x00010000)) // 0 | 1 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i16 (sext_inreg i16:$src, i8)),
   (S_BFE_I32 $src, (i32 0x80000)) // 0 | 8 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (sext_inreg i64:$src, i8)),
   (S_BFE_I64 i64:$src, (i32 0x80000)) // 0 | 8 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (sext_inreg i64:$src, i16)),
   (S_BFE_I64 i64:$src, (i32 0x100000)) // 0 | 16 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (sext_inreg i64:$src, i32)),
   (S_BFE_I64 i64:$src, (i32 0x200000)) // 0 | 32 << 16
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (zext i32:$src)),
   (REG_SEQUENCE SReg_64, $src, sub0, (S_MOV_B32 (i32 0)), sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (anyext i32:$src)),
   (REG_SEQUENCE SReg_64, $src, sub0, (i32 (IMPLICIT_DEF)), sub1)
 >;
 
-class ZExt_i64_i1_Pat <SDNode ext> : PPUPat <
+class ZExt_i64_i1_Pat <SDNode ext> : PPTPat <
   (i64 (ext i1:$src)),
     (REG_SEQUENCE VReg_64,
       (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
@@ -3328,13 +3328,13 @@ def : ZExt_i64_i1_Pat<anyext>;
 
 // FIXME: We need to use COPY_TO_REGCLASS to work-around the fact that
 // REG_SEQUENCE patterns don't support instructions with multiple outputs.
-def : PPUPat <
+def : PPTPat <
   (i64 (sext i32:$src)),
     (REG_SEQUENCE SReg_64, $src, sub0,
     (i32 (COPY_TO_REGCLASS (S_ASHR_I32 $src, (i32 31)), SReg_32)), sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (sext i1:$src)),
   (REG_SEQUENCE VReg_64,
     (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
@@ -3343,7 +3343,7 @@ def : PPUPat <
                        /*src1mod*/(i32 0), /*src1*/(i32 -1), $src), sub1)
 >;
 
-class FPToI1Pat<Instruction Inst, int KOne, ValueType kone_type, ValueType vt, SDPatternOperator fp_to_int> : PPUPat <
+class FPToI1Pat<Instruction Inst, int KOne, ValueType kone_type, ValueType vt, SDPatternOperator fp_to_int> : PPTPat <
   (i1 (fp_to_int (vt (VOP3Mods vt:$src0, i32:$src0_modifiers)))),
   (i1 (Inst 0, (kone_type KOne), $src0_modifiers, $src0, DSTCLAMP.NONE))
 >;
@@ -3360,44 +3360,44 @@ def : FPToI1Pat<V_CMP_EQ_F64_e64, CONST.FP64_NEG_ONE, i64, f64, fp_to_sint>;
 // instructions resulting in the copies from SCC to these instructions
 // will be moved to the VALU.
 
-def : PPUPat <
+def : PPTPat <
   (i1 (and i1:$src0, i1:$src1)),
   (S_AND_B32 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (or i1:$src0, i1:$src1)),
   (S_OR_B32 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (xor i1:$src0, i1:$src1)),
   (S_XOR_B32 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (add i1:$src0, i1:$src1)),
   (S_XOR_B32 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (sub i1:$src0, i1:$src1)),
   (S_XOR_B32 $src0, $src1)
 >;
 
 let AddedComplexity = 1 in {
-def : PPUPat <
+def : PPTPat <
   (i1 (add i1:$src0, (i1 -1))),
   (S_NOT_B32 $src0)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (sub i1:$src0, (i1 -1))),
   (S_NOT_B32 $src0)
 >;
 }
 
-def : PPUPat <
+def : PPTPat <
   (f16 (sint_to_fp i1:$src)),
   (V_CVT_F16_F32_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
@@ -3405,7 +3405,7 @@ def : PPUPat <
                         $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f16 (uint_to_fp i1:$src)),
   (V_CVT_F16_F32_e32 (
       V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
@@ -3413,28 +3413,28 @@ def : PPUPat <
                         $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (sint_to_fp i1:$src)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_NEG_ONE),
                         $src)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f32 (uint_to_fp i1:$src)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                         /*src1mod*/(i32 0), /*src1*/(i32 CONST.FP32_ONE),
                         $src)
 >;
 /*
-def : PPUPat <
+def : PPTPat <
   (f64 (sint_to_fp i1:$src)),
   (V_CVT_F64_I32_e32 (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                                         /*src1mod*/(i32 0), /*src1*/(i32 -1),
                                         $src))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (f64 (uint_to_fp i1:$src)),
   (V_CVT_F64_U32_e32 (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                                         /*src1mod*/(i32 0), /*src1*/(i32 1),
@@ -3445,34 +3445,34 @@ def : PPUPat <
 //===----------------------------------------------------------------------===//
 // Miscellaneous Patterns
 //===----------------------------------------------------------------------===//
-def : PPUPat <
+def : PPTPat <
   (i32 (PPUfp16_zext f16:$src)),
   (COPY $src)
 >;
 
 
-def : PPUPat <
+def : PPTPat <
   (i32 (trunc i64:$a)),
   (EXTRACT_SUBREG $a, sub0)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (trunc i32:$a)),
   (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (trunc i16:$a)),
   (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1), $a), (i32 1))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i1 (trunc i64:$a)),
   (V_CMP_EQ_U32_e64 (S_AND_B32 (i32 1),
                     (i32 (EXTRACT_SUBREG $a, sub0))), (i32 1))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i32 (bswap i32:$a)),
   (V_BFI_B32 (S_MOV_B32 (i32 0x00ff00ff)),
              (V_ALIGNBIT_B32 $a, $a, (i32 24)),
@@ -3480,30 +3480,30 @@ def : PPUPat <
 >;
 
 let OtherPredicates = [NoFP16Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
   (V_MUL_F16_e64 0, (i32 CONST.FP16_ONE), $src_mods, $src, 0, 0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f16 (fneg (VOP3Mods f16:$src, i32:$src_mods)))),
   (V_MUL_F16_e64 0, (i32 CONST.FP16_NEG_ONE), $src_mods, $src, 0, 0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (v2f16 (VOP3PMods v2f16:$src, i32:$src_mods))),
   (V_PK_MUL_F16 0, (i32 CONST.FP16_ONE), $src_mods, $src, DSTCLAMP.NONE)
 >;
 }
 
 let OtherPredicates = [FP16Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f16 (VOP3Mods f16:$src, i32:$src_mods))),
   (V_MAX_F16_e64 $src_mods, $src, $src_mods, $src, 0, 0)
 >;
 
 let SubtargetPredicate = HasVOP3PInsts in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (v2f16 (VOP3PMods v2f16:$src, i32:$src_mods))),
   (V_PK_MAX_F16 $src_mods, $src, $src_mods, $src, DSTCLAMP.NONE)
 >;
@@ -3511,19 +3511,19 @@ def : PPUPat<
 }
 
 let OtherPredicates = [NoFP32Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f32 (VOP3Mods f32:$src, i32:$src_mods))),
   (V_MUL_F32_e64 0, (i32 CONST.FP32_ONE), $src_mods, $src, 0, 0)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f32 (fneg (VOP3Mods f32:$src, i32:$src_mods)))),
   (V_MUL_F32_e64 0, (i32 CONST.FP32_NEG_ONE), $src_mods, $src, 0, 0)
 >;
 }
 
 let OtherPredicates = [FP32Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f32 (VOP3Mods f32:$src, i32:$src_mods))),
   (V_MAX_F32_e64 $src_mods, $src, $src_mods, $src, 0, 0)
 >;
@@ -3531,21 +3531,21 @@ def : PPUPat<
 
 /*
 let OtherPredicates = [NoFP64Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f64 (VOP3Mods f64:$src, i32:$src_mods))),
   (V_MUL_F64 0, CONST.FP64_ONE, $src_mods, $src, 0, 0)
 >;
 }
 
 let OtherPredicates = [FP64Denormals] in {
-def : PPUPat<
+def : PPTPat<
   (fcanonicalize (f64 (VOP3Mods f64:$src, i32:$src_mods))),
   (V_MAX_F64 $src_mods, $src, $src_mods, $src, 0, 0)
 >;
 }
 */
 let OtherPredicates = [HasDLInsts] in {
-def : PPUPat <
+def : PPTPat <
   (fma (f32 (VOP3Mods0 f32:$src0, i32:$src0_modifiers, i1:$clamp, i32:$omod)),
        (f32 (VOP3Mods f32:$src1, i32:$src1_modifiers)),
        (f32 (VOP3NoMods f32:$src2))),
@@ -3554,8 +3554,8 @@ def : PPUPat <
 >;
 } // End OtherPredicates = [HasDLInsts]
 
-let SubtargetPredicate = isPPT in
-def : PPUPat <
+let SubtargetPredicate = IsPPT in
+def : PPTPat <
   (fma (f16 (VOP3Mods0 f32:$src0, i32:$src0_modifiers, i1:$clamp, i32:$omod)),
        (f16 (VOP3Mods f32:$src1, i32:$src1_modifiers)),
        (f16 (VOP3NoMods f32:$src2))),
@@ -3565,7 +3565,7 @@ def : PPUPat <
 
 // Allow integer inputs
 /*
-class ExpPattern<SDPatternOperator node, ValueType vt, Instruction Inst> : PPUPat<
+class ExpPattern<SDPatternOperator node, ValueType vt, Instruction Inst> : PPTPat<
   (node (i8 timm:$tgt), (i8 timm:$en), vt:$src0, vt:$src1, vt:$src2, vt:$src3, (i1 timm:$compr), (i1 timm:$vm)),
   (Inst i8:$tgt, vt:$src0, vt:$src1, vt:$src2, vt:$src3, i1:$vm, i1:$compr, i8:$en)
 >;
@@ -3576,53 +3576,53 @@ def : ExpPattern<PPUexport_done, i32, EXP_DONE>;
 
 // COPY is workaround tablegen bug from multiple outputs
 // from S_LSHL_B32's multiple outputs from implicit scc def.
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector (i16 0), i16:$src1)),
   (v2i16 (COPY (S_LSHL_B32 i16:$src1, (i16 16))))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector i16:$src0, (i16 undef))),
   (v2i16 (COPY $src0))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v2f16 (build_vector f16:$src0, (f16 undef))),
   (v2f16 (COPY $src0))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector (i16 undef), i16:$src1)),
   (v2i16 (COPY (S_LSHL_B32 $src1, (i32 16))))
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v2f16 (build_vector (f16 undef), f16:$src1)),
   (v2f16 (COPY (S_LSHL_B32 $src1, (i32 16))))
 >;
 
 let SubtargetPredicate = HasVOP3PInsts in {
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector i16:$src0, i16:$src1)),
   (v2i16 (S_PACK_LL_B32_B16 $src0, $src1))
 >;
 
 // With multiple uses of the shift, this will duplicate the shift and
 // increase register pressure.
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector i16:$src0, (i16 (trunc (srl_oneuse i32:$src1, (i32 16)))))),
   (v2i16 (S_PACK_LH_B32_B16 i16:$src0, i32:$src1))
 >;
 
 
-def : PPUPat <
+def : PPTPat <
   (v2i16 (build_vector (i16 (trunc (srl_oneuse i32:$src0, (i32 16)))),
                        (i16 (trunc (srl_oneuse i32:$src1, (i32 16)))))),
   (v2i16 (S_PACK_HH_B32_B16 $src0, $src1))
 >;
 
 // TODO: Should source modifiers be matched to v_pack_b32_f16?
-def : PPUPat <
+def : PPTPat <
   (v2f16 (build_vector f16:$src0, f16:$src1)),
   (v2f16 (S_PACK_LL_B32_B16 $src0, $src1))
 >;
@@ -3630,22 +3630,22 @@ def : PPUPat <
 } // End SubtargetPredicate = HasVOP3PInsts
 
 
-def : PPUPat <
+def : PPTPat <
   (v2f16 (scalar_to_vector f16:$src0)),
   (COPY $src0)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v2i16 (scalar_to_vector i16:$src0)),
   (COPY $src0)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v4i16 (scalar_to_vector i16:$src0)),
   (INSERT_SUBREG (IMPLICIT_DEF), $src0, sub0)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (v4f16 (scalar_to_vector f16:$src0)),
   (INSERT_SUBREG (IMPLICIT_DEF), $src0, sub0)
 >;
@@ -3657,7 +3657,7 @@ def : PPUPat <
 // Undo sub x, c -> add x, -c canonicalization since c is more likely
 // an inline immediate than -c.
 // TODO: Also do for 64-bit.
-def : PPUPat<
+def : PPTPat<
   (add i32:$src0, (i32 NegSubInlineConst32:$src1)),
   (S_SUB_I32 $src0, NegSubInlineConst32:$src1)
 >;
@@ -3665,18 +3665,18 @@ def : PPUPat<
 // Avoid pointlessly materializing a constant in VGPR.
 // FIXME: Should also do this for readlane, but tablegen crashes on
 // the ignored src1.
-def : PPUPat<
+def : PPTPat<
   (int_ppu_readfirstlane (i32 imm:$src)),
   (S_MOV_B32 $src)
 >;
 
 multiclass BFMPatterns <ValueType vt, PPTInst BFM, PPTInst MOV> {
-  def : PPUPat <
+  def : PPTPat <
     (vt (shl (vt (add (vt (shl 1, vt:$a)), -1)), vt:$b)),
     (BFM $a, $b)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (vt (add (vt (shl 1, vt:$a)), -1)),
     (BFM $a, (MOV (i32 0)))
   >;
@@ -3695,7 +3695,7 @@ defm : IntMed3Pat<V_MED3_U32, umin, umax, umin_oneuse, umax_oneuse>;
 // max(min(x, y), min(max(x, y), z))
 class FPMed3Pat<ValueType vt,
                 //SDPatternOperator max, SDPatternOperator min,
-                Instruction med3Inst> : PPUPat<
+                Instruction med3Inst> : PPTPat<
   (fmaxnum_like (fminnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
                            (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
            (fminnum_like_oneuse (fmaxnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
@@ -3705,7 +3705,7 @@ class FPMed3Pat<ValueType vt,
 >;
 
 class FP16Med3Pat<ValueType vt,
-                Instruction med3Inst> : PPUPat<
+                Instruction med3Inst> : PPTPat<
   (fmaxnum_like (fminnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
                                      (VOP3Mods_nnan vt:$src1, i32:$src1_mods)),
            (fminnum_like_oneuse (fmaxnum_like_oneuse (VOP3Mods_nnan vt:$src0, i32:$src0_mods),
@@ -3722,7 +3722,7 @@ multiclass Int16Med3Pat<Instruction med3Inst,
                    ValueType vt = i16> {
   // This matches 16 permutations of
   // max(min(x, y), min(max(x, y), z))
-  def : PPUPat <
+  def : PPTPat <
   (max (min_oneuse vt:$src0, vt:$src1),
        (min_oneuse (max_oneuse vt:$src0, vt:$src1), vt:$src2)),
   (med3Inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1, SRCMODS.NONE, $src2, DSTCLAMP.NONE)
@@ -3730,7 +3730,7 @@ multiclass Int16Med3Pat<Instruction med3Inst,
 
   // This matches 16 permutations of
   // min(max(a, b), max(min(a, b), c))
-  def : PPUPat <
+  def : PPTPat <
   (min (max_oneuse vt:$src0, vt:$src1),
       (max_oneuse (min_oneuse vt:$src0, vt:$src1), vt:$src2)),
   (med3Inst SRCMODS.NONE, $src0, SRCMODS.NONE, $src1, SRCMODS.NONE, $src2, DSTCLAMP.NONE)

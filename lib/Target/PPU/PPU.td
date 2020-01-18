@@ -81,10 +81,13 @@ def FeatureRelax
 
 
 def FeaturePPT
-    : SubtargetFeature<"featureppt", "IsPPT", "true",
+    : SubtargetFeature<"t", "IsPPT", "true",
                        "PPT enable.">;
+
 def IsPPT : Predicate<"Subtarget->isPPT()">,
                        AssemblerPredicate<"FeaturePPT">;
+def IsNotPPT : Predicate<"!Subtarget->isPPT()">,
+                       AssemblerPredicate<"!FeaturePPT">;
 
 // from AMD
 def FeatureGFX10Insts : SubtargetFeature<"gfx10-insts",
@@ -363,13 +366,17 @@ include "PPUSchedule.td"
 // Define the PPU target.
 //===----------------------------------------------------------------------===//
 
+// TODO i don't know i fix is corrrect
 def PPUInstrInfo : InstrInfo {
-  let guessInstructionProperties = 0;
+  let guessInstructionProperties = 1;
+  let noNamedPositionallyEncodedOperands = 1;
 }
 
+// TODO i don't know i fix is corrrect
 def PPUAsmParser : AsmParser {
   let ShouldEmitMatchRegisterAltName = 1;
   let AllowDuplicateRegisterNames = 1;
+  // let ShouldEmitMatchRegisterName = 0;
 }
 
 def PPUAsmWriter : AsmWriter {
@@ -382,12 +389,24 @@ def PPUAsmVariants {
   string VOP3 = "VOP3";
   int VOP3_ID = 1;
   string Disable = "Disable";
-  int Disable_ID = 5;
+  int Disable_ID = 2;
+}
+
+def DefaultPPUAsmParserVariant : AsmParserVariant {
+  let Variant = PPUAsmVariants.Default_ID;
+  let Name = PPUAsmVariants.Default;
+}
+
+def VOP3AsmParserVariant : AsmParserVariant {
+  let Variant = PPUAsmVariants.VOP3_ID;
+  let Name = PPUAsmVariants.VOP3;
 }
 
 def PPU : Target {
   let InstructionSet = PPUInstrInfo;
   let AssemblyParsers = [PPUAsmParser];
+  let AssemblyParserVariants = [DefaultPPUAsmParserVariant,
+                                VOP3AsmParserVariant];
   let AssemblyWriters = [PPUAsmWriter];
   let AllowRegisterRenaming = 1;
 }

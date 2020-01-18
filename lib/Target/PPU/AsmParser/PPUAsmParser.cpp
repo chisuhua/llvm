@@ -5929,11 +5929,13 @@ bool PPUAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
 // x16-x31 will be rejected.
 static bool matchRegisterNameHelper(bool IsRV32E, Register &RegNo,
                                     StringRef Name) {
+    /* FIXME
   RegNo = MatchRegisterName(Name);
   if (RegNo == 0)
     RegNo = MatchRegisterAltName(Name);
   if (IsRV32E && RegNo >= PPU::X16 && RegNo <= PPU::X31)
     RegNo = 0;
+    */
   return RegNo == 0;
 }
 

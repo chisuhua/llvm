@@ -266,6 +266,7 @@ public:
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
   bool isPPT() const { return IsPPT; }
+  bool isNotPPT() const { return !IsPPT; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
   bool enableRVCHintInstrs() const { return EnableRVCHintInstrs; }
   bool enableReconvergeCFG() const { return EnableReconvergeCFG; }

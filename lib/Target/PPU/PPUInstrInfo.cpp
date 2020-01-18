@@ -3538,7 +3538,7 @@ static bool shouldReadExec(const MachineInstr &MI) {
     case PPU::V_READLANE_B32:
     case PPU::V_READLANE_B32_gfx10:  // FIXME
     case PPU::V_WRITELANE_B32:
-    case PPU::V_WRITELANE_B32_gfx10:
+    // case PPU::V_WRITELANE_B32_gfx10: FIXMe
       return false;
     }
 

@@ -239,12 +239,12 @@ def DS_ADD_SRC2_F32 : DS_1A<"ds_add_src2_f32">;
 // DS Patterns
 //===----------------------------------------------------------------------===//
 
-def : PPUPat <
+def : PPTPat <
   (int_ppu_ds_swizzle i32:$src, imm:$offset16),
   (DS_SWIZZLE_B32 $src, (as_i16imm $offset16), (i1 0))
 >;
 
-class DSReadPat <DS_Pseudo inst, ValueType vt, PatFrag frag, int gds=0> : PPUPat <
+class DSReadPat <DS_Pseudo inst, ValueType vt, PatFrag frag, int gds=0> : PPTPat <
   (vt (frag (DS1Addr1Offset i32:$ptr, i16:$offset))),
   (inst $ptr, offset:$offset, (i1 gds))
 >;
@@ -260,7 +260,7 @@ multiclass DSReadPat_mc<DS_Pseudo inst, ValueType vt, string frag> {
   }
 }
 
-class DSReadPat_D16 <DS_Pseudo inst, PatFrag frag, ValueType vt> : PPUPat <
+class DSReadPat_D16 <DS_Pseudo inst, PatFrag frag, ValueType vt> : PPTPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$in),
   (inst $ptr, offset:$offset, (i1 0), $in)
 >;
@@ -303,7 +303,7 @@ def : DSReadPat_D16<DS_READ_I8_D16, sextloadi8_d16_lo_local, v2i16>;
 def : DSReadPat_D16<DS_READ_I8_D16, sextloadi8_d16_lo_local, v2f16>;
 }
 
-class DSWritePat <DS_Pseudo inst, ValueType vt, PatFrag frag, int gds=0> : PPUPat <
+class DSWritePat <DS_Pseudo inst, ValueType vt, PatFrag frag, int gds=0> : PPTPat <
   (frag vt:$value, (DS1Addr1Offset i32:$ptr, i16:$offset)),
   (inst $ptr, getVregSrcForVT<vt>.ret:$value, offset:$offset, (i1 gds))
 >;
@@ -320,7 +320,7 @@ multiclass DSWritePat_mc <DS_Pseudo inst, ValueType vt, string frag> {
 
 // Irritatingly, atomic_store reverses the order of operands from a
 // normal store.
-class DSAtomicWritePat <DS_Pseudo inst, ValueType vt, PatFrag frag> : PPUPat <
+class DSAtomicWritePat <DS_Pseudo inst, ValueType vt, PatFrag frag> : PPTPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$value),
   (inst $ptr, $value, offset:$offset, (i1 0))
 >;
@@ -349,12 +349,12 @@ def : DSWritePat <DS_WRITE_B8_D16_HI, i32, truncstorei8_local_hi16>;
 }
 
 
-class DS64Bit4ByteAlignedReadPat<DS_Pseudo inst, PatFrag frag> : PPUPat <
+class DS64Bit4ByteAlignedReadPat<DS_Pseudo inst, PatFrag frag> : PPTPat <
   (v2i32 (frag (DS64Bit4ByteAligned i32:$ptr, i8:$offset0, i8:$offset1))),
   (inst $ptr, $offset0, $offset1, (i1 0))
 >;
 
-class DS64Bit4ByteAlignedWritePat<DS_Pseudo inst, PatFrag frag> : PPUPat<
+class DS64Bit4ByteAlignedWritePat<DS_Pseudo inst, PatFrag frag> : PPTPat<
   (frag v2i32:$value, (DS64Bit4ByteAligned i32:$ptr, i8:$offset0, i8:$offset1)),
   (inst $ptr, (i32 (EXTRACT_SUBREG $value, sub0)),
               (i32 (EXTRACT_SUBREG $value, sub1)), $offset0, $offset1,
@@ -381,7 +381,7 @@ defm : DSWritePat_mc <DS_WRITE_B64, v2i32, "store_align8_local">;
 // defm : DSWritePat_mc <DS_WRITE_B128, v4i32, "store_align16_local">;
 
 } // End AddedComplexity = 100
-class DSAtomicRetPat<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : PPUPat <
+class DSAtomicRetPat<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : PPTPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$value),
   (inst $ptr, getVregSrcForVT<vt>.ret:$value, offset:$offset, (i1 gds))
 >;
@@ -401,7 +401,7 @@ multiclass DSAtomicRetPat_mc<DS_Pseudo inst, ValueType vt, string frag> {
 
 
 
-class DSAtomicCmpXChg<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : PPUPat <
+class DSAtomicCmpXChg<DS_Pseudo inst, ValueType vt, PatFrag frag, bit gds=0> : PPTPat <
   (frag (DS1Addr1Offset i32:$ptr, i16:$offset), vt:$cmp, vt:$swap),
   (inst $ptr, getVregSrcForVT<vt>.ret:$cmp, getVregSrcForVT<vt>.ret:$swap, offset:$offset, (i1 gds))
 >;

@@ -456,7 +456,7 @@ static void allocateHSAUserSGPRs(CCState &CCInfo,
 
   if (Info.hasDispatchID()) {
     unsigned DispatchIDReg = Info.addDispatchID(TRI);
-    MF.addLiveIn(DispatchIDReg, &PPU::SPR_64RegClass);
+    MF.addLiveIn(DispatchIDReg, &PPU::SPR_32RegClass);
     CCInfo.AllocateReg(DispatchIDReg);
   }
 

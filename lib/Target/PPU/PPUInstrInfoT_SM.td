@@ -145,7 +145,7 @@ class SMRD_Real_ppu <bits<5> op, SM_Pseudo ps>
   , PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU>
   , Enc32 {
 
-  let AssemblerPredicates = [isPPT];
+  let AssemblerPredicates = [IsPPT];
   let DecoderNamespace = "PPU";
 
   let Inst{7-0}   = !if(ps.has_offset, offset{7-0}, ?);
@@ -206,26 +206,26 @@ def SMRDBufferImm32 : ComplexPattern<i32, 1, "SelectSMRDBufferImm32">;
 multiclass SMRD_Pattern <string Instr, ValueType vt> {
 
   // 1. IMM offset
-  def : PPUPat <
+  def : PPTPat <
     (smrd_load (SMRDImm i64:$sbase, i32:$offset)),
     (vt (!cast<SM_Pseudo>(Instr#"_IMM") $sbase, $offset, 0, 0))
   >;
 /*
   // 2. 32-bit IMM offset on CI
-  def : PPUPat <
+  def : PPTPat <
     (smrd_load (SMRDImm32 i64:$sbase, i32:$offset)),
     (vt (!cast<InstSI>(Instr#"_IMM_ppu") $sbase, $offset, 0, 0))> {
     let OtherPredicates = [isGFX7Only];
   }
 */
   // 3. SGPR offset
-  def : PPUPat <
+  def : PPTPat <
     (smrd_load (SMRDSgpr i64:$sbase, i32:$offset)),
     (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $offset, 0, 0))
   >;
 
   // 4. No offset
-  def : PPUPat <
+  def : PPTPat <
     (vt (smrd_load (i64 SReg_64:$sbase))),
     (vt (!cast<SM_Pseudo>(Instr#"_IMM") i64:$sbase, 0, 0, 0))
   >;
@@ -234,26 +234,26 @@ multiclass SMRD_Pattern <string Instr, ValueType vt> {
 multiclass SMWD_Pattern <string Instr, ValueType vt> {
   // FIXME we use SMRDImm/SMRDSgpr for Store?
   // 1. IMM offset
-  def : PPUPat <
+  def : PPTPat <
     (smwd_store vt:$sdata, (SMRDImm i64:$sbase, i32:$offset)),
     (!cast<SM_Pseudo>(Instr#"_IMM") $sdata, $sbase, $offset, 0, 0)
   >;
 /*
   // 2. 32-bit IMM offset on CI
-  def : PPUPat <
+  def : PPTPat <
     (smrd_store (SMRDImm32 i64:$sbase, i32:$offset)),
     (vt (!cast<InstSI>(Instr#"_IMM_ppu") $sbase, $offset, 0, 0))> {
     let OtherPredicates = [isGFX7Only];
   }
 */
   // 3. SGPR offset
-  def : PPUPat <
+  def : PPTPat <
     (smwd_store vt:$sdata, (SMRDSgpr i64:$sbase, i32:$offset)),
     (!cast<SM_Pseudo>(Instr#"_SGPR") $sdata, $sbase, $offset, 0, 0)
   >;
 
   // 4. No offset
-  def : PPUPat <
+  def : PPTPat <
     (smwd_store vt:$sdata, (i64 SReg_64:$sbase)),
     (!cast<SM_Pseudo>(Instr#"_IMM") $sdata, i64:$sbase, 0, 0, 0)
   >;
@@ -261,21 +261,21 @@ multiclass SMWD_Pattern <string Instr, ValueType vt> {
 
 multiclass SMLoad_Pattern <string Instr, ValueType vt> {
   // 1. Offset as an immediate
-  def : PPUPat <
+  def : PPTPat <
     (SIsbuffer_load v2i32:$sbase, (SMRDBufferImm i32:$offset), i1:$glc, i1:$dlc),
     (vt (!cast<SM_Pseudo>(Instr#"_IMM") $sbase, $offset, (as_i1imm $glc),
                                         (as_i1imm $dlc)))
   >;
 /*
   // 2. 32-bit IMM offset on CI
-  def : PPUPat <
+  def : PPTPat <
     (vt (SIsbuffer_load v2i32:$sbase, (SMRDBufferImm32 i32:$offset), i1:$glc, i1:$dlc)),
     (!cast<InstSI>(Instr#"_IMM_ci") $sbase, $offset, (as_i1imm $glc), (as_i1imm $dlc))> {
     let OtherPredicates = [isGFX7Only];
   }
 */
   // 3. Offset loaded in an 32bit SGPR
-  def : PPUPat <
+  def : PPTPat <
     (SIsbuffer_load v2i32:$sbase, i32:$offset, i1:$glc, i1:$dlc),
     (vt (!cast<SM_Pseudo>(Instr#"_SGPR") $sbase, $offset, (as_i1imm $glc),
                                          (as_i1imm $dlc)))
@@ -300,7 +300,7 @@ defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORD",     f32>;
 defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX2",   v2f32>;
 } // End let AddedComplexity = 100
 
-def : PPUPat <
+def : PPTPat <
    (i64 (readcyclecounter)),
    (S_MEMTIME)
  >;
@@ -315,7 +315,7 @@ class SMEM_Real_ppu<bits<8> op, SM_Pseudo ps> :
   bit glc;
   bit dlc;
 
-  let AssemblerPredicates = [isPPT];
+  let AssemblerPredicates = [IsPPT];
   let DecoderNamespace = "PPU";
 
   let Inst{5-0}   = !if(ps.has_sbase, sbase{6-1}, ?);
@@ -336,7 +336,7 @@ multiclass SM_Real_Loads_ppu<bits<8> op, string ps,
     let InOperandList = (ins immPs.BaseClass:$sbase, smrd_offset_20:$offset, GLC:$glc, DLC:$dlc);
   }
   def _SGPR_ppu : SMEM_Real_ppu<op, sgprPs> {
-    let InOperandList = (ins sgprPs.BaseClass:$sbase, SReg_32:$offset, GLC:$glc, DLC:$dlc);
+    let InOperandList = (ins sgprPs.BaseClass:$sbase, SReg_32:$soff, GLC:$glc, DLC:$dlc);
   }
 }
 
@@ -357,7 +357,7 @@ multiclass SM_Real_Stores_ppu<bits<8> op, string ps,
   }
 
   def _SGPR_ppu : SMEM_Real_Store_ppu <op, sgprPs> {
-    let InOperandList = (ins sgprPs.SrcClass:$sdata, sgprPs.BaseClass:$sbase, SReg_32:$offset, GLC:$glc, DLC:$dlc);
+    let InOperandList = (ins sgprPs.SrcClass:$sdata, sgprPs.BaseClass:$sbase, SReg_32:$soff, GLC:$glc, DLC:$dlc);
   }
 }
 

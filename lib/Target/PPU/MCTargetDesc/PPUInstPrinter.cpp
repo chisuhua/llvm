@@ -48,15 +48,16 @@ static cl::opt<bool>
 
 void PPUInstPrinter::printInst(const MCInst *MI, raw_ostream &O,
                                  StringRef Annot, const MCSubtargetInfo &STI) {
+  O.flush();
   bool Res = false;
   const MCInst *NewMI = MI;
   MCInst UncompressedMI;
   /* TODO uncompress
   if (!NoAliases)
     Res = uncompressInst(UncompressedMI, *MI, MRI, STI);
-    */
   if (Res)
     NewMI = const_cast<MCInst *>(&UncompressedMI);
+    */
   if (NoAliases || !printAliasInstr(NewMI, STI, O))
     printInstruction(NewMI, STI, O);
   printAnnotation(O, Annot);
@@ -404,7 +405,7 @@ void PPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
   }
 #endif
 
-  O << getRegisterName(RegNo);
+  O << getRegisterName(RegNo, PPU::NoRegAltName);
 }
 
 void PPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
@@ -1463,3 +1464,6 @@ void PPUInstPrinter::printEndpgm(const MCInst *MI, unsigned OpNo,
   O << ' ' << formatDec(Imm);
 }
 
+// Include the auto-generated portion of the assembly writer.
+// #define PRINT_ALIAS_INSTR
+// #include "PPUGenAsmWriter.inc"

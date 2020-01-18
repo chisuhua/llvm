@@ -670,7 +670,7 @@ let SubtargetPredicate = isGFX10Plus in {
 //===----------------------------------------------------------------------===//
 // S_GETREG_B32 Intrinsic Pattern.
 //===----------------------------------------------------------------------===//
-def : PPUPat <
+def : PPTPat <
   (int_ppu_s_getreg imm:$simm16),
   (S_GETREG_B32 (as_i16imm $simm16))
 >;
@@ -679,13 +679,13 @@ def : PPUPat <
 // SOP1 Patterns
 //===----------------------------------------------------------------------===//
 
-def : PPUPat <
+def : PPTPat <
   (PPUendpgm),
     (S_ENDPGM (i16 0))
 >;
 
 /*
-def : PPUPat <
+def : PPTPat <
   (i64 (ctpop i64:$src)),
     (i64 (REG_SEQUENCE SReg_64,
      (i32 (COPY_TO_REGCLASS (S_BCNT1_I32_B64 $src), SReg_32)), sub0,
@@ -693,18 +693,18 @@ def : PPUPat <
 >;
 */
 
-def : PPUPat <
+def : PPTPat <
   (i32 (smax i32:$x, (i32 (ineg i32:$x)))),
   (S_ABS_I32 $x)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i16 imm:$imm),
   (S_MOV_B32 imm:$imm)
 >;
 
 // Same as a 32-bit inreg
-def : PPUPat<
+def : PPTPat<
   (i32 (sext i16:$src)),
   (S_SEXT_I32_I16 $src)
 >;
@@ -716,7 +716,7 @@ def : PPUPat<
 
 // V_ADD_I32_e32/S_ADD_U32 produces carry in VCC/SCC. For the vector
 // case, the sgpr-copies pass will fix this to use the vector version.
-def : PPUPat <
+def : PPTPat <
   (i32 (addc i32:$src0, i32:$src1)),
   (S_ADD_U32 $src0, $src1)
 >;
@@ -724,20 +724,20 @@ def : PPUPat <
 // FIXME: We need to use COPY_TO_REGCLASS to work-around the fact that
 // REG_SEQUENCE patterns don't support instructions with multiple
 // outputs.
-def : PPUPat<
+def : PPTPat<
   (i64 (zext i16:$src)),
     (REG_SEQUENCE SReg_64,
       (i32 (COPY_TO_REGCLASS (S_AND_B32 $src, (S_MOV_B32 (i32 0xffff))), SPR_32)), sub0,
       (S_MOV_B32 (i32 0)), sub1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (i64 (sext i16:$src)),
     (REG_SEQUENCE SReg_64, (i32 (S_SEXT_I32_I16 $src)), sub0,
     (i32 (COPY_TO_REGCLASS (S_ASHR_I32 (i32 (S_SEXT_I32_I16 $src)), (S_MOV_B32 (i32 31))), SPR_32)), sub1)
 >;
 
-def : PPUPat<
+def : PPTPat<
   (i32 (zext i16:$src)),
   (S_AND_B32 (S_MOV_B32 (i32 0xffff)), $src)
 >;
@@ -752,7 +752,7 @@ def : PPUPat<
 //===----------------------------------------------------------------------===//
 
 class Select_ppu<string opName> : PPUMCInstr<opName, PPUEncodingFamily.PPU> {
-  Predicate AssemblerPredicate = isPPT;
+  Predicate AssemblerPredicate = IsPPT;
   string DecoderNamespace      = "PPU";
 }
 

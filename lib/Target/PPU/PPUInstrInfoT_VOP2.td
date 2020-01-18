@@ -77,7 +77,7 @@ defm V_LSHL_B32 : VOP2Inst <"v_lshl_b32", VOP_I32_I32_I32>;
 
 
 class DivergentBinOp<SDPatternOperator Op, VOP_Pseudo Inst> :
-  PPUPat<
+  PPTPat<
       (getDivergentFrag<Op>.ret Inst.Pfl.Src0VT:$src0, Inst.Pfl.Src1VT:$src1),
       !if(!cast<Commutable_REV>(Inst).IsOrig,
         (Inst $src0, $src1),
@@ -86,7 +86,7 @@ class DivergentBinOp<SDPatternOperator Op, VOP_Pseudo Inst> :
   >;
 
 class DivergentClampingBinOp<SDPatternOperator Op, VOP_Pseudo Inst> :
-  PPUPat<
+  PPTPat<
       (getDivergentFrag<Op>.ret Inst.Pfl.Src0VT:$src0, Inst.Pfl.Src1VT:$src1),
       !if(!cast<Commutable_REV>(Inst).IsOrig,
         (Inst $src0, $src1, 0),
@@ -110,7 +110,7 @@ def : DivergentBinOp<adde, V_ADDC_U32_e32>;
 def : DivergentBinOp<sube, V_SUBB_U32_e32>;
 
 class divergent_i64_BinOp <SDPatternOperator Op, Instruction Inst> :
-  PPUPat<
+  PPTPat<
       (getDivergentFrag<Op>.ret i64:$src0, i64:$src1),
       (REG_SEQUENCE VReg_64,
         (Inst
@@ -191,28 +191,28 @@ let Constraints = "$vdst = $src2",
 }
 
 let AddedComplexity = 30 in {
-  def : PPUPat<
+  def : PPTPat<
     (f32 (PPUfdot2 v2f16:$src0, v2f16:$src1, f32:$src2, (i1 DSTCLAMP.NONE))),
     (f32 (V_DOT2C_F32_F16_e32 $src0, $src1, $src2))
   > {
     // let SubtargetPredicate = HasDot5Insts;
   }
 
-  def : PPUPat<
+  def : PPTPat<
     (i32 (int_ppu_sdot4 i32:$src0, i32:$src1, i32:$src2, (i1 DSTCLAMP.NONE))),
     (i32 (V_DOT4C_I32_I8_e32 $src0, $src1, $src2))
   > {
     // let SubtargetPredicate = HasDot6Insts;
   }
 
-  def : PPUPat<
+  def : PPTPat<
     (i32 (int_ppu_sdot2 v2i16:$src0, v2i16:$src1, i32:$src2, (i1 DSTCLAMP.NONE))),
     (i32 (V_DOT2C_I32_I16_e32 $src0, $src1, $src2))
   > {
     // let SubtargetPredicate = HasDot4Insts;
   }
 
-  def : PPUPat<
+  def : PPTPat<
     (i32 (int_ppu_sdot8 i32:$src0, i32:$src1, i32:$src2, (i1 DSTCLAMP.NONE))),
     (i32 (V_DOT8C_I32_I4_e32 $src0, $src1, $src2))
   > {
@@ -253,17 +253,17 @@ def ClearHI16 : OutPatFrag<(ops node:$op),
 multiclass Arithmetic_i16_Pats <SDPatternOperator op, Instruction inst,
                                 bit PreservesHI16 = 0> {
 
-def : PPUPat<
+def : PPTPat<
   (op i16:$src0, i16:$src1),
   !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src0, $src1)), (inst $src0, $src1))
 >;
 
-def : PPUPat<
+def : PPTPat<
   (i32 (zext (op i16:$src0, i16:$src1))),
   !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src0, $src1)), (inst $src0, $src1))
 >;
 
-def : PPUPat<
+def : PPTPat<
   (i64 (zext (op i16:$src0, i16:$src1))),
    (REG_SEQUENCE VReg_64,
      !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src0, $src1)), (inst $src0, $src1)),
@@ -275,18 +275,18 @@ def : PPUPat<
 multiclass Bits_OpsRev_i16_Pats <SDPatternOperator op, Instruction inst,
                                  bit PreservesHI16 = 0> {
 
-def : PPUPat<
+def : PPTPat<
   (op i16:$src0, i16:$src1),
   !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src1, $src0)), (inst $src1, $src0))
 >;
 
-def : PPUPat<
+def : PPTPat<
   (i32 (zext (op i16:$src0, i16:$src1))),
   !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src1, $src0)), (inst $src1, $src0))
 >;
 
 
-def : PPUPat<
+def : PPTPat<
   (i64 (zext (op i16:$src0, i16:$src1))),
    (REG_SEQUENCE VReg_64,
      !if(!eq(PreservesHI16,1), (ClearHI16 (inst $src1, $src0)), (inst $src1, $src0)),
@@ -295,7 +295,7 @@ def : PPUPat<
 >;
 }
 
-class ZExt_i16_i1_Pat <SDNode ext> : PPUPat <
+class ZExt_i16_i1_Pat <SDNode ext> : PPTPat <
   (i16 (ext i1:$src)),
   (V_CNDMASK_B32_e64 (i32 0/*src0mod*/), (i32 0/*src0*/),
                      (i32 0/*src1mod*/), (i32 1/*src1*/),
@@ -312,17 +312,17 @@ defm : Arithmetic_i16_Pats<umin, V_MIN_U16_e64,   1>;
 defm : Arithmetic_i16_Pats<umax, V_MAX_U16_e64,   1>;
 }
 
-def : PPUPat <
+def : PPTPat <
   (and i16:$src0, i16:$src1),
   (V_AND_B32_e64 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (or i16:$src0, i16:$src1),
   (V_OR_B32_e64 $src0, $src1)
 >;
 
-def : PPUPat <
+def : PPTPat <
   (xor i16:$src0, i16:$src1),
   (V_XOR_B32_e64 $src0, $src1)
 >;
@@ -336,7 +336,7 @@ defm : Bits_OpsRev_i16_Pats<sra, V_ASHRREV_I16_e64, 1>;
 def : ZExt_i16_i1_Pat<zext>;
 def : ZExt_i16_i1_Pat<anyext>;
 
-def : PPUPat <
+def : PPTPat <
   (i16 (sext i1:$src)),
   (V_CNDMASK_B32_e64 /*src0mod*/(i32 0), /*src0*/(i32 0),
                      /*src1mod*/(i32 0), /*src1*/(i32 -1), $src)
@@ -345,7 +345,7 @@ def : PPUPat <
 // Undo sub x, c -> add x, -c canonicalization since c is more likely
 // an inline immediate than -c.
 // TODO: Also do for 64-bit.
-def : PPUPat<
+def : PPTPat<
   (add i16:$src0, (i16 NegSubInlineConst16:$src1)),
   (V_SUB_U16_e64 $src0, NegSubInlineConst16:$src1)
 >;

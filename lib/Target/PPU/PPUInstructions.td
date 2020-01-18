@@ -398,9 +398,10 @@ class PredicateControl {
                                             OtherPredicates);
 }
 
-class PPUPat<dag pattern, dag result> : Pat<pattern, result>,
-      PredicateControl;
-
+class PPTPat<dag pattern, dag result> : Pat<pattern, result>,
+      PredicateControl {
+  let SubtargetPredicate = IsPPT;
+}
 
 def FP16Denormals : Predicate<"Subtarget->hasFP16Denormals()">;
 def FP32Denormals : Predicate<"Subtarget->hasFP32Denormals()">;
@@ -908,7 +909,7 @@ def FP_HALF : PatLeaf <
 /* -------------------------------------- */
 
 class POW_Common <PPUBaseInst log_ieee, PPUBaseInst exp_ieee, PPUBaseInst mul>
-  : PPUPat <
+  : PPTPat <
   (fpow f32:$src0, f32:$src1),
   (exp_ieee (mul f32:$src1, (log_ieee f32:$src0)))
 >;
@@ -919,7 +920,7 @@ class POW_Common <PPUBaseInst log_ieee, PPUBaseInst exp_ieee, PPUBaseInst mul>
 /* Extract element pattern */
 class Extract_Element <ValueType sub_type, ValueType vec_type, int sub_idx,
                        SubRegIndex sub_reg>
-  : PPUPat<
+  : PPTPat<
   (sub_type (extractelt vec_type:$src, sub_idx)),
   (EXTRACT_SUBREG $src, sub_reg)
 >;
@@ -927,7 +928,7 @@ class Extract_Element <ValueType sub_type, ValueType vec_type, int sub_idx,
 /* Insert element pattern */
 class Insert_Element <ValueType elem_type, ValueType vec_type,
                       int sub_idx, SubRegIndex sub_reg>
-  : PPUPat <
+  : PPTPat <
   (insertelt vec_type:$vec, elem_type:$elem, sub_idx),
   (INSERT_SUBREG $vec, $elem, sub_reg)
 >;
@@ -935,14 +936,14 @@ class Insert_Element <ValueType elem_type, ValueType vec_type,
 // XXX: Convert to new syntax and use COPY_TO_REG, once the DFAPacketizer
 // can handle COPY instructions.
 // bitconvert pattern
-class BitConvert <ValueType dt, ValueType st, RegisterClass rc> : PPUPat <
+class BitConvert <ValueType dt, ValueType st, RegisterClass rc> : PPTPat <
   (dt (bitconvert (st rc:$src0))),
   (dt rc:$src0)
 >;
 
 // XXX: Convert to new syntax and use COPY_TO_REG, once the DFAPacketizer
 // can handle COPY instructions.
-class DwordAddrPat<ValueType vt, RegisterClass rc> : PPUPat <
+class DwordAddrPat<ValueType vt, RegisterClass rc> : PPTPat <
   (vt (PPUdwordaddr (vt rc:$addr))),
   (vt rc:$addr)
 >;
@@ -954,13 +955,13 @@ multiclass BFIPatterns <Instruction BFI_INT,
                         RegisterClass RC64> {
   // Definition from ISA doc:
   // (y & x) | (z & ~x)
-  def : PPUPat <
+  def : PPTPat <
     (or (and i32:$y, i32:$x), (and i32:$z, (not i32:$x))),
     (BFI_INT $x, $y, $z)
   >;
 
   // 64-bit version
-  def : PPUPat <
+  def : PPTPat <
     (or (and i64:$y, i64:$x), (and i64:$z, (not i64:$x))),
     (REG_SEQUENCE RC64,
       (BFI_INT (i32 (EXTRACT_SUBREG $x, sub0)),
@@ -973,13 +974,13 @@ multiclass BFIPatterns <Instruction BFI_INT,
 
   // SHA-256 Ch function
   // z ^ (x & (y ^ z))
-  def : PPUPat <
+  def : PPTPat <
     (xor i32:$z, (and i32:$x, (xor i32:$y, i32:$z))),
     (BFI_INT $x, $y, $z)
   >;
 
   // 64-bit version
-  def : PPUPat <
+  def : PPTPat <
     (xor i64:$z, (and i64:$x, (xor i64:$y, i64:$z))),
     (REG_SEQUENCE RC64,
       (BFI_INT (i32 (EXTRACT_SUBREG $x, sub0)),
@@ -990,18 +991,18 @@ multiclass BFIPatterns <Instruction BFI_INT,
                (i32 (EXTRACT_SUBREG $z, sub1))), sub1)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (fcopysign f32:$src0, f32:$src1),
     (BFI_INT (LoadImm32 (i32 0x7fffffff)), $src0, $src1)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (f32 (fcopysign f32:$src0, f64:$src1)),
     (BFI_INT (LoadImm32 (i32 0x7fffffff)), $src0,
              (i32 (EXTRACT_SUBREG $src1, sub1)))
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (f64 (fcopysign f64:$src0, f64:$src1)),
     (REG_SEQUENCE RC64,
       (i32 (EXTRACT_SUBREG $src0, sub0)), sub0,
@@ -1010,7 +1011,7 @@ multiclass BFIPatterns <Instruction BFI_INT,
                (i32 (EXTRACT_SUBREG $src1, sub1))), sub1)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (f64 (fcopysign f64:$src0, f32:$src1)),
     (REG_SEQUENCE RC64,
       (i32 (EXTRACT_SUBREG $src0, sub0)), sub0,
@@ -1024,12 +1025,12 @@ multiclass BFIPatterns <Instruction BFI_INT,
 
 // ((x & z) | (y & (x | z))) -> BFI_INT (XOR x, y), z, y
 multiclass SHA256MaPattern <Instruction BFI_INT, Instruction XOR, RegisterClass RC64> {
-  def : PPUPat <
+  def : PPTPat <
     (or (and i32:$x, i32:$z), (and i32:$y, (or i32:$x, i32:$z))),
     (BFI_INT (XOR i32:$x, i32:$y), i32:$z, i32:$y)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (or (and i64:$x, i64:$z), (and i64:$y, (or i64:$x, i64:$z))),
     (REG_SEQUENCE RC64,
       (BFI_INT (XOR (i32 (EXTRACT_SUBREG $x, sub0)),
@@ -1055,43 +1056,43 @@ def IMMPopCount : SDNodeXForm<imm, [{
 }]>;
 
 multiclass BFEPattern <Instruction UBFE, Instruction SBFE, Instruction MOV> {
-  def : PPUPat <
+  def : PPTPat <
     (i32 (and (i32 (srl i32:$src, i32:$rshift)), IMMZeroBasedBitfieldMask:$mask)),
     (UBFE $src, $rshift, (MOV (i32 (IMMPopCount $mask))))
   >;
 
   // x & ((1 << y) - 1)
-  def : PPUPat <
+  def : PPTPat <
     (and i32:$src, (add_oneuse (shl_oneuse 1, i32:$width), -1)),
     (UBFE $src, (MOV (i32 0)), $width)
   >;
 
   // x & ~(-1 << y)
-  def : PPUPat <
+  def : PPTPat <
     (and i32:$src, (xor_oneuse (shl_oneuse -1, i32:$width), -1)),
     (UBFE $src, (MOV (i32 0)), $width)
   >;
 
   // x & (-1 >> (bitwidth - y))
-  def : PPUPat <
+  def : PPTPat <
     (and i32:$src, (srl_oneuse -1, (sub 32, i32:$width))),
     (UBFE $src, (MOV (i32 0)), $width)
   >;
 
   // x << (bitwidth - y) >> (bitwidth - y)
-  def : PPUPat <
+  def : PPTPat <
     (srl (shl_oneuse i32:$src, (sub 32, i32:$width)), (sub 32, i32:$width)),
     (UBFE $src, (MOV (i32 0)), $width)
   >;
 
-  def : PPUPat <
+  def : PPTPat <
     (sra (shl_oneuse i32:$src, (sub 32, i32:$width)), (sub 32, i32:$width)),
     (SBFE $src, (MOV (i32 0)), $width)
   >;
 }
 
 // rotr pattern
-class ROTRPattern <Instruction BIT_ALIGN> : PPUPat <
+class ROTRPattern <Instruction BIT_ALIGN> : PPTPat <
   (rotr i32:$src0, i32:$src1),
   (BIT_ALIGN $src0, $src0, $src1)
 >;
@@ -1105,7 +1106,7 @@ multiclass IntMed3Pat<Instruction med3Inst,
 
   // This matches 16 permutations of
   // min(max(a, b), max(min(a, b), c))
-  def : PPUPat <
+  def : PPTPat <
   (min (max_oneuse vt:$src0, vt:$src1),
        (max_oneuse (min_oneuse vt:$src0, vt:$src1), vt:$src2)),
   (med3Inst vt:$src0, vt:$src1, vt:$src2)
@@ -1113,7 +1114,7 @@ multiclass IntMed3Pat<Instruction med3Inst,
 
   // This matches 16 permutations of
   // max(min(x, y), min(max(x, y), z))
-  def : PPUPat <
+  def : PPTPat <
   (max (min_oneuse vt:$src0, vt:$src1),
        (min_oneuse (max_oneuse vt:$src0, vt:$src1), vt:$src2)),
   (med3Inst $src0, $src1, $src2)
@@ -1135,25 +1136,25 @@ def cvt_flr_i32_f32 : PatFrag <
 >;
 
 let AddedComplexity = 2 in {
-class IMad24Pat<Instruction Inst, bit HasClamp = 0> : PPUPat <
+class IMad24Pat<Instruction Inst, bit HasClamp = 0> : PPTPat <
   (add (PPUmul_i24 i32:$src0, i32:$src1), i32:$src2),
   !if(HasClamp, (Inst $src0, $src1, $src2, (i1 0)),
                 (Inst $src0, $src1, $src2))
 >;
 
-class UMad24Pat<Instruction Inst, bit HasClamp = 0> : PPUPat <
+class UMad24Pat<Instruction Inst, bit HasClamp = 0> : PPTPat <
   (add (PPUmul_u24 i32:$src0, i32:$src1), i32:$src2),
   !if(HasClamp, (Inst $src0, $src1, $src2, (i1 0)),
                 (Inst $src0, $src1, $src2))
 >;
 } // AddedComplexity.
 
-class RcpPat<Instruction RcpInst, ValueType vt> : PPUPat <
+class RcpPat<Instruction RcpInst, ValueType vt> : PPTPat <
   (fdiv FP_ONE, vt:$src),
   (RcpInst $src)
 >;
 
-class RsqPat<Instruction RsqInst, ValueType vt> : PPUPat <
+class RsqPat<Instruction RsqInst, ValueType vt> : PPTPat <
   (PPUrcp (fsqrt vt:$src)),
   (RsqInst $src)
 >;

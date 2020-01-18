@@ -15,10 +15,11 @@ def VPRIdxMode : Operand<i32> {
   let OperandType = "OPERAND_IMMEDIATE";
 }
 
+// FIXME why OpName, asmOps is need to pass in PPTInst but AMD don't need it
 // Base pseudo class
 class SOP_Pseudo<string opName, dag outs, dag ins, string asmOps,
             list<dag> pattern=[]> :
-    PPTInst<outs, ins, "", "", pattern> ,
+    PPTInst<outs, ins, opName, asmOps, pattern>,
     PPUMCInstr<opName, PPUEncodingFamily.NONE> {
   let isPseudo           = 1;
   let isCodeGenOnly      = 1;

@@ -82,7 +82,10 @@ def OPC_SYSTEM    : PPUOpcode<0b1110011>;
 class RVInst<dag outs, dag ins, string opcodestr, string argstr,
              list<dag> pattern, InstFormat format>
     // : PPUInst<outs, ins, opcodestr # "\t" # argstr, pattern>, PPUPredicateControl {
-    : Instruction {
+    : Instruction, PredicateControl {
+  let SubtargetPredicate = IsNotPPT;
+  list<Predicate> OtherPredicates = [];
+
   field bits<32> Inst;
   // SoftFail is a field the disassembler can use to provide a way for
   // instructions to not match without killing the whole decode process. It is
@@ -106,9 +109,9 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
 }
 
 
-def isPPT : Predicate<"Subtarget->getGeneration() "
-                      ">= PPUSubtarget::PPT">,
-            AssemblerPredicate<"FeaturePPT">;
+// def isPPT : Predicate<"Subtarget->getGeneration() "
+//                      ">= PPUSubtarget::PPT">,
+//            AssemblerPredicate<"FeaturePPT">;
 
 
 class Enc32 {
@@ -124,7 +127,7 @@ class Enc64 {
 
 class PPTInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
   list<dag> pattern = []> : PPUBaseInst<outs, ins, opcodestr # " " # argstr, pattern>, PredicateControl {
-  let SubtargetPredicate = isPPT;
+  let SubtargetPredicate = IsPPT;
   field bit isRegisterLoad = 0;
   field bit isRegisterStore = 0;
 
@@ -230,11 +233,6 @@ class PPTInst <dag outs, dag ins, string opcodestr = "", string argstr = "",
 
   // This bit indicates that this is one of MFMA instructions.
   field bit IsMAI = 0;
-
-
-  // These need to be kept in sync with the enum in PPUInstrFlags.
-  let TSFlags{0} = SALU;
-  let TSFlags{1} = VALU;
 
 
 

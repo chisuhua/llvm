@@ -322,49 +322,49 @@ defm GLOBAL_ATOMIC_PK_ADD_F16 : FLAT_Global_Atomic_Pseudo_NO_RTN <
 //===----------------------------------------------------------------------===//
 
 // Patterns for global loads with no offset.
-class FlatLoadPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatLoadPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (vt (node (FLATOffset i64:$vaddr, i16:$offset, i1:$slc))),
   (inst $vaddr, $offset, 0, 0, $slc)
 >;
 
-class FlatLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (node (FLATOffset (i64 VReg_64:$vaddr), i16:$offset, i1:$slc), vt:$in),
   (inst $vaddr, $offset, 0, 0, $slc, $in)
 >;
 
-class FlatSignedLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatSignedLoadPat_D16 <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (node (FLATOffsetSigned (i64 VReg_64:$vaddr), i16:$offset, i1:$slc), vt:$in),
   (inst $vaddr, $offset, 0, 0, $slc, $in)
 >;
 
-class FlatLoadAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatLoadAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (vt (node (FLATAtomic (i64 VReg_64:$vaddr), i16:$offset, i1:$slc))),
   (inst $vaddr, $offset, 0, 0, $slc)
 >;
 
-class FlatLoadSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatLoadSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (vt (node (FLATOffsetSigned (i64 VReg_64:$vaddr), i16:$offset, i1:$slc))),
   (inst $vaddr, $offset, 0, 0, $slc)
 >;
 
-class FlatStorePat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPUPat <
+class FlatStorePat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
   (node vt:$data, (FLATOffset i64:$vaddr, i16:$offset, i1:$slc)),
   (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPUPat <
+class FlatStoreSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
   (node vt:$data, (FLATOffsetSigned i64:$vaddr, i16:$offset, i1:$slc)),
   (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPUPat <
+class FlatStoreAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
   // atomic store follows atomic binop convention so the address comes
   // first.
   (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
   (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
 >;
 
-class FlatStoreSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPUPat <
+class FlatStoreSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
   // atomic store follows atomic binop convention so the address comes
   // first.
   (node (FLATSignedAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
@@ -372,18 +372,18 @@ class FlatStoreSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueT
 >;
 
 class FlatAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt,
-                     ValueType data_vt = vt> : PPUPat <
+                     ValueType data_vt = vt> : PPTPat <
   (vt (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), data_vt:$data)),
   (inst $vaddr, $data, $offset, $slc)
 >;
 
-class FlatAtomicPatNoRtn <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPUPat <
+class FlatAtomicPatNoRtn <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
   (node (FLATAtomic i64:$vaddr, i16:$offset, i1:$slc), vt:$data),
   (inst $vaddr, $data, $offset, $slc)
 >;
 
 class FlatSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt,
-                     ValueType data_vt = vt> : PPUPat <
+                     ValueType data_vt = vt> : PPTPat <
   (vt (node (FLATSignedAtomic i64:$vaddr, i16:$offset, i1:$slc), data_vt:$data)),
   (inst $vaddr, $data, $offset, $slc)
 >;
@@ -581,7 +581,7 @@ class FLAT_Real_vi <bits<7> op, FLAT_Pseudo ps> :
   PPUMCInstr <ps.PseudoInstr, PPUEncodingFamily.PPU> {
   // let AssemblerPredicate = isGFX8GFX9;
   // let DecoderNamespace = "GFX8";
-  let AssemblerPredicate = isPPT;
+  let AssemblerPredicate = IsPPT;
   let DecoderNamespace = "PPU";
 }
 
@@ -598,7 +598,7 @@ class FLAT_Real_ppu<bits<7> op, FLAT_Pseudo ps> :
     FLAT_Real<op, ps>, PPUMCInstr<ps.PseudoInstr, PPUEncodingFamily.PPU> {
   // let AssemblerPredicate = isGFX10Plus;
   // let DecoderNamespace = "GFX10";
-  let AssemblerPredicate = isPPT;
+  let AssemblerPredicate = IsPPT;
   let DecoderNamespace = "PPU";
 
   let Inst{11-0}  = {offset{12}, offset{10-0}};
