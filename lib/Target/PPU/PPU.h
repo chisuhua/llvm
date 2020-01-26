@@ -62,11 +62,10 @@ extern char &PPUAtomicOptimizerID;
 ModulePass *createPPULowerIntrinsicsPass();
 void initializePPULowerIntrinsicsPass(PassRegistry &);
 extern char &PPULowerIntrinsicsID;
-/*
+
 ModulePass *createPPUFixFunctionBitcastsPass();
 void initializePPUFixFunctionBitcastsPass(PassRegistry &);
 extern char &PPUFixFunctionBitcastsID;
-*/
 
 FunctionPass *createPPULowerKernelArgumentsPass();
 void initializePPULowerKernelArgumentsPass(PassRegistry &);
@@ -94,16 +93,17 @@ FunctionPass *createPPULoadStoreOptimizerPass();
 void initializePPULoadStoreOptimizerPass(PassRegistry &);
 extern char &PPULoadStoreOptimizerID;
 
-// FunctionPass *createPPUFixSGPRCopiesPass();
-// void initializePPUFixSGPRCopiesPass(PassRegistry &);
-// extern char &PPUFixSGPRCopiesID;
+FunctionPass *createPPUFixSGPRCopiesPass();
+void initializePPUFixSGPRCopiesPass(PassRegistry &);
+extern char &PPUFixSGPRCopiesID;
 
+FunctionPass *createPPUFixVGPRCopiesPass();
 void initializePPUFixVGPRCopiesPass(PassRegistry &);
 extern char &PPUFixVGPRCopiesID;
 
-// FunctionPass *createPPUFixupVectorISelPass();
-// void initializePPUFixupVectorISelPass(PassRegistry &);
-// extern char &PPUFixupVectorISelID;
+FunctionPass *createPPUFixupVectorISelPass();
+void initializePPUFixupVectorISelPass(PassRegistry &);
+extern char &PPUFixupVectorISelID;
 
 
 FunctionPass *createPPULowerI1CopiesPass();

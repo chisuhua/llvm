@@ -174,9 +174,8 @@ PPUBaseRegisterInfo::getCallPreservedMask(const MachineFunction & MF,
   }
 }
 
-// unsigned PPUBaseRegisterInfo::getVCC() const {
-//   return PPU::VCC;
-// }
+
+// below non-Base is for compute
 
 static bool hasPressureSet(const int *PSets, unsigned PSetID) {
   for (unsigned i = 0; PSets[i] != -1; ++i) {
@@ -655,6 +654,9 @@ bool PPURegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
 
 const TargetRegisterClass *PPURegisterInfo::getPointerRegClass(
   const MachineFunction &MF, unsigned Kind) const {
+  if (!PPU::isCompute(&MF)) {
+        return PPUBaseRegisterInfo::getPointerRegClass(MF, Kind);
+  }
   // This is inaccurate. It depends on the instruction and address space. The
   // only place where we should hit this is for dealing with frame indexes /
   // private accesses, so this is correct in that case.
@@ -2099,6 +2101,7 @@ PPURegisterInfo::getRegClass(unsigned RCID) const {
   case -1:
     return nullptr;
   default:
+    // default is not calling non-compute , it is calling PPUGenRegisterInfo
     return PPUBaseRegisterInfo::getRegClass(RCID);
   }
 }

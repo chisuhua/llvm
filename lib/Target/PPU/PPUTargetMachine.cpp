@@ -163,9 +163,9 @@ extern "C" void LLVMInitializePPUTarget() {
   initializePPULoadStoreOptimizerPass(*PR);
   initializePPULowerSPRSpillsPass(*PR);
   initializePPULowerI1CopiesPass(*PR);
-  // initializePPUFixSGPRCopiesPass(*PR);
+  initializePPUFixSGPRCopiesPass(*PR);
   initializePPUFixVGPRCopiesPass(*PR);
-  // initializePPUFixupVectorISelPass(*PR);
+  initializePPUFixupVectorISelPass(*PR);
   initializePPUAlwaysInlinePass(*PR);
   initializePPUAnnotateKernelFeaturesPass(*PR);
   initializePPUAnnotateUniformValuesPass(*PR);
@@ -636,7 +636,7 @@ bool PPUPassConfig::addInstSelector() {
   addPass(createPPUISelDag(getPPUTargetMachine(), getOptLevel()), false);
 
   // GCN
-  // addPass(&PPUFixSGPRCopiesID);
+  addPass(&PPUFixSGPRCopiesID);
   addPass(createPPULowerI1CopiesPass());
   // TODO schi addPass(createPPUFixupVectorISelPass());
   /*

@@ -44,7 +44,6 @@ def PPUatomic_dec : SDNode<"PPUISD::ATOMIC_DEC", SDTAtomic2,
   [SDNPMayLoad, SDNPMayStore, SDNPMemOperand, SDNPHasChain]
 >;
 
-
 def SDTAtomic2_f32 : SDTypeProfile<1, 2, [
   SDTCisSameAs<0,2>, SDTCisFP<0>, SDTCisPtrTy<1>
 ]>;
@@ -150,10 +149,10 @@ def SIbuffer_store_format : SDNode <"PPUISD::BUFFER_STORE_FORMAT",
 def SIbuffer_store_format_d16 : SDNode <"PPUISD::BUFFER_STORE_FORMAT_D16",
                             SDTBufferStore,
                             [SDNPMayStore, SDNPMemOperand, SDNPHasChain]>;
-/*
+
 class SDBufferAtomic<string opcode> : SDNode <opcode,
   SDTypeProfile<1, 8,
-       [SDTCisVT<2, v4i32>, // rsrc
+       [SDTCisVT<2, v2i32>, // rsrc
        SDTCisVT<3, i32>,   // vindex(VGPR)
        SDTCisVT<4, i32>,   // voffset(VGPR)
        SDTCisVT<5, i32>,   // soffset(SGPR)
@@ -166,7 +165,7 @@ class SDBufferAtomic<string opcode> : SDNode <opcode,
 class SDBufferAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
   SDTypeProfile<0, 8,
       [SDTCisVT<0, ty>,    // vdata
-       SDTCisVT<1, v4i32>, // rsrc
+       SDTCisVT<1, v2i32>, // rsrc
        SDTCisVT<2, i32>,   // vindex(VGPR)
        SDTCisVT<3, i32>,   // voffset(VGPR)
        SDTCisVT<4, i32>,   // soffset(SGPR)
@@ -196,7 +195,7 @@ def SIbuffer_atomic_cmpswap : SDNode <"PPUISD::BUFFER_ATOMIC_CMPSWAP",
     [SDTCisVT<0, i32>,   // dst
      SDTCisVT<1, i32>,   // src
      SDTCisVT<2, i32>,   // cmp
-     SDTCisVT<3, v4i32>, // rsrc
+     SDTCisVT<3, v2i32>, // rsrc
      SDTCisVT<4, i32>,   // vindex(VGPR)
      SDTCisVT<5, i32>,   // voffset(VGPR)
      SDTCisVT<6, i32>,   // soffset(SGPR)
@@ -205,7 +204,6 @@ def SIbuffer_atomic_cmpswap : SDNode <"PPUISD::BUFFER_ATOMIC_CMPSWAP",
      SDTCisVT<9, i1>]>,  // idxen(imm)
   [SDNPMemOperand, SDNPHasChain, SDNPMayLoad, SDNPMayStore]
 >;
-*/
 
 class SDGlobalAtomicNoRtn<string opcode, ValueType ty> : SDNode <opcode,
   SDTypeProfile<0, 2,
@@ -259,7 +257,6 @@ def SIdenorm_mode : SDNode<"PPUISD::DENORM_MODE",
   SDTypeProfile<0 ,1, [SDTCisInt<0>]>,
   [SDNPHasChain, SDNPSideEffect, SDNPOptInGlue, SDNPOutGlue]
 >;
-
 
 //===----------------------------------------------------------------------===//
 // ValueType helpers
@@ -328,7 +325,6 @@ def atomic_pk_fadd_global_noret : PatFrag<
   let IsAtomic = 1;
   let AddressSpaces = StoreAddress_global.AddrSpaces;
 }
-
 
 //===----------------------------------------------------------------------===//
 // SDNodes PatFrags for loads/stores with a glue input.
@@ -525,7 +521,6 @@ def store_align16_local_m0 : StoreFrag<store_glue_align16>, LocalAddress {
   let IsTruncStore = 0;
 }
 }
-
 
 def si_setcc_uniform : PatFrag <
   (ops node:$lhs, node:$rhs, node:$cond),
@@ -733,7 +728,6 @@ def NegSubInlineConstV216 : PatLeaf<(build_vector), [{
   return (isNullConstantOrUndef(Src0) && isNegInlineImmediate(Src1.getNode())) ||
          (isNullConstantOrUndef(Src1) && isNegInlineImmediate(Src0.getNode()));
 }], getNegV2I16Imm>;
-
 
 //===----------------------------------------------------------------------===//
 // Custom Operands
@@ -1100,9 +1094,6 @@ def VOP3PMadMixMods  : ComplexPattern<untyped, 2, "SelectVOP3PMadMixMods">;
 
 def Hi16Elt  : ComplexPattern<untyped, 1, "SelectHi16Elt">;
 
-
-
-
 //===----------------------------------------------------------------------===//
 // SI assembler operands
 //===----------------------------------------------------------------------===//
@@ -1245,10 +1236,10 @@ class getNumSrcArgs<ValueType Src0, ValueType Src1, ValueType Src2> {
 // instructions for the given VT.
 class getVALUDstForVT<ValueType VT> {
   RegisterOperand ret = !if(!eq(VT.Size, 32), VOPDstOperand<VPR_32>,
+                          !if(!eq(VT.Size, 128), VOPDstOperand<VReg_128>,
                             !if(!eq(VT.Size, 64), VOPDstOperand<VReg_64>,
                               !if(!eq(VT.Size, 16), VOPDstOperand<VPR_32>,
-                              VOPDstS64orS32))); // else VT == i1
-//                          !if(!eq(VT.Size, 128), VOPDstOperand<VReg_128>,
+                              VOPDstS64orS32)))); // else VT == i1
 }
 // Returns true if VT is floating point.
 class getIsFP<ValueType VT> {
@@ -1296,9 +1287,11 @@ class getVOPSrc0ForVT<ValueType VT> {
 
 // Returns the vreg register class to use for source operand given VT
 class getVregSrcForVT<ValueType VT> {
-  RegisterClass ret = !if(!eq(VT.Size, 64), VReg_64,
+  RegisterClass ret = !if(!eq(VT.Size, 128), VReg_128,
+                        !if(!eq(VT.Size, 96), VReg_96,
+                          !if(!eq(VT.Size, 64), VReg_64,
                             !if(!eq(VT.Size, 48), VReg_64,
-                              VPR_32));
+                              VPR_32))));
 }
 
 // Returns the register class to use for sources of VOP3 instructions for the
@@ -1306,6 +1299,8 @@ class getVregSrcForVT<ValueType VT> {
 class getVOP3SrcForVT<ValueType VT> {
   bit isFP = getIsFP<VT>.ret;
   RegisterOperand ret =
+  !if(!eq(VT.Size, 128),
+     VSrc_128,
      !if(!eq(VT.Size, 64),
         !if(isFP,
            VSrc_f64,
@@ -1332,7 +1327,8 @@ class getVOP3SrcForVT<ValueType VT> {
               )
            )
         )
-     );
+     )
+  );
 }
 
 // Float or packed int
@@ -1612,7 +1608,6 @@ def PatGenMode {
   int NoPattern = 0;
   int Pattern   = 1;
 }
-
 
 class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
                   bit _EnableClamp = 0> {
@@ -2398,19 +2393,15 @@ class SI_INDIRECT_DST<RegisterClass rc> : VPseudoInst <
 // TODO: We can support indirect SGPR access.
 def SI_INDIRECT_SRC_V1 : SI_INDIRECT_SRC<VPR_32>;
 def SI_INDIRECT_SRC_V2 : SI_INDIRECT_SRC<VReg_64>;
-/*
 def SI_INDIRECT_SRC_V4 : SI_INDIRECT_SRC<VReg_128>;
-def SI_INDIRECT_SRC_V8 : SI_INDIRECT_SRC<VReg_256>;
-def SI_INDIRECT_SRC_V16 : SI_INDIRECT_SRC<VReg_512>;
-*/
+// def SI_INDIRECT_SRC_V8 : SI_INDIRECT_SRC<VReg_256>;
+// def SI_INDIRECT_SRC_V16 : SI_INDIRECT_SRC<VReg_512>;
 
 def SI_INDIRECT_DST_V1 : SI_INDIRECT_DST<VPR_32>;
 def SI_INDIRECT_DST_V2 : SI_INDIRECT_DST<VReg_64>;
-/*
 def SI_INDIRECT_DST_V4 : SI_INDIRECT_DST<VReg_128>;
-def SI_INDIRECT_DST_V8 : SI_INDIRECT_DST<VReg_256>;
-def SI_INDIRECT_DST_V16 : SI_INDIRECT_DST<VReg_512>;
-*/
+// def SI_INDIRECT_DST_V8 : SI_INDIRECT_DST<VReg_256>;
+// def SI_INDIRECT_DST_V16 : SI_INDIRECT_DST<VReg_512>;
 
 } // End Uses = [TMSK], Defs = [M0, TMSK]
 
@@ -2772,7 +2763,6 @@ foreach Index = 0-2 in {
   >;
 }
 
-/*
 foreach Index = 0-2 in {
   def Extract_Element_v3i32_#Index : Extract_Element <
     i32, v3i32, Index, !cast<SubRegIndex>(sub#Index)
@@ -2805,6 +2795,7 @@ foreach Index = 0-3 in {
   >;
 }
 
+/*
 foreach Index = 0-4 in {
   def Extract_Element_v5i32_#Index : Extract_Element <
     i32, v5i32, Index, !cast<SubRegIndex>(sub#Index)
@@ -2854,7 +2845,7 @@ foreach Index = 0-15 in {
 }
 
 */
-
+// FIXME is it need to change to PPTPat
 def : Pat <
   (extract_subvector v4i16:$vec, (i32 0)),
   (v2i16 (EXTRACT_SUBREG v4i16:$vec, sub0))
@@ -3238,12 +3229,12 @@ multiclass SI_INDIRECT_Pattern <ValueType vt, ValueType eltvt, string VecSize> {
 }
 
 defm : SI_INDIRECT_Pattern <v2f32, f32, "V2">;
-// defm : SI_INDIRECT_Pattern <v4f32, f32, "V4">;
+defm : SI_INDIRECT_Pattern <v4f32, f32, "V4">;
 // defm : SI_INDIRECT_Pattern <v8f32, f32, "V8">;
 // defm : SI_INDIRECT_Pattern <v16f32, f32, "V16">;
 
 defm : SI_INDIRECT_Pattern <v2i32, i32, "V2">;
-//defm : SI_INDIRECT_Pattern <v4i32, i32, "V4">;
+defm : SI_INDIRECT_Pattern <v4i32, i32, "V4">;
 // defm : SI_INDIRECT_Pattern <v8i32, i32, "V8">;
 // defm : SI_INDIRECT_Pattern <v16i32, i32, "V16">;
 
