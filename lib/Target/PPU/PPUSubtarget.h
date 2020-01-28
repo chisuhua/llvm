@@ -399,8 +399,8 @@ protected:
   bool FlatAddressSpace {true};
   bool FlatInstOffsets {false};
   bool FlatGlobalInsts {true};
-  bool FlatScratchInsts {false};
-  bool ScalarFlatScratchInsts {false};
+  bool FlatScratchInsts {true};
+  bool ScalarFlatScratchInsts {true};
   bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
   /*

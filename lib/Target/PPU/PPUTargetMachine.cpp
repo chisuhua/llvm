@@ -638,12 +638,11 @@ bool PPUPassConfig::addInstSelector() {
   // GCN
   addPass(&PPUFixSGPRCopiesID);
   addPass(createPPULowerI1CopiesPass());
-  // TODO schi addPass(createPPUFixupVectorISelPass());
-  /*
+  addPass(createPPUFixupVectorISelPass());
+  // addPass(createSIAddIMGInitPass());
   // FIXME: Remove this once the phi on CF_END is cleaned up by either removing
   // LCSSA or other ways.
   addPass(&UnreachableMachineBlockElimID);
-  */
   return false;
 }
 
