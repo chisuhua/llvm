@@ -11,8 +11,8 @@
 defm S_LOAD_DWORD    : SM_Pseudo_Loads <"s_load_dword", SReg_64, SReg_32>;
 defm S_LOAD_DWORDX2  : SM_Pseudo_Loads <"s_load_dwordx2", SReg_64, SReg_64>;
 defm S_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_load_dwordx4", SReg_64, SReg_128>;
-// defm S_LOAD_DWORDX8  : SM_Pseudo_Loads <"s_load_dwordx8", SReg_64, SReg_256>;
-// defm S_LOAD_DWORDX16 : SM_Pseudo_Loads <"s_load_dwordx16", SReg_64, SReg_512>;
+defm S_LOAD_DWORDX8  : SM_Pseudo_Loads <"s_load_dwordx8", SReg_64, SReg_256>;
+defm S_LOAD_DWORDX16 : SM_Pseudo_Loads <"s_load_dwordx16", SReg_64, SReg_512>;
 
 // TODO i change base registerclass from SReg_128 to SReg_64
 defm S_BUFFER_LOAD_DWORD : SM_Pseudo_Loads <
@@ -25,17 +25,17 @@ defm S_BUFFER_LOAD_DWORDX2 : SM_Pseudo_Loads <
   "s_buffer_load_dwordx2", SReg_64, SReg_64
 >;
 
-// defm S_BUFFER_LOAD_DWORDX4 : SM_Pseudo_Loads <
-//   "s_buffer_load_dwordx4", SReg_128, SReg_128
-// >;
+defm S_BUFFER_LOAD_DWORDX4 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx4", SReg_64, SReg_128
+>;
 
-// defm S_BUFFER_LOAD_DWORDX8 : SM_Pseudo_Loads <
-//   "s_buffer_load_dwordx8", SReg_128, SReg_256
-// >;
+defm S_BUFFER_LOAD_DWORDX8 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx8", SReg_64, SReg_256
+>;
 
-// defm S_BUFFER_LOAD_DWORDX16 : SM_Pseudo_Loads <
-//   "s_buffer_load_dwordx16", SReg_128, SReg_512
-// >;
+defm S_BUFFER_LOAD_DWORDX16 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx16", SReg_64, SReg_512
+>;
 
 let SubtargetPredicate = HasScalarStores in {
 defm S_STORE_DWORD : SM_Pseudo_Stores <"s_store_dword", SReg_64, SReg_32>;
@@ -77,11 +77,11 @@ def S_GET_WAVEID_IN_WORKGROUP : SM_WaveId_Pseudo <"s_get_waveid_in_workgroup", i
 let SubtargetPredicate = HasScalarFlatScratchInsts, Uses = [FLAT_SCR] in {
 defm S_SCRATCH_LOAD_DWORD    : SM_Pseudo_Loads <"s_scratch_load_dword",   SReg_64, SReg_32>;
 defm S_SCRATCH_LOAD_DWORDX2  : SM_Pseudo_Loads <"s_scratch_load_dwordx2", SReg_64, SReg_64>;
-// defm S_SCRATCH_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_scratch_load_dwordx4", SReg_64, SReg_128>;
+defm S_SCRATCH_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_scratch_load_dwordx4", SReg_64, SReg_128>;
 
 defm S_SCRATCH_STORE_DWORD   : SM_Pseudo_Stores <"s_scratch_store_dword",   SReg_64, SReg_32>;
 defm S_SCRATCH_STORE_DWORDX2 : SM_Pseudo_Stores <"s_scratch_store_dwordx2", SReg_64, SReg_64>;
-// defm S_SCRATCH_STORE_DWORDX4 : SM_Pseudo_Stores <"s_scratch_store_dwordx4", SReg_64, SReg_128>;
+defm S_SCRATCH_STORE_DWORDX4 : SM_Pseudo_Stores <"s_scratch_store_dwordx4", SReg_64, SReg_128>;
 } // SubtargetPredicate = HasScalarFlatScratchInsts
 
 let SubtargetPredicate = HasScalarAtomics in {

@@ -25,7 +25,7 @@ class VOP2_MADKe <bits<6> op, VOPProfile P> : Enc64 {
 }
 
 class VOP2_Pseudo <string opName, VOPProfile P, list<dag> pattern=[], string suffix = "_e32"> :
-  VOP_Pseudo <opName, suffix, P, P.Outs32, P.Ins32, "", pattern> {
+  VOP_Pseudo <opName, suffix, P, P.Outs32, P.Ins32, P.Asm32, pattern> {
 
   let AsmOperands = P.Asm32;
 

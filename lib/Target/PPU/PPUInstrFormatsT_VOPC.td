@@ -44,7 +44,7 @@ class VOPC_NoSdst_Profile<list<SchedReadWrite> sched, ValueType vt0,
 
 class VOPC_Pseudo <string opName, VOPC_Profile P, list<dag> pattern=[],
                    bit DefVcc = 1> :
-  PPTInst<(outs), P.Ins32, "", "", pattern>,
+  PPTInst<(outs), P.Ins32, opName, P.Asm32, pattern>,
   VOP <opName> ,
   PPUMCInstr<opName#"_e32", PPUEncodingFamily.NONE> {
 

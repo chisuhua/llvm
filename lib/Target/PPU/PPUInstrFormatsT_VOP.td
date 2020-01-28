@@ -38,8 +38,8 @@ class VOPAnyCommon <dag outs, dag ins, string asm, list<dag> pattern> :
 }
 
 class VOP_Pseudo <string opName, string suffix, VOPProfile P, dag outs, dag ins,
-                  string asm, list<dag> pattern> :
-  PPTInst <outs, ins, asm, "", pattern>,
+                  string asmOps, list<dag> pattern> :
+  PPTInst <outs, ins, opName#suffix, asmOps, pattern>,
   VOP <opName>,
   PPUMCInstr <opName#suffix, PPUEncodingFamily.NONE>,
   MnemonicAlias<opName#suffix, opName> {
@@ -86,7 +86,10 @@ class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
               !if(isVop3OpSel,
                   P.InsVOP3OpSel,
                   !if(!and(isVOP3P, P.IsPacked), P.InsVOP3P, P.Ins64)),
-              "", pattern> {
+              !if(isVop3OpSel,
+                  P.AsmVOP3OpSel,
+                  !if(!and(isVOP3P, P.IsPacked), P.AsmVOP3P, P.Asm64)),
+              pattern> {
 
   // TODO let VOP3_OPSEL = isVop3OpSel;
   let IsPacked = P.IsPacked;

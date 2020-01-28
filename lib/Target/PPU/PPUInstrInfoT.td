@@ -2003,6 +2003,8 @@ include "PPUInstrInfoT_VOP3P.td"
 include "PPUInstrInfoT_VOPC.td"
 
 include "PPUInstrInfoT_FLAT.td"
+
+// TODO disable BUffer Load Store for now, but we need eanble it after global/scratch load/store works
 include "PPUInstrInfoT_BUF.td"
 include "PPUInstrInfoT_LDS.td"
 
