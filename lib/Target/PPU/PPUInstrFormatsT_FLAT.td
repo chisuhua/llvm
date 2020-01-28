@@ -18,7 +18,7 @@ def FLATSignedAtomic : ComplexPattern<i64, 3, "SelectFlatAtomicSigned", [], [SDN
 
 class FLAT_Pseudo<string opName, dag outs, dag ins,
                   string asmOps, list<dag> pattern=[]> :
-  PPTInst<outs, ins, "", "", pattern>,
+  PPTInst<outs, ins, opName, asmOps, pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
 
   let isPseudo = 1;
@@ -191,14 +191,14 @@ multiclass FLAT_Global_Store_Pseudo<string opName, RegisterClass regClass> {
       GlobalSaddrTable<1, opName>;
   }
 }
-
+// FIXM I change saddr/vaddr from 32 to 64
 class FLAT_Scratch_Load_Pseudo <string opName, RegisterClass regClass,
   bit EnableSaddr = 0>: FLAT_Pseudo<
   opName,
   (outs regClass:$vdst),
   !if(EnableSaddr,
-      (ins SReg_32:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-      (ins VPR_32:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+      (ins SReg_64:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+      (ins VReg_64:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   " $vdst, "#!if(EnableSaddr, "off", "$vaddr")#!if(EnableSaddr, ", $saddr", ", off")#"$offset$glc$slc$dlc"> {
   let has_data = 0;
   let mayLoad = 1;
@@ -209,12 +209,18 @@ class FLAT_Scratch_Load_Pseudo <string opName, RegisterClass regClass,
   let maybeAtomic = 1;
 }
 
+// FIXM I change saddr/vaddr from 32 to 64
 class FLAT_Scratch_Store_Pseudo <string opName, RegisterClass vdataClass, bit EnableSaddr = 0> : FLAT_Pseudo<
   opName,
   (outs),
   !if(EnableSaddr,
-    (ins vdataClass:$vdata, SReg_32:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-    (ins vdataClass:$vdata, VPR_32:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+    (ins SReg_64:$saddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+    (ins VReg_64:$vaddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+  /*
+  !if(EnableSaddr,
+    (ins vdataClass:$vdata, SReg_64:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+    (ins vdataClass:$vdata, VReg_64:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+    */
   " "#!if(EnableSaddr, "off", "$vaddr")#", $vdata, "#!if(EnableSaddr, "$saddr", "off")#"$offset$glc$slc$dlc"> {
   let mayLoad  = 0;
   let mayStore = 1;
@@ -228,15 +234,19 @@ class FLAT_Scratch_Store_Pseudo <string opName, RegisterClass vdataClass, bit En
 
 multiclass FLAT_Scratch_Load_Pseudo<string opName, RegisterClass regClass> {
   let is_flat_scratch = 1 in {
-    def "" : FLAT_Scratch_Load_Pseudo<opName, regClass>;
-    def _SADDR : FLAT_Scratch_Load_Pseudo<opName, regClass, 1>;
+    def "" : FLAT_Scratch_Load_Pseudo<opName, regClass>,
+      GlobalSaddrTable<0, opName>;
+    def _SADDR : FLAT_Scratch_Load_Pseudo<opName, regClass, 1>,
+      GlobalSaddrTable<1, opName>;
   }
 }
 
 multiclass FLAT_Scratch_Store_Pseudo<string opName, RegisterClass regClass> {
   let is_flat_scratch = 1 in {
-    def "" : FLAT_Scratch_Store_Pseudo<opName, regClass>;
-    def _SADDR : FLAT_Scratch_Store_Pseudo<opName, regClass, 1>;
+    def "" : FLAT_Scratch_Store_Pseudo<opName, regClass>,
+      GlobalSaddrTable<0, opName>;
+    def _SADDR : FLAT_Scratch_Store_Pseudo<opName, regClass, 1>,
+      GlobalSaddrTable<1, opName>;
   }
 }
 
