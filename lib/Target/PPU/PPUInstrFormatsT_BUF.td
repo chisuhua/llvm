@@ -48,8 +48,10 @@ class MTBUFAddr64Table <bit is_addr64, string Name> {
 
 class MTBUF_Pseudo <string opName, dag outs, dag ins,
                     string asmOps, list<dag> pattern=[]> :
-  PPTInst<outs, ins, "", "", pattern>,
+  PPTInst<outs, ins, opName, asmOps, pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
+
+  let AddedComplexity = 0;
 
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -275,8 +277,10 @@ class MUBUFGetBaseOpcode<string Op> {
 
 class MUBUF_Pseudo <string opName, dag outs, dag ins,
                     string asmOps, list<dag> pattern=[]> :
-  PPTInst<outs, ins, "", "", pattern>,
+  PPTInst<outs, ins, opName, asmOps, pattern>,
   PPUMCInstr<opName, PPUEncodingFamily.NONE> {
+
+  let AddedComplexity = 0;
 
   let isPseudo = 1;
   let isCodeGenOnly = 1;
@@ -474,19 +478,19 @@ class MUBUF_Load_Pseudo <string opName,
   let elements = getMUBUFElements<vdata_vt>.ret;
 }
 
-
-class MUBUF_Offset_Load_Pat <Instruction inst, ValueType load_vt = i32, SDPatternOperator ld = null_frag> : Pat <
+class MUBUF_Offset_Load_Pat <Instruction inst, ValueType load_vt = i32, SDPatternOperator ld = null_frag> : PPTPat <
   (load_vt (ld (MUBUFOffset v2i32:$srsrc, i32:$soffset, i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))),
   (load_vt (inst v2i32:$srsrc, i32:$soffset, i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))
 >;
 
 class MUBUF_Addr64_Load_Pat <Instruction inst,
                             ValueType load_vt = i32,
-                            SDPatternOperator ld = null_frag> : Pat <
+                            SDPatternOperator ld = null_frag> : PPTPat <
   (load_vt (ld (MUBUFAddr64 v2i32:$srsrc, i64:$vaddr, i32:$soffset, i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))),
   (load_vt (inst i64:$vaddr, v2i32:$srsrc, i32:$soffset, i16:$offset, i1:$glc, i1:$slc, i1:$tfe, i1:$dlc))
 >;
 
+// TODO Store Pat is need to added also
 multiclass MUBUF_Pseudo_Load_Pats<string BaseInst, ValueType load_vt = i32, SDPatternOperator ld = null_frag> {
   def : MUBUF_Offset_Load_Pat<!cast<Instruction>(BaseInst#"_OFFSET"), load_vt, ld>;
   def : MUBUF_Addr64_Load_Pat<!cast<Instruction>(BaseInst#"_ADDR64"), load_vt, ld>;
@@ -500,7 +504,6 @@ multiclass MUBUF_Pseudo_Loads<string opName,
                               SDPatternOperator ld = null_frag,
                               bit TiedDest = 0,
                               bit isLds = 0> {
-
   def _OFFSET : MUBUF_Load_Pseudo <opName, BUFAddrKind.Offset, load_vt, TiedDest, isLds>,
     MUBUFAddr64Table<0, NAME # !if(isLds, "_LDS", "")>;
 
