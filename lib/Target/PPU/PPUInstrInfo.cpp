@@ -2316,6 +2316,7 @@ bool PPUInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB
     case PPU::SI_ELSE:
     case PPU::SI_KILL_I1_TERMINATOR:
     case PPU::SI_KILL_F32_COND_IMM_TERMINATOR:
+    case PPU::SI_NON_UNIFORM_BRCOND_PSEUDO:     // FIXME PPU schi add it 
       // FIXME: It's messy that these need to be considered here at all.
       return true;
     default:

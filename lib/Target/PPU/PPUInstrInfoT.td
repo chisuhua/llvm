@@ -2311,10 +2311,9 @@ def SI_RETURN : SPseudoInst <
 //
 // This version is only needed so we can fill in the output regiter in
 // the custom inserter.
-/* FIXME
 def SI_CALL_ISEL : SPseudoInst <
   (outs), (ins SSrc_b64:$src0, unknown:$callee),
-  [(AMDGPUcall i64:$src0, tglobaladdr:$callee)]> {
+  [(PPUcall i64:$src0, tglobaladdr:$callee)]> {
   let Size = 4;
   let isCall = 1;
   let SchedRW = [WriteBranch];
@@ -2322,7 +2321,6 @@ def SI_CALL_ISEL : SPseudoInst <
   // TODO: Should really base this on the call target
   let isConvergent = 1;
 }
-*/
 
 // Wrapper around s_swappc_b64 with extra $callee parameter to track
 // the called function after regalloc.
@@ -2336,11 +2334,10 @@ def SI_CALL : SPseudoInst <
   let isConvergent = 1;
 }
 
-/*
 // Tail call handling pseudo
 def SI_TCRETURN : SPseudoInst <(outs),
   (ins SSrc_b64:$src0, unknown:$callee, i32imm:$fpdiff),
-  [(AMDGPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
+  [(PPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
   let Size = 4;
   let isCall = 1;
   let isTerminator = 1;
@@ -2351,7 +2348,6 @@ def SI_TCRETURN : SPseudoInst <(outs),
   // TODO: Should really base this on the call target
   let isConvergent = 1;
 }
-*/
 
 def PPT_ADJCALLSTACKUP : SPseudoInst<
   (outs), (ins i32imm:$amt0, i32imm:$amt1),
