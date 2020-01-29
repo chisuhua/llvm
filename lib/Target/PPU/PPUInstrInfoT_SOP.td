@@ -65,7 +65,7 @@ def S_BITSET0_B32 : SOP1_32    <"s_bitset0_b32", [], 1>;
 def S_BITSET1_B32 : SOP1_32    <"s_bitset1_b32", [], 1>;
 // def S_BITSET1_B64 : SOP1_64_32 <"s_bitset1_b64", [], 1>;
 def S_GETPC_B64 : SOP1_64_0  <"s_getpc_b64",
-  [(set i64:$sdst, (int_amdgcn_s_getpc))]
+  [(set i64:$sdst, (int_ppu_s_getpc))]
 >;
 
 
