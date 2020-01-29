@@ -145,7 +145,7 @@ class PPUCodeGenPrepare : public FunctionPass,
   bool isI24(Value *V, unsigned ScalarSize) const;
   bool isU24(Value *V, unsigned ScalarSize) const;
 
-  /// Replace mul instructions with llvm.amdgcn.mul.u24 or llvm.amdgcn.mul.s24.
+  /// Replace mul instructions with llvm.ppu.mul.u24 or llvm.ppu.mul.s24.
   /// SelectionDAG has an issue where an and asserting the bits are known
   bool replaceMulWithMul24(BinaryOperator &I) const;
 
@@ -233,10 +233,9 @@ bool PPUCodeGenPrepare::needsPromotionToI32(const Type *T) const {
   if (const VectorType *VT = dyn_cast<VectorType>(T)) {
     // TODO: The set of packed operations is more limited, so may want to
     // promote some anyway.
-    /* FIXME schi
     if (ST->hasVOP3PInsts())
       return false;
-      */
+
     return needsPromotionToI32(VT->getElementType());
   }
 
@@ -480,9 +479,9 @@ bool PPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
 
   // TODO: Should this try to match mulhi24?
   if (ST->hasMulU24() && isU24(LHS, Size) && isU24(RHS, Size)) {
-    IntrID = Intrinsic::amdgcn_mul_u24;
+    IntrID = Intrinsic::ppu_mul_u24;
   } else if (ST->hasMulI24() && isI24(LHS, Size) && isI24(RHS, Size)) {
-    IntrID = Intrinsic::amdgcn_mul_i24;
+    IntrID = Intrinsic::ppu_mul_i24;
   } else
     return false;
 
@@ -497,7 +496,7 @@ bool PPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
   FunctionCallee Intrin = Intrinsic::getDeclaration(Mod, IntrID);
   for (int I = 0, E = LHSVals.size(); I != E; ++I) {
     Value *LHS, *RHS;
-    if (IntrID == Intrinsic::amdgcn_mul_u24) {
+    if (IntrID == Intrinsic::ppu_mul_u24) {
       LHS = Builder.CreateZExtOrTrunc(LHSVals[I], I32Ty);
       RHS = Builder.CreateZExtOrTrunc(RHSVals[I], I32Ty);
     } else {
@@ -507,7 +506,7 @@ bool PPUCodeGenPrepare::replaceMulWithMul24(BinaryOperator &I) const {
 
     Value *Result = Builder.CreateCall(Intrin, {LHS, RHS});
 
-    if (IntrID == Intrinsic::amdgcn_mul_u24) {
+    if (IntrID == Intrinsic::ppu_mul_u24) {
       ResultVals.push_back(Builder.CreateZExtOrTrunc(Result,
                                                      LHSVals[I]->getType()));
     } else {

@@ -130,13 +130,13 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::v4i32, &PPU::SReg_128RegClass);
   addRegisterClass(MVT::v4f32, &PPU::VReg_128RegClass);
 
-/* TODO
-  addRegisterClass(MVT::v5i32, &PPU::SGPR_160RegClass);
+  addRegisterClass(MVT::v5i32, &PPU::SReg_160RegClass);
   addRegisterClass(MVT::v5f32, &PPU::VReg_160RegClass);
 
   addRegisterClass(MVT::v8i32, &PPU::SReg_256RegClass);
   addRegisterClass(MVT::v8f32, &PPU::VReg_256RegClass);
 
+/* TODO
   addRegisterClass(MVT::v16i32, &PPU::SReg_512RegClass);
   addRegisterClass(MVT::v16f32, &PPU::VReg_512RegClass);
 */
@@ -289,6 +289,7 @@ PPUTargetLowering::PPUTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SCALAR_TO_VECTOR, Vec64, Promote);
     AddPromotedToType(ISD::SCALAR_TO_VECTOR, Vec64, MVT::v4i32);
   }
+
 
   setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v8i32, Expand);
   setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v8f32, Expand);
@@ -1552,14 +1553,14 @@ SDValue PPUTargetLowering::getPreloadedValue(SelectionDAG &DAG,
   std::tie(Reg, RC) = MFI.getPreloadedValue(PVID);
   return CreateLiveInRegister(DAG, RC, Reg->getRegister(), VT);
 }
-/*
+
 static void processShaderInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
                                    CallingConv::ID CallConv,
                                    ArrayRef<ISD::InputArg> Ins,
                                    BitVector &Skipped,
                                    FunctionType *FType,
                                    PPUMachineFunctionInfo *Info) {
-  for (unsigned I = 0, E = Ins.size(), PSInputNum = 0; I != E; ++I) {
+  for (unsigned I = 0, E = Ins.size(); I != E; ++I) {
     const ISD::InputArg *Arg = &Ins[I];
 
     assert((!Arg->VT.isVector() || Arg->VT.getScalarSizeInBits() == 16) &&
@@ -1570,7 +1571,6 @@ static void processShaderInputArgs(SmallVectorImpl<ISD::InputArg> &Splits,
     Splits.push_back(*Arg);
   }
 }
-*/
 
 // Allocate special inputs passed in VGPRs.
 void PPUTargetLowering::allocateSpecialEntryInputVGPRs(CCState &CCInfo,
@@ -2011,7 +2011,7 @@ SDValue PPUTargetLowering::LowerFormalArguments(
   bool IsEntryFunc = PPU::isEntryFunctionCC(CallConv);
 
   if (IsShader) {
-    // processShaderInputArgs(Splits, CallConv, Ins, Skipped, FType, Info);
+    processShaderInputArgs(Splits, CallConv, Ins, Skipped, FType, Info);
 
     assert(!Info->hasDispatchPtr() &&
            !Info->hasKernargSegmentPtr() && !Info->hasFlatScratchInit() &&

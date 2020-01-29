@@ -119,7 +119,7 @@ PPUBaseTargetLowering::PPUBaseTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SRA, MVT::i32, Custom);
     setOperationAction(ISD::SRL, MVT::i32, Custom);
   }
-
+// FIXME, how to set one action for both PPT and non-PPT
   if (!Subtarget.hasStdExtM()) {
     setOperationAction(ISD::MUL, XLenVT, Expand);
     setOperationAction(ISD::MULHS, XLenVT, Expand);
@@ -5521,7 +5521,7 @@ static SDValue simplifyI24(SDNode *Node24,
   unsigned NewOpcode = Node24->getOpcode();
   if (IsIntrin) {
     unsigned IID = cast<ConstantSDNode>(Node24->getOperand(0))->getZExtValue();
-    NewOpcode = IID == Intrinsic::amdgcn_mul_i24 ?
+    NewOpcode = IID == Intrinsic::ppu_mul_i24 ?
       PPUISD::MUL_I24 : PPUISD::MUL_U24;
   }
 
@@ -5683,6 +5683,10 @@ SDValue PPUBaseTargetLowering::performLoadCombine(SDNode *N,
 
   EVT NewVT = getEquivalentMemType(*DAG.getContext(), VT);
 
+  // FIXME PPU fix inf loop on v3i64 and v6i32 combine
+  if (NewVT.getScalarType() == MVT::i32 && NewVT.isVector())
+    return SDValue();
+
   SDValue NewLoad
     = DAG.getLoad(NewVT, SL, LN->getChain(),
                   LN->getBasePtr(), LN->getMemOperand());
@@ -5691,6 +5695,7 @@ SDValue PPUBaseTargetLowering::performLoadCombine(SDNode *N,
   DCI.CombineTo(N, BC, NewLoad.getValue(1));
   return SDValue(N, 0);
 }
+
 
 // Replace store of an illegal type with a store of a bitcast to a friendlier
 // type.
@@ -5778,8 +5783,8 @@ SDValue PPUBaseTargetLowering::performIntrinsicWOChainCombine(
   SDNode *N, DAGCombinerInfo &DCI) const {
   unsigned IID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
   switch (IID) {
-  case Intrinsic::amdgcn_mul_i24:
-  case Intrinsic::amdgcn_mul_u24:
+  case Intrinsic::ppu_mul_i24:
+  case Intrinsic::ppu_mul_u24:
     return simplifyI24(N, DCI);
   default:
     return SDValue();

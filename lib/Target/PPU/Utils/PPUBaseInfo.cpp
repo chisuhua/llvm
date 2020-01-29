@@ -939,6 +939,7 @@ bool isCompute(const MachineFunction *MF) {
 bool isEntryFunctionCC(CallingConv::ID CC) {
   switch (CC) {
   case CallingConv::AMDGPU_KERNEL:
+  case CallingConv::AMDGPU_CS:
   case CallingConv::SPIR_KERNEL:
     return true;
   default:
