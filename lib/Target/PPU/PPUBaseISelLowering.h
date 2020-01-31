@@ -251,9 +251,10 @@ public:
                              Instruction *I = nullptr) const override;
   bool isLegalICmpImmediate(int64_t Imm) const override;
   bool isLegalAddImmediate(int64_t Imm) const override;
-  bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
-  bool isTruncateFree(EVT SrcVT, EVT DstVT) const override;
-  bool isZExtFree(SDValue Val, EVT VT2) const override;
+  // AMD redefine
+  // bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
+  // bool isTruncateFree(EVT SrcVT, EVT DstVT) const override;
+  // bool isZExtFree(SDValue Val, EVT VT2) const override;
   bool isSExtCheaperThanZExt(EVT SrcVT, EVT DstVT) const override;
 
   bool hasBitPreservingFPLogic(EVT VT) const override;
@@ -405,6 +406,39 @@ protected:
   // from AMDGPUISelLowering
   void PPUBaseTargetLowering_compute();
 
+  bool isFAbsFree(EVT VT) const override;
+  bool isFNegFree(EVT VT) const override;
+  bool isTruncateFree(EVT Src, EVT Dest) const override;
+  bool isTruncateFree(Type *Src, Type *Dest) const override;
+
+  bool isZExtFree(Type *Src, Type *Dest) const override;
+  bool isZExtFree(EVT Src, EVT Dest) const override;
+  bool isZExtFree(SDValue Val, EVT VT2) const override;
+
+  bool isNarrowingProfitable(EVT VT1, EVT VT2) const override;
+
+  MVT getVectorIdxTy(const DataLayout &) const override;
+  bool isSelectSupported(SelectSupportKind) const override;
+
+  bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                    bool ForCodeSize) const override;
+  bool ShouldShrinkFPConstant(EVT VT) const override;
+  bool shouldReduceLoadWidth(SDNode *Load,
+                             ISD::LoadExtType ExtType,
+                             EVT ExtVT) const override;
+
+  bool isLoadBitCastBeneficial(EVT, EVT, const SelectionDAG &DAG,
+                               const MachineMemOperand &MMO) const final;
+
+  bool storeOfVectorConstantIsCheap(EVT MemVT,
+                                    unsigned NumElem,
+                                    unsigned AS) const override;
+  bool aggressivelyPreferBuildVectorSources(EVT VecVT) const override;
+  bool isCheapToSpeculateCttz() const override;
+  bool isCheapToSpeculateCtlz() const override;
+
+  bool isSDNodeAlwaysUniform(const SDNode *N) const override;
+ 
   /// \returns AMDGPUISD::FFBH_U32 node if the incoming \p Op may have been
   /// legalized from a smaller type VT. Need to match pre-legalized type because
   /// the generic legalization inserts the add/sub between the select and

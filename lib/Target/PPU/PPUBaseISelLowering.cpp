@@ -306,8 +306,30 @@ bool PPUBaseTargetLowering::isTruncateFree(Type *SrcTy, Type *DstTy) const {
     return false;
   unsigned SrcBits = SrcTy->getPrimitiveSizeInBits();
   unsigned DestBits = DstTy->getPrimitiveSizeInBits();
-  return (SrcBits == 64 && DestBits == 32);
+
+  // TODO schi change to AMD
+  // return (SrcBits == 64 && DestBits == 32);
+
+  if (DestBits== 16 && Subtarget.has16BitInsts())
+    return SrcBits >= 32;
+
+  return DestBits < SrcBits && DestBits % 32 == 0;
+
 }
+
+/*
+bool PPUBaseTargetLowering::isTruncateFree(Type *Source, Type *Dest) const {
+  // Truncate is just accessing a subregister.
+
+  unsigned SrcSize = Source->getScalarSizeInBits();
+  unsigned DestSize = Dest->getScalarSizeInBits();
+
+  if (DestSize== 16 && Subtarget.has16BitInsts())
+    return SrcSize >= 32;
+
+  return DestSize < SrcSize && DestSize % 32 == 0;
+}
+*/
 
 bool PPUBaseTargetLowering::isTruncateFree(EVT SrcVT, EVT DstVT) const {
   if (Subtarget.is64Bit() || SrcVT.isVector() || DstVT.isVector() ||
@@ -315,22 +337,21 @@ bool PPUBaseTargetLowering::isTruncateFree(EVT SrcVT, EVT DstVT) const {
     return false;
   unsigned SrcBits = SrcVT.getSizeInBits();
   unsigned DestBits = DstVT.getSizeInBits();
-  return (SrcBits == 64 && DestBits == 32);
+  // TODO I chanet it to AMD
+  // return (SrcBits == 64 && DestBits == 32);
+  return DestBits < SrcBits && DestBits % 32 == 0 ;
 }
+/* it is frrom AMDISel
+bool PPUBaseTargetLowering::isTruncateFree(EVT Source, EVT Dest) const {
+  // Truncate is just accessing a subregister.
 
-bool PPUBaseTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
-  // Zexts are free if they can be combined with a load.
-  if (auto *LD = dyn_cast<LoadSDNode>(Val)) {
-    EVT MemVT = LD->getMemoryVT();
-    if ((MemVT == MVT::i8 || MemVT == MVT::i16 ||
-         (Subtarget.is64Bit() && MemVT == MVT::i32)) &&
-        (LD->getExtensionType() == ISD::NON_EXTLOAD ||
-         LD->getExtensionType() == ISD::ZEXTLOAD))
-      return true;
-  }
+  unsigned SrcSize = Source.getSizeInBits();
+  unsigned DestSize = Dest.getSizeInBits();
 
-  return TargetLowering::isZExtFree(Val, VT2);
+  return DestSize < SrcSize && DestSize % 32 == 0 ;
 }
+*/
+
 
 bool PPUBaseTargetLowering::isSExtCheaperThanZExt(EVT SrcVT, EVT DstVT) const {
   return Subtarget.is64Bit() && SrcVT == MVT::i32 && DstVT == MVT::i64;
@@ -3593,10 +3614,219 @@ bool PPUBaseTargetLowering::allUsesHaveSourceMods(const SDNode *N,
   return true;
 }
 
+MVT PPUBaseTargetLowering::getVectorIdxTy(const DataLayout &) const {
+  return MVT::i32;
+}
+
+bool PPUBaseTargetLowering::isSelectSupported(SelectSupportKind SelType) const {
+  return true;
+}
+
+// The backend supports 32 and 64 bit floating point immediates.
+// FIXME: Why are we reporting vectors of FP immediates as legal?
+bool PPUBaseTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
+                                        bool ForCodeSize) const {
+  EVT ScalarVT = VT.getScalarType();
+  return (ScalarVT == MVT::f32 || ScalarVT == MVT::f64 ||
+         (ScalarVT == MVT::f16 && Subtarget.has16BitInsts()));
+}
+
+// We don't want to shrink f64 / f32 constants.
+bool PPUBaseTargetLowering::ShouldShrinkFPConstant(EVT VT) const {
+  EVT ScalarVT = VT.getScalarType();
+  return (ScalarVT != MVT::f32 && ScalarVT != MVT::f64);
+}
+
+bool PPUBaseTargetLowering::shouldReduceLoadWidth(SDNode *N,
+                                                 ISD::LoadExtType ExtTy,
+                                                 EVT NewVT) const {
+  // TODO: This may be worth removing. Check regression tests for diffs.
+  if (!TargetLoweringBase::shouldReduceLoadWidth(N, ExtTy, NewVT))
+    return false;
+
+  unsigned NewSize = NewVT.getStoreSizeInBits();
+
+  // If we are reducing to a 32-bit load, this is always better.
+  if (NewSize == 32)
+    return true;
+
+  EVT OldVT = N->getValueType(0);
+  unsigned OldSize = OldVT.getStoreSizeInBits();
+
+  MemSDNode *MN = cast<MemSDNode>(N);
+  unsigned AS = MN->getAddressSpace();
+  // Do not shrink an aligned scalar load to sub-dword.
+  // Scalar engine cannot do sub-dword loads.
+  if (OldSize >= 32 && NewSize < 32 && MN->getAlignment() >= 4 &&
+      (AS == AMDGPUAS::CONSTANT_ADDRESS ||
+       AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT ||
+       (isa<LoadSDNode>(N) &&
+        AS == AMDGPUAS::GLOBAL_ADDRESS && MN->isInvariant())) &&
+      PPUInstrInfo::isUniformMMO(MN->getMemOperand()))
+    return false;
+
+  // Don't produce extloads from sub 32-bit types. SI doesn't have scalar
+  // extloads, so doing one requires using a buffer_load. In cases where we
+  // still couldn't use a scalar load, using the wider load shouldn't really
+  // hurt anything.
+
+  // If the old size already had to be an extload, there's no harm in continuing
+  // to reduce the width.
+  return (OldSize < 32);
+}
+
+bool PPUBaseTargetLowering::isLoadBitCastBeneficial(EVT LoadTy, EVT CastTy,
+                                                   const SelectionDAG &DAG,
+                                                   const MachineMemOperand &MMO) const {
+
+  assert(LoadTy.getSizeInBits() == CastTy.getSizeInBits());
+
+  if (LoadTy.getScalarType() == MVT::i32)
+    return false;
+
+  unsigned LScalarSize = LoadTy.getScalarSizeInBits();
+  unsigned CastScalarSize = CastTy.getScalarSizeInBits();
+
+  if ((LScalarSize >= CastScalarSize) && (CastScalarSize < 32))
+    return false;
+
+  bool Fast = false;
+  return allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), CastTy,
+                            MMO, &Fast) && Fast;
+}
+
+// SI+ has instructions for cttz / ctlz for 32-bit values. This is probably also
+// profitable with the expansion for 64-bit since it's generally good to
+// speculate things.
+// FIXME: These should really have the size as a parameter.
+bool PPUBaseTargetLowering::isCheapToSpeculateCttz() const {
+  return true;
+}
+
+bool PPUBaseTargetLowering::isCheapToSpeculateCtlz() const {
+  return true;
+}
+
+bool PPUBaseTargetLowering::isSDNodeAlwaysUniform(const SDNode * N) const {
+  switch (N->getOpcode()) {
+    default:
+    return false;
+    case ISD::EntryToken:
+    case ISD::TokenFactor:
+      return true;
+    case ISD::INTRINSIC_WO_CHAIN:
+    {
+      unsigned IntrID = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
+      switch (IntrID) {
+        default:
+        return false;
+        case Intrinsic::ppu_readfirstlane:
+        case Intrinsic::ppu_readlane:
+          return true;
+      }
+    }
+    break;
+    case ISD::LOAD:
+    {
+      const LoadSDNode * L = dyn_cast<LoadSDNode>(N);
+      if (L->getMemOperand()->getAddrSpace()
+      == AMDGPUAS::CONSTANT_ADDRESS_32BIT)
+        return true;
+      return false;
+    }
+    break;
+  }
+}
+
+//===---------------------------------------------------------------------===//
+// Target Properties
+//===---------------------------------------------------------------------===//
+
+bool PPUBaseTargetLowering::isFAbsFree(EVT VT) const {
+  assert(VT.isFloatingPoint());
+
+  // Packed operations do not have a fabs modifier.
+  return VT == MVT::f32 || VT == MVT::f64 ||
+         (Subtarget.has16BitInsts() && VT == MVT::f16);
+}
+
+bool PPUBaseTargetLowering::isFNegFree(EVT VT) const {
+  assert(VT.isFloatingPoint());
+  return VT == MVT::f32 || VT == MVT::f64 ||
+         (Subtarget.has16BitInsts() && VT == MVT::f16) ||
+         (Subtarget.hasVOP3PInsts() && VT == MVT::v2f16);
+}
+
+bool PPUBaseTargetLowering:: storeOfVectorConstantIsCheap(EVT MemVT,
+                                                         unsigned NumElem,
+                                                         unsigned AS) const {
+  return true;
+}
+
+bool PPUBaseTargetLowering::aggressivelyPreferBuildVectorSources(EVT VecVT) const {
+  // There are few operations which truly have vector input operands. Any vector
+  // operation is going to involve operations on each component, and a
+  // build_vector will be a copy per element, so it always makes sense to use a
+  // build_vector input in place of the extracted element to avoid a copy into a
+  // super register.
+  //
+  // We should probably only do this if all users are extracts only, but this
+  // should be the common case.
+  return true;
+}
 
 
+bool PPUBaseTargetLowering::isZExtFree(Type *Src, Type *Dest) const {
+  unsigned SrcSize = Src->getScalarSizeInBits();
+  unsigned DestSize = Dest->getScalarSizeInBits();
 
+  if (SrcSize == 16 && Subtarget.has16BitInsts())
+    return DestSize >= 32;
 
+  return SrcSize == 32 && DestSize == 64;
+}
+
+bool PPUBaseTargetLowering::isZExtFree(EVT Src, EVT Dest) const {
+  // Any register load of a 64-bit value really requires 2 32-bit moves. For all
+  // practical purposes, the extra mov 0 to load a 64-bit is free.  As used,
+  // this will enable reducing 64-bit operations the 32-bit, which is always
+  // good.
+
+  if (Src == MVT::i16)
+    return Dest == MVT::i32 ||Dest == MVT::i64 ;
+
+  return Src == MVT::i32 && Dest == MVT::i64;
+}
+
+bool PPUBaseTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
+  return isZExtFree(Val.getValueType(), VT2);
+}
+
+/* from RISCV
+bool PPUBaseTargetLowering::isZExtFree(SDValue Val, EVT VT2) const {
+  // Zexts are free if they can be combined with a load.
+  if (auto *LD = dyn_cast<LoadSDNode>(Val)) {
+    EVT MemVT = LD->getMemoryVT();
+    if ((MemVT == MVT::i8 || MemVT == MVT::i16 ||
+         (Subtarget.is64Bit() && MemVT == MVT::i32)) &&
+        (LD->getExtensionType() == ISD::NON_EXTLOAD ||
+         LD->getExtensionType() == ISD::ZEXTLOAD))
+      return true;
+  }
+
+  return TargetLowering::isZExtFree(Val, VT2);
+}
+*/
+
+bool PPUBaseTargetLowering::isNarrowingProfitable(EVT SrcVT, EVT DestVT) const {
+  // There aren't really 64-bit registers, but pairs of 32-bit ones and only a
+  // limited number of native 64-bit operations. Shrinking an operation to fit
+  // in a single 32-bit register should always be helpful. As currently used,
+  // this is much less general than the name suggests, and is only used in
+  // places trying to reduce the sizes of loads. Shrinking loads to < 32-bits is
+  // not profitable, and may actually be harmful.
+  return SrcVT.getSizeInBits() > 32 && DestVT.getSizeInBits() == 32;
+}
 
 
 //===---------------------------------------------------------------------===//
