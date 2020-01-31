@@ -132,6 +132,7 @@ DECODE_OPERAND_REG(VS_32)
 DECODE_OPERAND_REG(VS_64)
 DECODE_OPERAND_REG(VS_128)
 
+DECODE_OPERAND_REG(VReg_32)
 DECODE_OPERAND_REG(VReg_64)
 DECODE_OPERAND_REG(VReg_96)
 DECODE_OPERAND_REG(VReg_128)
@@ -918,6 +919,10 @@ MCOperand PPUDisassembler::decodeOperand_AV_64(unsigned Val) const {
   return decodeSrcOp(OPW64, Val);
 }
 */
+
+MCOperand PPUDisassembler::decodeOperand_VReg_32(unsigned Val) const {
+  return createRegOperand(PPU::VReg_32RegClassID, Val);
+}
 
 MCOperand PPUDisassembler::decodeOperand_VReg_64(unsigned Val) const {
   return createRegOperand(PPU::VReg_64RegClassID, Val);

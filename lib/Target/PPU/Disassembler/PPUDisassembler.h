@@ -80,6 +80,7 @@ public:
   MCOperand decodeOperand_VSrc16(unsigned Val) const;
   MCOperand decodeOperand_VSrcV216(unsigned Val) const;
 
+  MCOperand decodeOperand_VReg_32(unsigned Val) const;
   MCOperand decodeOperand_VReg_64(unsigned Val) const;
   MCOperand decodeOperand_VReg_96(unsigned Val) const;
   MCOperand decodeOperand_VReg_128(unsigned Val) const;
