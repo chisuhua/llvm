@@ -388,6 +388,23 @@ class FlatSignedAtomicPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType v
   (inst $vaddr, $data, $offset, $slc)
 >;
 
+// FIXME PPU i add for scratch use 32bit Address
+class ScratchLoadSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt> : PPTPat <
+  (vt (node (SCRATCHOffsetSigned (i32 VReg_32:$vaddr), i16:$offset, i1:$slc))),
+  (inst $vaddr, $offset, 0, 0, $slc)
+>;
+
+class ScratchStorePat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
+  (node vt:$data, (SCRATCHOffset i32:$vaddr, i16:$offset, i1:$slc)),
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
+>;
+
+class ScratchStoreSignedPat <FLAT_Pseudo inst, SDPatternOperator node, ValueType vt, RegisterClass rc = VPR_32> : PPTPat <
+  (node vt:$data, (SCRATCHOffsetSigned i32:$vaddr, i16:$offset, i1:$slc)),
+  (inst $vaddr, rc:$data, $offset, 0, 0, $slc)
+>;
+
+
 let OtherPredicates = [HasFlatAddressSpace] in {
 
 def : FlatLoadPat <FLAT_LOAD_UBYTE, extloadi8_flat, i32>;
@@ -569,56 +586,56 @@ def : FlatAtomicPatNoRtn <GLOBAL_ATOMIC_PK_ADD_F16, atomic_pk_fadd_global_noret,
 } // End OtherPredicates = [HasFlatGlobalInsts], AddedComplexity = 10
 
 // TODO I add Scratch since it is missed in GenDAGISel
-let SubtargetPredicate = HasFlatScratchInsts in {
-def : FlatLoadSignedPat <SCRATCH_LOAD_UBYTE, extloadi8_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_UBYTE, zextloadi8_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_SBYTE, sextloadi8_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_UBYTE, extloadi8_global, i16>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_UBYTE, zextloadi8_global, i16>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_SBYTE, sextloadi8_global, i16>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_USHORT, extloadi16_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_USHORT, zextloadi16_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_SSHORT, sextloadi16_global, i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_USHORT, load_global, i16>;
+let SubtargetPredicate = HasFlatScratchInsts, AddedComplexity = 30 in {
+def : ScratchLoadSignedPat <SCRATCH_LOAD_UBYTE, extloadi8_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_UBYTE, zextloadi8_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_SBYTE, sextloadi8_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_UBYTE, extloadi8_private, i16>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_UBYTE, zextloadi8_private, i16>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_SBYTE, sextloadi8_private, i16>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_USHORT, extloadi16_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_USHORT, zextloadi16_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_SSHORT, sextloadi16_private, i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_USHORT, load_private, i16>;
 
 foreach vt = [i32, f32, v2i16, v2f16, p2, p3, p5, p6] in {
-def : FlatLoadSignedPat <SCRATCH_LOAD_DWORD, load_global, vt>;
-def : FlatStoreSignedPat <SCRATCH_STORE_DWORD, store_global, vt, VPR_32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_DWORD, load_private, vt>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_DWORD, store_private, vt, VPR_32>;
 }
 
 foreach vt = VReg_64.RegTypes in {
-def : FlatLoadSignedPat <SCRATCH_LOAD_DWORDX2, load_global, vt>;
-def : FlatStoreSignedPat <SCRATCH_STORE_DWORDX2, store_global, vt, VReg_64>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_DWORDX2, load_private, vt>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_DWORDX2, store_private, vt, VReg_64>;
 }
 
-def : FlatLoadSignedPat <SCRATCH_LOAD_DWORDX3, load_global, v3i32>;
-def : FlatLoadSignedPat <SCRATCH_LOAD_DWORDX4, load_global, v4i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_DWORDX3, load_private, v3i32>;
+def : ScratchLoadSignedPat <SCRATCH_LOAD_DWORDX4, load_private, v4i32>;
 
-def : FlatStoreSignedPat <SCRATCH_STORE_BYTE, truncstorei8_global, i32, VPR_32>;
-def : FlatStoreSignedPat <SCRATCH_STORE_BYTE, truncstorei8_global, i16, VPR_32>;
-def : FlatStoreSignedPat <SCRATCH_STORE_SHORT, truncstorei16_global, i32, VPR_32>;
-def : FlatStoreSignedPat <SCRATCH_STORE_SHORT, store_global, i16, VPR_32>;
-def : FlatStoreSignedPat <SCRATCH_STORE_DWORDX3, store_global, v3i32, VReg_96>;
-def : FlatStoreSignedPat <SCRATCH_STORE_DWORDX4, store_global, v4i32, VReg_128>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_BYTE, truncstorei8_private, i32, VPR_32>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_BYTE, truncstorei8_private, i16, VPR_32>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_SHORT, truncstorei16_private, i32, VPR_32>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_SHORT, store_private, i16, VPR_32>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_DWORDX3, store_private, v3i32, VReg_96>;
+def : ScratchStoreSignedPat <SCRATCH_STORE_DWORDX4, store_private, v4i32, VReg_128>;
 
 let OtherPredicates = [D16PreservesUnusedBits] in {
 // FIXME
-// def : FlatStoreSignedPat <SCRATCH_STORE_SHORT_D16_HI, truncstorei16_hi16_global, i32>;
-// def : FlatStoreSignedPat <SCRATCH_STORE_BYTE_D16_HI, truncstorei8_hi16_global, i32>;
+// def : ScratchStoreSignedPat <SCRATCH_STORE_SHORT_D16_HI, truncstorei16_hi16_global, i32>;
+// def : ScratchStoreSignedPat <SCRATCH_STORE_BYTE_D16_HI, truncstorei8_hi16_global, i32>;
 
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16_HI, az_extloadi8_d16_hi_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16_HI, az_extloadi8_d16_hi_global, v2f16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16_HI, sextloadi8_d16_hi_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16_HI, sextloadi8_d16_hi_global, v2f16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16_HI, load_d16_hi_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16_HI, load_d16_hi_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16_HI, az_extloadi8_d16_hi_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16_HI, az_extloadi8_d16_hi_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16_HI, sextloadi8_d16_hi_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16_HI, sextloadi8_d16_hi_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16_HI, load_d16_hi_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16_HI, load_d16_hi_global, v2f16>;
 
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16, az_extloadi8_d16_lo_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16, az_extloadi8_d16_lo_global, v2f16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16, sextloadi8_d16_lo_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16, sextloadi8_d16_lo_global, v2f16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16, load_d16_lo_global, v2i16>;
-// def : FlatSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16, load_d16_lo_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16, az_extloadi8_d16_lo_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_UBYTE_D16, az_extloadi8_d16_lo_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16, sextloadi8_d16_lo_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SBYTE_D16, sextloadi8_d16_lo_global, v2f16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16, load_d16_lo_global, v2i16>;
+// def : ScratchSignedLoadPat_D16 <SCRATCH_LOAD_SHORT_D16, load_d16_lo_global, v2f16>;
 }
 
 } // End SubtargetPredicate = HasFlatScratchInsts

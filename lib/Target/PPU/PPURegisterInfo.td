@@ -629,7 +629,7 @@ def CCR_SPR_64 : RegisterClass<"PPU", SPR_64.RegTypes, 32,
 }
 
 def SReg_64 : RegisterClass<"PPU", [v2i32, i64, v2f32, f64, i1, v4i16, v4f16], 32,
-  (add SPR_64)> {
+  (add SPR_64, FLAT_SCR)> {
   let CopyCost = 1;
   let AllocationPriority = 13;
   /*

@@ -175,15 +175,13 @@ void PPUMachineFunctionInfo::limitOccupancy(const MachineFunction &MF) {
 unsigned PPUMachineFunctionInfo::addPrivateSegmentBuffer(
   const PPURegisterInfo &TRI) {
   // FIXME, i change buffer it to 64bit reg
-  ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
+  ArgInfo.PrivateSegmentBuffer = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
         getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
   NumUserSGPRs += 2;
   return ArgInfo.PrivateSegmentBuffer.getRegister();
 }
 
 unsigned PPUMachineFunctionInfo::addDispatchPtr(const PPURegisterInfo &TRI) {
-  ArgInfo.DispatchPtr = ArgDescriptor::createRegister(getNextUserSPR());
-  NumUserSGPRs += 1;
   ArgInfo.DispatchPtr = ArgDescriptor::createRegister(TRI.getMatchingSuperReg(
         getNextUserSPR(), PPU::sub0, &PPU::SReg_64RegClass));
   NumUserSGPRs += 2;

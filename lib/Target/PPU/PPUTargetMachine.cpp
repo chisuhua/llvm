@@ -48,6 +48,7 @@ using namespace llvm;
 
 // Option to use reconverging CFG
 ///* FIXME schi we use feature instead of option
+// MF->getSubtarget<PPUSubtarget>()->enableRevonverCFG();
 static cl::opt<bool, true> ReconvergeCFG(
   "ppu-reconverge",
   cl::desc("Use reconverging CFG instead of structurization"),
