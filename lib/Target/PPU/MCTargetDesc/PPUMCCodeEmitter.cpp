@@ -624,7 +624,9 @@ void PPUMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                               computeAvailableFeatures(STI.getFeatureBits()));
 
   // call base
-  PPUBaseMCCodeEmitter::encodeInstruction(MI, OS, Fixups, STI);
+  if (!STI.getFeatureBits()[PPU::FeaturePPT]){
+    return PPUBaseMCCodeEmitter::encodeInstruction(MI, OS, Fixups, STI);
+  }
 
   uint64_t Encoding = getBinaryCodeForInstr(MI, Fixups, STI);
   const MCInstrDesc &Desc = MCII.get(MI.getOpcode());

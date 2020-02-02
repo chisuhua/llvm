@@ -242,8 +242,8 @@ namespace EncValues { // Encoding values of enum9/8/7 operands
 
 enum : unsigned {
   SGPR_MIN = 0,
-  SGPR_MAX_SI = 101,
-  SGPR_MAX_GFX10 = 105,
+  // SGPR_MAX_SI = 101,
+  SGPR_MAX = 105,
   TTMP_VI_MIN = 112,
   TTMP_VI_MAX = 123,
   TTMP_GFX9_GFX10_MIN = 108,

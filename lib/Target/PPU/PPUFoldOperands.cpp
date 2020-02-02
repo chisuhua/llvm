@@ -553,6 +553,9 @@ void PPUFoldOperands::foldOperand(
     // Sanity check that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
     MachineOperand *SOff = TII->getNamedOperand(*UseMI, PPU::OpName::soffset);
+    // FIXME PPU extload_private test will cause hang for Soff is 0
+    if (!SOff)
+        return;
     if (!SOff->isReg() || (SOff->getReg() != MFI->getScratchWaveOffsetReg() &&
                            SOff->getReg() != MFI->getStackPtrOffsetReg()))
       return;

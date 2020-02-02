@@ -48,8 +48,9 @@ using namespace llvm;
 
 // Option to use reconverging CFG
 ///* FIXME schi we use feature instead of option
-static cl::opt<bool, true> EnableReconvergeCFG(
-  "ppu-EnableReconvergeCFG",
+// MF->getSubtarget<PPUSubtarget>()->enableRevonverCFG();
+static cl::opt<bool, true> ReconvergeCFG(
+  "ppu-reconverge",
   cl::desc("Use reconverging CFG instead of structurization"),
   cl::location(PPUTargetMachine::EnableReconvergeCFG),
   cl::Hidden);
@@ -163,9 +164,9 @@ extern "C" void LLVMInitializePPUTarget() {
   initializePPULoadStoreOptimizerPass(*PR);
   initializePPULowerSPRSpillsPass(*PR);
   initializePPULowerI1CopiesPass(*PR);
-  // initializePPUFixSGPRCopiesPass(*PR);
+  initializePPUFixSGPRCopiesPass(*PR);
   initializePPUFixVGPRCopiesPass(*PR);
-  // initializePPUFixupVectorISelPass(*PR);
+  initializePPUFixupVectorISelPass(*PR);
   initializePPUAlwaysInlinePass(*PR);
   initializePPUAnnotateKernelFeaturesPass(*PR);
   initializePPUAnnotateUniformValuesPass(*PR);
@@ -471,8 +472,6 @@ public:
   void addPreEmitPass2() override;
   // void addPreRegAlloc() override;
 
-  bool EnableReconvergeCFG {false};
-
   std::unique_ptr<CSEConfigBase> getCSEConfig() const override {
     return getStandardCSEConfigForOpt(TM->getOptLevel());
   }
@@ -614,14 +613,14 @@ bool PPUPassConfig::addPreISel() {
   // regions formed by them.
   addPass(&PPUUnifyDivergentExitNodesID);
 
-  if (EnableReconvergeCFG) {
+  if (ReconvergeCFG) {
     addPass(createReconvergeCFGPass(true)); // true -> SkipUniformBranches
   } else if (!LateCFGStructurize) {
     addPass(createStructurizeCFGPass(true)); // true -> SkipUniformRegions
   }
   addPass(createSinkingPass());
   addPass(createPPUAnnotateUniformValues());
-  if (!EnableReconvergeCFG && !LateCFGStructurize) {
+  if (!ReconvergeCFG && !LateCFGStructurize) {
     addPass(createPPUAnnotateControlFlowPass());
   }
   addPass(createLCSSAPass());
@@ -636,14 +635,13 @@ bool PPUPassConfig::addInstSelector() {
   addPass(createPPUISelDag(getPPUTargetMachine(), getOptLevel()), false);
 
   // GCN
-  // addPass(&PPUFixSGPRCopiesID);
+  addPass(&PPUFixSGPRCopiesID);
   addPass(createPPULowerI1CopiesPass());
-  // TODO schi addPass(createPPUFixupVectorISelPass());
-  /*
+  addPass(createPPUFixupVectorISelPass());
+  // addPass(createSIAddIMGInitPass());
   // FIXME: Remove this once the phi on CF_END is cleaned up by either removing
   // LCSSA or other ways.
   addPass(&UnreachableMachineBlockElimID);
-  */
   return false;
 }
 
@@ -726,7 +724,7 @@ void PPUPassConfig::addOptimizedRegAlloc() {
   // char *PassID = &PHIEliminationID;
 
   if (OptExecMaskPreRA) {
-    if (!EnableReconvergeCFG)
+    if (!ReconvergeCFG)
       insertPass(&MachineSchedulerID, &PPUOptimizeExecMaskingPreRAID);
 
     // insertPass(&PPUOptimizeExecMaskingPreRAID, &PPUFormMemoryClausesID);
@@ -752,7 +750,7 @@ void PPUPassConfig::addPreRegAlloc() {
   if (LateCFGStructurize) {
     // addPass(createAMDGPUMachineCFGStructurizerPass());
   }
-  if (EnableReconvergeCFG)
+  if (ReconvergeCFG)
     addPass(createPPULowerReconvergingControlFlowPass());
 
   // TODO addPass(createSIWholeQuadModePass());

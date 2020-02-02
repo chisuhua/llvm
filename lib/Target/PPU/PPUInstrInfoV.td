@@ -260,59 +260,8 @@ def : Pat<(int_ppu_vsw GPR:$rs1, TPR:$rs2, VLR:$vl),
           (VSW GPR:$rs1, TPR:$rs2, VLR:$vl, 0)>;
 
 def : Pat<(PPUSETVL GPR:$rs1), (VSETVL GPR:$rs1)>;
+
 /*
-let isTerminator = 1 in {
-let Uses = [TMSK], Defs = [TMSK],
-    OtherPredicates = [EnableNonUniformMIBranchPseudo] in {
-  def SI_NON_UNIFORM_BRCOND_PSEUDO : CFPseudoInst <
-      (outs),
-      (ins SReg_32:$vcc, brtarget:$target),
-      [(brcond i1:$vcc, bb:$target)]> {
-     // let Size = 12;
-  }
-}
-
-def SI_IF: CFPseudoInst <
-  (outs SReg_1:$dst), (ins SReg_1:$vcc, brtarget:$target),
-  [(set i1:$dst, (AMDGPUif i1:$vcc, bb:$target))], 1, 1> {
-  let Constraints = "";
-  let Size = 12;
-  let hasSideEffects = 1;
-}
-
-def SI_ELSE : CFPseudoInst <
-  (outs SReg_1:$dst),
-  (ins SReg_1:$src, brtarget:$target, i1imm:$execfix), [], 1, 1> {
-  let Size = 12;
-  let hasSideEffects = 1;
-}
-
-def SI_LOOP : CFPseudoInst <
-  (outs), (ins SReg_1:$saved, brtarget:$target),
-  [(AMDGPUloop i1:$saved, bb:$target)], 1, 1> {
-  let Size = 8;
-  let isBranch = 1;
-  let hasSideEffects = 1;
-}
-} // isTerminator
-
-def SI_END_CF : CFPseudoInst <
-  (outs), (ins SReg_1:$saved), [], 1, 1> {
-  let Size = 4;
-  let isAsCheapAsAMove = 1;
-  let isReMaterializable = 1;
-  let hasSideEffects = 1;
-  let mayLoad = 1; // FIXME: Should not need memory flags
-  let mayStore = 1;
-}
-
-def SI_IF_BREAK : CFPseudoInst <
-  (outs SReg_1:$dst), (ins SReg_1:$vcc, SReg_1:$src), []> {
-  let Size = 4;
-  let isAsCheapAsAMove = 1;
-  let isReMaterializable = 1;
-}
-
 // Branch on undef scc. Used to avoid intermediate copy from
 // IMPLICIT_DEF to SCC.
 // FIXME def SI_BR_UNDEF : SPseudoInst <(outs), (ins sopp_brtarget:$simm16)> {

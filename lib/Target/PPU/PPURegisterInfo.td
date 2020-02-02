@@ -94,7 +94,7 @@ class PPURegisterTuples<list<SubRegIndex> Indices, RegisterClass RC,
 
 let Namespace = "PPU" in {
 
-class RegFile <string n, bits<16> regIdx = 0> :
+class PPTReg <string n, bits<16> regIdx = 0> :
   Register<n>, DwarfRegNum<[!cast<int>(HWEncoding)]>
 {
 
@@ -402,6 +402,8 @@ def VCFGR : RegisterClass<"PPU", [XLenVT], 32, (add VCFG)> {
 }
 
 // VCC
+def VCC : PPTReg<"vcc", 106>;
+/*
 def VCC : PPUReg<0, "vcc">;
 def VCCR : RegisterClass<"PPU", [XLenVT], 32, (add VCC)> {
   let CopyCost = -1; // Don't allow copying
@@ -410,8 +412,11 @@ def VCCR : RegisterClass<"PPU", [XLenVT], 32, (add VCC)> {
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
+*/
 
 // TMSK
+def TMSK : PPTReg<"tmsk", 126>;
+/*
 def TMSK : PPUReg<0, "tmsk">;
 def TMSKR : RegisterClass<"PPU", [XLenVT], 32, (add TMSK)> {
   let CopyCost = -1; // Don't allow copying
@@ -420,14 +425,16 @@ def TMSKR : RegisterClass<"PPU", [XLenVT], 32, (add TMSK)> {
       [RV32,              RV64,              DefaultMode],
       [RegInfo<32,32,32>, RegInfo<64,64,64>, RegInfo<32,32,32>]>;
 }
+*/
 
 // Pseudo-registers: Used as placeholders during isel and immediately
 // replaced, never seeing the verifier.
-def PRIVATE_RSRC_REG : RegFile<"private_rsrc", 0>;
-def FP_REG : RegFile<"fp", 0>;
-def SP_REG : RegFile<"sp", 0>;
-def SCRATCH_WAVE_OFFSET_REG : RegFile<"scratch_wave_offset", 0>;
-def SCRATCH_RSRC_REG : RegFile<"scratch_rsr", 0>;
+def PRIVATE_RSRC_REG : PPTReg<"private_rsrc", 0>;
+def FP_REG : PPTReg<"fp", 0>;
+def SP_REG : PPTReg<"sp", 0>;
+def SCRATCH_WAVE_OFFSET_REG : PPTReg<"scratch_wave_offset", 0>;
+
+def SCRATCH_RSRC_REG : PPTReg<"scratch_rsr", 0>;
 
 
 
@@ -438,41 +445,41 @@ class FlatReg <Register lo, Register hi, bits<16> encoding> :
   let SubRegIndices = [sub0, sub1];
   let HWEncoding = encoding;
 }
-def FLAT_SCR_LO : RegFile<"flat_scratch_lo", 0>;
-def FLAT_SCR_HI : RegFile<"flat_scratch_hi", 0>;
+def FLAT_SCR_LO : PPTReg<"flat_scratch_lo", 0>;
+def FLAT_SCR_HI : PPTReg<"flat_scratch_hi", 0>;
 def FLAT_SCR : FlatReg<FLAT_SCR_LO, FLAT_SCR_HI, 0>;
 
 
 // 32-bit real registers, for MC only.
 // May be used with both 32-bit and 64-bit operands.
-def SRC_VCCZ : RegFile<"src_vccz", 251>;
-def SRC_TMSKZ : RegFile<"src_tmskz", 252>;
-def SRC_SCC : RegFile<"src_scc", 253>;
+def SRC_VCCZ : PPTReg<"src_vccz", 251>;
+def SRC_TMSKZ : PPTReg<"src_tmskz", 252>;
+def SRC_SCC : PPTReg<"src_scc", 253>;
 // 1-bit pseudo register, for codegen only.
 // Should never be emitted.
-def SCC : RegFile<"scc", 0>;
+def SCC : PPTReg<"scc", 0>;
 
 
-def M0 : PPUReg<0, "m0">;
+def M0 : PPTReg<"m0", 124>;
 
-def SPR_NULL : RegFile<"null", 125>;
+def SPR_NULL : PPTReg<"null", 125>;
 
-def SRC_SHARED_BASE : RegFile<"src_shared_base", 235>;
-def SRC_SHARED_LIMIT : RegFile<"src_shared_limit", 236>;
-def SRC_PRIVATE_BASE : RegFile<"src_private_base", 237>;
-def SRC_PRIVATE_LIMIT : RegFile<"src_private_limit", 238>;
-def SRC_POPS_EXITING_WAVE_ID : RegFile<"src_pops_exiting_wave_id", 239>;
+def SRC_SHARED_BASE : PPTReg<"src_shared_base", 235>;
+def SRC_SHARED_LIMIT : PPTReg<"src_shared_limit", 236>;
+def SRC_PRIVATE_BASE : PPTReg<"src_private_base", 237>;
+def SRC_PRIVATE_LIMIT : PPTReg<"src_private_limit", 238>;
+def SRC_POPS_EXITING_WAVE_ID : PPTReg<"src_pops_exiting_wave_id", 239>;
 
-def LDS_DIRECT : RegFile <"src_lds_direct", 254>;
+def LDS_DIRECT : PPTReg <"src_lds_direct", 254>;
 
 // SPR registers
 foreach Index = 0-105 in {
-  def SPR#Index : RegFile <"s"#Index, Index>;
+  def SPR#Index : PPTReg <"s"#Index, Index>;
 }
 
 // VPR registers
 foreach Index = 0-255 in {
-  def VPR#Index : RegFile <"v"#Index, Index> {
+  def VPR#Index : PPTReg <"v"#Index, Index> {
     let HWEncoding{8} = 1;
   }
 }
@@ -518,19 +525,18 @@ def SPR_96Regs : PPURegisterTuples<getSubRegs<3>.ret, SPR_32, 105, 3, 3, "s">;
 
 // SPR 128-bit registers
 def SPR_128Regs : PPURegisterTuples<getSubRegs<4>.ret, SPR_32, 105, 4, 4, "s">;
-/*
+
 // SPR 160-bit registers. No operations use these, but for symmetry with 160-bit VGPRs.
 def SPR_160b : PPURegisterTuples<getSubRegs<5>.ret, SPR_32, 123, 4, 5, "s">;
 
 // SPR 256-bit registers
-def SPR_256b : PPURegisterTuples<getSubRegs<8>.ret, SPR_32b, 123, 4, 8, "s">;
+def SPR_256b : PPURegisterTuples<getSubRegs<8>.ret, SPR_32, 123, 4, 8, "s">;
 
 // SPR 512-bit registers
-def SPR_512b : PPURegisterTuples<getSubRegs<16>.ret, SPR_32b, 123, 4, 16, "s">;
+def SPR_512b : PPURegisterTuples<getSubRegs<16>.ret, SPR_32, 123, 4, 16, "s">;
 
 // SPR 1024-bit registers
-def SPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, SPR_32b, 123, 4, 32, "s">;
-*/
+def SPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, SPR_32, 123, 4, 32, "s">;
 
 // VPR 32-bit registers
 // i16/f16 only
@@ -548,7 +554,7 @@ def VPR_96b : PPURegisterTuples<getSubRegs<3>.ret, VPR_32, 255, 1, 3, "v">;
 
 // VGPR 128-bit registers
 def VPR_128b : PPURegisterTuples<getSubRegs<4>.ret, VPR_32, 255, 1, 4, "v">;
-/*
+
 // VGPR 160-bit registers
 def VPR_160b : PPURegisterTuples<getSubRegs<5>.ret, VPR_32, 255, 1, 5, "v">;
 
@@ -559,8 +565,8 @@ def VPR_256b : PPURegisterTuples<getSubRegs<8>.ret, VPR_32, 255, 1, 8, "v">;
 def VPR_512b : PPURegisterTuples<getSubRegs<16>.ret, VPR_32, 255, 1, 16, "v">;
 
 // VGPR 1024-bit registers
-def VPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, VPR_32, 255, 1, 32, "v">;
-*/
+// def VPR_1024b : PPURegisterTuples<getSubRegs<32>.ret, VPR_32, 255, 1, 32, "v">;
+
 
 //===----------------------------------------------------------------------===//
 //  Register classes used as source and destination
@@ -586,9 +592,11 @@ def LDS_DIRECT_CLASS : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 
 
 
 def SReg_32 : RegisterClass<"PPU", [i32, f32, i16, f16, i1, v2i16, v2f16], 32,
-  (add GPR, SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC, TMSK, M0_CLASS)> {
-  let CopyCost = 1;
-  let AllocationPriority = 13;
+  (add SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC, TMSK, M0_CLASS,
+   FLAT_SCR_LO, FLAT_SCR_HI, SRC_SHARED_BASE, SRC_SHARED_LIMIT, SRC_PRIVATE_BASE,
+   SRC_PRIVATE_LIMIT)> {
+  // let CopyCost = 1;
+  let AllocationPriority = 10;
   /*
   let RegInfos = RegInfoByHwMode<
       [RV32,              RV64,              DefaultMode],
@@ -597,7 +605,7 @@ def SReg_32 : RegisterClass<"PPU", [i32, f32, i16, f16, i1, v2i16, v2f16], 32,
 }
 
 def SRegOrLds_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16, i1], 32,
-  (add GPR, SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC,
+  (add SPR_32, VCC, SPR_NULL, SRC_VCCZ, SRC_TMSKZ, SRC_SCC,
    TMSK, M0_CLASS, LDS_DIRECT_CLASS)> {
   let isAllocatable = 0;
   /*
@@ -621,7 +629,7 @@ def CCR_SPR_64 : RegisterClass<"PPU", SPR_64.RegTypes, 32,
 }
 
 def SReg_64 : RegisterClass<"PPU", [v2i32, i64, v2f32, f64, i1, v4i16, v4f16], 32,
-  (add SPR_64)> {
+  (add SPR_64, FLAT_SCR)> {
   let CopyCost = 1;
   let AllocationPriority = 13;
   /*
@@ -679,7 +687,6 @@ def SReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
 
 // There are no 5-component scalar instructions, but this is needed
 // for symmetry with VGPRs.
-/*
 def SPR_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,
                              (add SPR_160b)> {
   let AllocationPriority = 16;
@@ -712,7 +719,6 @@ def SReg_512 : RegisterClass<"PPU", [v16i32, v16f32], 32,
   let CopyCost = 8;
   let AllocationPriority = 18;
 }
-*/
 
 def VRegOrLds_32 : RegisterClass<"PPU", [i32, f32, i16, f16, v2i16, v2f16], 32,
                                  (add VPR_32, LDS_DIRECT_CLASS)> {
@@ -764,9 +770,6 @@ def VReg_128 : RegisterClass<"PPU", [v4i32, v4f32, v2i64, v2f64], 32,
   let CopyCost = 4;
   let AllocationPriority = 4;
 }
-
-
-/*
 def VReg_160 : RegisterClass<"PPU", [v5i32, v5f32], 32,
                              (add VPR_160b)> {
   let Size = 160;
@@ -790,6 +793,7 @@ def VReg_512 : RegisterClass<"PPU", [v16i32, v16f32], 32,
   let AllocationPriority = 7;
 }
 
+/*
 def VReg_1024 : RegisterClass<"PPU", [v32i32, v32f32], 32,
                               (add VPR_1024b)> {
   let Size = 1024;
@@ -922,11 +926,9 @@ def VSrc_64 : RegisterOperand<VReg_64> {
   let DecoderMethod = "DecodeVS_64RegisterClass";
 }
 
-/*
 def VSrc_128 : RegisterOperand<VReg_128> {
   let DecoderMethod = "DecodeVS_128RegisterClass";
 }
-*/
 
 // This is for operands with the enum(9), VSrc encoding restriction,
 // but only allows VGPRs.

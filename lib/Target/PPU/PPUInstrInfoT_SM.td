@@ -10,7 +10,9 @@
 // does sdst for SMRD on SI/CI?
 defm S_LOAD_DWORD    : SM_Pseudo_Loads <"s_load_dword", SReg_64, SReg_32>;
 defm S_LOAD_DWORDX2  : SM_Pseudo_Loads <"s_load_dwordx2", SReg_64, SReg_64>;
-
+defm S_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_load_dwordx4", SReg_64, SReg_128>;
+defm S_LOAD_DWORDX8  : SM_Pseudo_Loads <"s_load_dwordx8", SReg_64, SReg_256>;
+defm S_LOAD_DWORDX16 : SM_Pseudo_Loads <"s_load_dwordx16", SReg_64, SReg_512>;
 
 // TODO i change base registerclass from SReg_128 to SReg_64
 defm S_BUFFER_LOAD_DWORD : SM_Pseudo_Loads <
@@ -23,10 +25,22 @@ defm S_BUFFER_LOAD_DWORDX2 : SM_Pseudo_Loads <
   "s_buffer_load_dwordx2", SReg_64, SReg_64
 >;
 
+defm S_BUFFER_LOAD_DWORDX4 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx4", SReg_64, SReg_128
+>;
+
+defm S_BUFFER_LOAD_DWORDX8 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx8", SReg_64, SReg_256
+>;
+
+defm S_BUFFER_LOAD_DWORDX16 : SM_Pseudo_Loads <
+  "s_buffer_load_dwordx16", SReg_64, SReg_512
+>;
+
 let SubtargetPredicate = HasScalarStores in {
 defm S_STORE_DWORD : SM_Pseudo_Stores <"s_store_dword", SReg_64, SReg_32>;
 defm S_STORE_DWORDX2 : SM_Pseudo_Stores <"s_store_dwordx2", SReg_64, SReg_64>;
-// defm S_STORE_DWORDX4 : SM_Pseudo_Stores <"s_store_dwordx4", SReg_64, SReg_128>;
+defm S_STORE_DWORDX4 : SM_Pseudo_Stores <"s_store_dwordx4", SReg_64, SReg_128>;
 
 defm S_BUFFER_STORE_DWORD : SM_Pseudo_Stores <
   "s_buffer_store_dword", SReg_64, SReg_32
@@ -35,6 +49,10 @@ defm S_BUFFER_STORE_DWORD : SM_Pseudo_Stores <
 defm S_BUFFER_STORE_DWORDX2 : SM_Pseudo_Stores <
   "s_buffer_store_dwordx2", SReg_64, SReg_64
 >;
+
+// defm S_BUFFER_STORE_DWORDX4 : SM_Pseudo_Stores <
+//   "s_buffer_store_dwordx4", SReg_128, SReg_128
+// >;
 } // End SubtargetPredicate = HasScalarStores
 
 def S_MEMTIME : SM_Time_Pseudo <"s_memtime", int_ppu_s_memtime>;
@@ -59,11 +77,11 @@ def S_GET_WAVEID_IN_WORKGROUP : SM_WaveId_Pseudo <"s_get_waveid_in_workgroup", i
 let SubtargetPredicate = HasScalarFlatScratchInsts, Uses = [FLAT_SCR] in {
 defm S_SCRATCH_LOAD_DWORD    : SM_Pseudo_Loads <"s_scratch_load_dword",   SReg_64, SReg_32>;
 defm S_SCRATCH_LOAD_DWORDX2  : SM_Pseudo_Loads <"s_scratch_load_dwordx2", SReg_64, SReg_64>;
-// defm S_SCRATCH_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_scratch_load_dwordx4", SReg_64, SReg_128>;
+defm S_SCRATCH_LOAD_DWORDX4  : SM_Pseudo_Loads <"s_scratch_load_dwordx4", SReg_64, SReg_128>;
 
 defm S_SCRATCH_STORE_DWORD   : SM_Pseudo_Stores <"s_scratch_store_dword",   SReg_64, SReg_32>;
 defm S_SCRATCH_STORE_DWORDX2 : SM_Pseudo_Stores <"s_scratch_store_dwordx2", SReg_64, SReg_64>;
-// defm S_SCRATCH_STORE_DWORDX4 : SM_Pseudo_Stores <"s_scratch_store_dwordx4", SReg_64, SReg_128>;
+defm S_SCRATCH_STORE_DWORDX4 : SM_Pseudo_Stores <"s_scratch_store_dwordx4", SReg_64, SReg_128>;
 } // SubtargetPredicate = HasScalarFlatScratchInsts
 
 let SubtargetPredicate = HasScalarAtomics in {
@@ -289,15 +307,29 @@ let AddedComplexity = 100 in {
 
 defm : SMRD_Pattern <"S_LOAD_DWORD",    i32>;
 defm : SMRD_Pattern <"S_LOAD_DWORDX2",  v2i32>;
+defm : SMRD_Pattern <"S_LOAD_DWORDX4",  v4i32>;
+// defm : SMRD_Pattern <"S_LOAD_DWORDX8",  v8i32>;
+// defm : SMRD_Pattern <"S_LOAD_DWORDX16", v16i32>;
 
+// FIXME for Store should we need X2/X4?
 defm : SMWD_Pattern <"S_STORE_DWORD",    i32>;
-// defm : SMWD_Pattern <"S_STORE_DWORDX2",  v2i32>;
+defm : SMWD_Pattern <"S_STORE_DWORDX2",  v2i32>;
+defm : SMWD_Pattern <"S_STORE_DWORDX4",  v4i32>;
+// defm : SMWD_Pattern <"S_STORE_DWORDX8",  v8i32>;
+// defm : SMWD_Pattern <"S_STORE_DWORDX16",  v16i32>;
 
 defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORD",     i32>;
 defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX2",   v2i32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX4",   v4i32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX8",   v8i32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX16",  v16i32>;
+
 
 defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORD",     f32>;
 defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX2",   v2f32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX4",   v4f32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX8",   v8f32>;
+// defm : SMLoad_Pattern <"S_BUFFER_LOAD_DWORDX16",  v16f32>;
 } // End let AddedComplexity = 100
 
 def : PPTPat <
@@ -363,24 +395,34 @@ multiclass SM_Real_Stores_ppu<bits<8> op, string ps,
 
 defm S_LOAD_DWORD            : SM_Real_Loads_ppu<0x000, "S_LOAD_DWORD">;
 defm S_LOAD_DWORDX2          : SM_Real_Loads_ppu<0x001, "S_LOAD_DWORDX2">;
+defm S_LOAD_DWORDX4          : SM_Real_Loads_ppu<0x002, "S_LOAD_DWORDX4">;
+// defm S_LOAD_DWORDX8          : SM_Real_Loads_ppu<0x003, "S_LOAD_DWORDX8">;
+// defm S_LOAD_DWORDX16         : SM_Real_Loads_ppu<0x004, "S_LOAD_DWORDX16">;
 
 let SubtargetPredicate = HasScalarFlatScratchInsts in {
 defm S_SCRATCH_LOAD_DWORD    : SM_Real_Loads_ppu<0x005, "S_SCRATCH_LOAD_DWORD">;
 defm S_SCRATCH_LOAD_DWORDX2  : SM_Real_Loads_ppu<0x006, "S_SCRATCH_LOAD_DWORDX2">;
+// defm S_SCRATCH_LOAD_DWORDX4  : SM_Real_Loads_ppu<0x007, "S_SCRATCH_LOAD_DWORDX4">;
 } // End SubtargetPredicate = HasScalarFlatScratchInsts
 
 defm S_BUFFER_LOAD_DWORD     : SM_Real_Loads_ppu<0x008, "S_BUFFER_LOAD_DWORD">;
 defm S_BUFFER_LOAD_DWORDX2   : SM_Real_Loads_ppu<0x009, "S_BUFFER_LOAD_DWORDX2">;
+// defm S_BUFFER_LOAD_DWORDX4   : SM_Real_Loads_gfx10<0x00a, "S_BUFFER_LOAD_DWORDX4">;
+// defm S_BUFFER_LOAD_DWORDX8   : SM_Real_Loads_gfx10<0x00b, "S_BUFFER_LOAD_DWORDX8">;
+// defm S_BUFFER_LOAD_DWORDX16  : SM_Real_Loads_gfx10<0x00c, "S_BUFFER_LOAD_DWORDX16">;
 
 let SubtargetPredicate = HasScalarStores in {
 defm S_STORE_DWORD           : SM_Real_Stores_ppu<0x010, "S_STORE_DWORD">;
 defm S_STORE_DWORDX2         : SM_Real_Stores_ppu<0x011, "S_STORE_DWORDX2">;
+// defm S_STORE_DWORDX4         : SM_Real_Stores_gfx10<0x012, "S_STORE_DWORDX4">;
 let OtherPredicates = [HasScalarFlatScratchInsts] in {
 defm S_SCRATCH_STORE_DWORD   : SM_Real_Stores_ppu<0x015, "S_SCRATCH_STORE_DWORD">;
 defm S_SCRATCH_STORE_DWORDX2 : SM_Real_Stores_ppu<0x016, "S_SCRATCH_STORE_DWORDX2">;
+// defm S_SCRATCH_STORE_DWORDX4 : SM_Real_Stores_gfx10<0x017, "S_SCRATCH_STORE_DWORDX4">;
 } // End OtherPredicates = [HasScalarFlatScratchInsts]
 defm S_BUFFER_STORE_DWORD    : SM_Real_Stores_ppu<0x018, "S_BUFFER_STORE_DWORD">;
 defm S_BUFFER_STORE_DWORDX2  : SM_Real_Stores_ppu<0x019, "S_BUFFER_STORE_DWORDX2">;
+// defm S_BUFFER_STORE_DWORDX4  : SM_Real_Stores_gfx10<0x01a, "S_BUFFER_STORE_DWORDX4">;
 } // End SubtargetPredicate = HasScalarStores
 
 def S_MEMREALTIME_ppu              : SMEM_Real_ppu<0x025, S_MEMREALTIME>;

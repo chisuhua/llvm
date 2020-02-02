@@ -57,27 +57,23 @@ char &llvm::PPUOptimizeExecMaskingID = PPUOptimizeExecMasking::ID;
 
 /// If \p MI is a copy from exec, return the register copied to.
 static unsigned isCopyFromExec(const MachineInstr &MI, const PPUSubtarget &ST) {
-      /*
   switch (MI.getOpcode()) {
   case PPU::COPY:
   case PPU::S_MOV_B64:
-  case PPU::S_MOV_B64_term:
+  // case PPU::S_MOV_B64_term:
   case PPU::S_MOV_B32:
   case PPU::S_MOV_B32_term: {
     const MachineOperand &Src = MI.getOperand(1);
-    /* FIXME
     if (Src.isReg() && Src.getReg() == PPU::TMSK)
       return MI.getOperand(0).getReg();
   }
   }
-      */
 
   return PPU::NoRegister;
 }
 
 /// If \p MI is a copy to exec, return the register copied from.
 static unsigned isCopyToExec(const MachineInstr &MI, const PPUSubtarget &ST) {
-    /* FIXME
   switch (MI.getOpcode()) {
   case PPU::COPY:
   case PPU::S_MOV_B64:
@@ -87,11 +83,10 @@ static unsigned isCopyToExec(const MachineInstr &MI, const PPUSubtarget &ST) {
       return MI.getOperand(1).getReg();
     break;
   }
-  case PPU::S_MOV_B64_term:
+  // case PPU::S_MOV_B64_term:
   case PPU::S_MOV_B32_term:
     llvm_unreachable("should have been replaced");
   }
-  */
 
   return PPU::NoRegister;
 }
@@ -99,7 +94,6 @@ static unsigned isCopyToExec(const MachineInstr &MI, const PPUSubtarget &ST) {
 /// If \p MI is a logical operation on an exec value,
 /// return the register copied to.
 static unsigned isLogicalOpOnExec(const MachineInstr &MI) {
-    /* FIXME
   switch (MI.getOpcode()) {
   case PPU::S_AND_B64:
   case PPU::S_OR_B64:
@@ -126,58 +120,55 @@ static unsigned isLogicalOpOnExec(const MachineInstr &MI) {
   case PPU::S_NOR_B32:
   case PPU::S_XNOR_B32: {
     const MachineOperand &Src1 = MI.getOperand(1);
-    if (Src1.isReg() && Src1.getReg() == PPU::TMASK)
+    if (Src1.isReg() && Src1.getReg() == PPU::TMSK)
       return MI.getOperand(0).getReg();
     const MachineOperand &Src2 = MI.getOperand(2);
-    if (Src2.isReg() && Src2.getReg() == PPU::TMASK)
+    if (Src2.isReg() && Src2.getReg() == PPU::TMSK)
       return MI.getOperand(0).getReg();
     break;
   }
   }
-  */
 
   return PPU::NoRegister;
 }
 
 static unsigned getSaveTmskOp(unsigned Opc) {
-    /* FIXME
   switch (Opc) {
   case PPU::S_AND_B64:
-    return PPU::S_AND_SAVEEXEC_B64;
+    return PPU::S_AND_SAVETMSK_B64;
   case PPU::S_OR_B64:
-    return PPU::S_OR_SAVEEXEC_B64;
+    return PPU::S_OR_SAVETMSK_B64;
   case PPU::S_XOR_B64:
-    return PPU::S_XOR_SAVEEXEC_B64;
+    return PPU::S_XOR_SAVETMSK_B64;
   case PPU::S_ANDN2_B64:
-    return PPU::S_ANDN2_SAVEEXEC_B64;
+    return PPU::S_ANDN2_SAVETMSK_B64;
   case PPU::S_ORN2_B64:
-    return PPU::S_ORN2_SAVEEXEC_B64;
+    return PPU::S_ORN2_SAVETMSK_B64;
   case PPU::S_NAND_B64:
-    return PPU::S_NAND_SAVEEXEC_B64;
+    return PPU::S_NAND_SAVETMSK_B64;
   case PPU::S_NOR_B64:
-    return PPU::S_NOR_SAVEEXEC_B64;
+    return PPU::S_NOR_SAVETMSK_B64;
   case PPU::S_XNOR_B64:
-    return PPU::S_XNOR_SAVEEXEC_B64;
+    return PPU::S_XNOR_SAVETMSK_B64;
   case PPU::S_AND_B32:
-    return PPU::S_AND_SAVEEXEC_B32;
+    return PPU::S_AND_SAVETMSK_B32;
   case PPU::S_OR_B32:
-    return PPU::S_OR_SAVEEXEC_B32;
+    return PPU::S_OR_SAVETMSK_B32;
   case PPU::S_XOR_B32:
-    return PPU::S_XOR_SAVEEXEC_B32;
+    return PPU::S_XOR_SAVETMSK_B32;
   case PPU::S_ANDN2_B32:
-    return PPU::S_ANDN2_SAVEEXEC_B32;
+    return PPU::S_ANDN2_SAVETMSK_B32;
   case PPU::S_ORN2_B32:
-    return PPU::S_ORN2_SAVEEXEC_B32;
+    return PPU::S_ORN2_SAVETMSK_B32;
   case PPU::S_NAND_B32:
-    return PPU::S_NAND_SAVEEXEC_B32;
+    return PPU::S_NAND_SAVETMSK_B32;
   case PPU::S_NOR_B32:
-    return PPU::S_NOR_SAVEEXEC_B32;
+    return PPU::S_NOR_SAVETMSK_B32;
   case PPU::S_XNOR_B32:
-    return PPU::S_XNOR_SAVEEXEC_B32;
+    return PPU::S_XNOR_SAVETMSK_B32;
   default:
     return PPU::INSTRUCTION_LIST_END;
   }
-  */
 }
 
 // These are only terminators to get correct spill code placement during
@@ -185,18 +176,19 @@ static unsigned getSaveTmskOp(unsigned Opc) {
 // these is expected per block.
 static bool removeTerminatorBit(const PPUInstrInfo &TII, MachineInstr &MI) {
   switch (MI.getOpcode()) {
-    /*FIXME
-  case PPU::S_MOV_B64_term:
+  // case PPU::S_MOV_B64_term:
   case PPU::S_MOV_B32_term: {
     MI.setDesc(TII.get(PPU::COPY));
     return true;
   }
+  /*
   case PPU::SL_XOR_B64_term: {
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(TII.get(PPU::SL_XOR_B64));
     return true;
   }
+  */
   case PPU::S_XOR_B32_term: {
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
@@ -209,19 +201,19 @@ static bool removeTerminatorBit(const PPUInstrInfo &TII, MachineInstr &MI) {
     MI.setDesc(TII.get(PPU::S_OR_B32));
     return true;
   }
-  case PPU::S_ANDN2_B64_term: {
+  /*case PPU::S_ANDN2_B64_term: {
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(TII.get(PPU::S_ANDN2_B64));
     return true;
   }
+  */
   case PPU::S_ANDN2_B32_term: {
     // This is only a terminator to get the correct spill code placement during
     // register allocation.
     MI.setDesc(TII.get(PPU::S_ANDN2_B32));
     return true;
   }
-  */
   default:
     return false;
   }

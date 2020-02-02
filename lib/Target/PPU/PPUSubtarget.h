@@ -396,11 +396,11 @@ protected:
   bool HasNoDataDepHazard {false};
   bool HasRegisterBanking;
   bool HasMAIInsts;
-  bool FlatAddressSpace {false};
+  bool FlatAddressSpace {true};
   bool FlatInstOffsets {false};
-  bool FlatGlobalInsts {false};
-  bool FlatScratchInsts {false};
-  bool ScalarFlatScratchInsts {false};
+  bool FlatGlobalInsts {true};
+  bool FlatScratchInsts {true};
+  bool ScalarFlatScratchInsts {true};
   bool AddNoCarryInsts;
   bool HasUnpackedD16VMem;
   /*

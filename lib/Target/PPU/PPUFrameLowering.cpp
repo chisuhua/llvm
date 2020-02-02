@@ -1506,7 +1506,8 @@ void PPUFrameLowering::emitEntryFunctionScratchSetup(const PPUSubtarget &ST,
       MachineFunction &MF, MachineBasicBlock &MBB, PPUMachineFunctionInfo *MFI,
       MachineBasicBlock::iterator I, unsigned PreloadedPrivateBufferReg,
       unsigned ScratchRsrcReg) const {
-  llvm_unreachable("Invalid TargetStackID::Value");
+    return;
+  // llvm_unreachable("Invalid TargetStackID::Value");
 /*
   const SIInstrInfo *TII = ST.getInstrInfo();
   const SIRegisterInfo *TRI = &TII->getRegisterInfo();

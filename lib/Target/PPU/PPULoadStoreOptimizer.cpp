@@ -416,8 +416,8 @@ unsigned PPULoadStoreOptimizer::getOpcodeWidth(const MachineInstr &MI) const {
     return 1;
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
     return 2;
-  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
-  //  return 4;
+  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+    return 4;
   }
 }
 
@@ -457,7 +457,7 @@ InstClassEnum PPULoadStoreOptimizer::getInstClass(unsigned Opc) const {
     return UNKNOWN;
   case PPU::S_BUFFER_LOAD_DWORD_IMM:
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
-  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
     return S_BUFFER_LOAD_IMM;
   case PPU::DS_READ_B32:
   case PPU::DS_READ_B64:
@@ -496,7 +496,7 @@ unsigned PPULoadStoreOptimizer::getRegs(unsigned Opc) const {
     return 0;
   case PPU::S_BUFFER_LOAD_DWORD_IMM:
   case PPU::S_BUFFER_LOAD_DWORDX2_IMM:
-  // case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
+  case PPU::S_BUFFER_LOAD_DWORDX4_IMM:
     return SBASE;
   case PPU::DS_READ_B32:
   case PPU::DS_READ_B64:
@@ -1006,9 +1006,8 @@ unsigned PPULoadStoreOptimizer::getNewOpcode(const CombineInfo &CI) {
       return 0;
     case 2:
       return PPU::S_BUFFER_LOAD_DWORDX2_IMM;
-    /*case 4:
+    case 4:
       return PPU::S_BUFFER_LOAD_DWORDX4_IMM;
-      */
     }
   }
 }
@@ -1092,12 +1091,10 @@ PPULoadStoreOptimizer::getTargetRegisterClass(const CombineInfo &CI) {
       return &PPU::SReg_64RegClass;
     case 4:
       return &PPU::SReg_128RegClass;
-      /*
     case 8:
       return &PPU::SReg_256RegClass;
     case 16:
       return &PPU::SReg_512RegClass;
-      */
     }
   } else {
     switch (CI.Width0 + CI.Width1) {

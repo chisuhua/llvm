@@ -23,6 +23,7 @@
 
 namespace llvm {
 
+// The Base is for non-compute register
 struct PPUBaseRegisterInfo : public PPUGenRegisterInfo {
 
   PPUBaseRegisterInfo(unsigned HwMode);
@@ -61,8 +62,6 @@ struct PPUBaseRegisterInfo : public PPUGenRegisterInfo {
                      unsigned Kind = 0) const override {
     return &PPU::GPRRegClass;
   }
-
-  // unsigned getVCC() const;
 };
 
 class PPUSubtarget;
@@ -70,6 +69,8 @@ class LiveIntervals;
 class MachineRegisterInfo;
 class PPUMachineFunctionInfo;
 
+
+// PPURegisterInfo is for Compute, the BaseRegisterInfo is for non-Compute
 class PPURegisterInfo final : public PPUBaseRegisterInfo {
 private:
   const PPUSubtarget &ST;
@@ -304,13 +305,13 @@ public:
                                  const MachineRegisterInfo &MRI) const override;
 
   const TargetRegisterClass *getBoolRC() const {
-    // FIXME return &PPU::SReg_32_XM0RegClass
-    return &PPU::GPRRegClass;
+    return &PPU::SReg_32RegClass;
+    // return &PPU::GPRRegClass;
   }
 
   const TargetRegisterClass *getWaveMaskRegClass() const {
-    // return &PPU::SReg_32_XM0_XEXECRegClass
-    return &PPU::GPRRegClass;
+    return &PPU::SReg_32RegClass;
+    // return &PPU::GPRRegClass;
   }
 
   unsigned getVCC() const;

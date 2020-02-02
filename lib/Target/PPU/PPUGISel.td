@@ -69,8 +69,8 @@ def gi_ds_1addr_1offset :
 // SelectionDAG. The GISel selector can just insert m0 initialization
 // directly before before selecting a glue-less load, so hide this
 // distinction.
-def : GINodeEquiv<G_LOAD, AMDGPUld_glue>;
-def : GINodeEquiv<G_STORE, AMDGPUst_glue>;
+def : GINodeEquiv<G_LOAD, PPUld_glue>;
+def : GINodeEquiv<G_STORE, PPUst_glue>;
 
 def : GINodeEquiv<G_ATOMIC_CMPXCHG, atomic_cmp_swap_glue>;
 def : GINodeEquiv<G_ATOMICRMW_XCHG, atomic_swap_glue>;
@@ -90,7 +90,7 @@ class GISelSop2Pat <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : PPUPat <
 
   (dst_vt (node (src0_vt SReg_32:$src0), (src1_vt SReg_32:$src1))),
   (inst src0_vt:$src0, src1_vt:$src1)
@@ -100,9 +100,9 @@ class GISelVop2Pat <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : PPUPat <
 
-  (dst_vt (node (src0_vt (sd_vsrc0 src0_vt:$src0)), (src1_vt VGPR_32:$src1))),
+  (dst_vt (node (src0_vt (sd_vsrc0 src0_vt:$src0)), (src1_vt VPR_32:$src1))),
   (inst src0_vt:$src0, src1_vt:$src1)
 >;
 
@@ -110,9 +110,9 @@ class GISelVop2CommutePat <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : PPUPat <
 
-  (dst_vt (node (src1_vt VGPR_32:$src1), (src0_vt (sd_vsrc0 src0_vt:$src0)))),
+  (dst_vt (node (src1_vt VPR_32:$src1), (src0_vt (sd_vsrc0 src0_vt:$src0)))),
   (inst src0_vt:$src0, src1_vt:$src1)
 >;
 
@@ -120,7 +120,7 @@ class GISelVop3Pat2 <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : PPUPat <
 
   (dst_vt (node (src0_vt (sd_vcsrc src0_vt:$src0)), (src1_vt (sd_vcsrc src1_vt:$src1)))),
   (inst src0_vt:$src0, src1_vt:$src1)
@@ -130,7 +130,7 @@ class GISelVop3Pat2CommutePat <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt>   : PPUPat <
 
   (dst_vt (node (src0_vt (sd_vcsrc src0_vt:$src0)), (src1_vt (sd_vcsrc src1_vt:$src1)))),
   (inst src0_vt:$src1, src1_vt:$src0)
@@ -140,7 +140,7 @@ class GISelVop3Pat2ModsPat <
   SDPatternOperator node,
   Instruction inst,
   ValueType dst_vt,
-  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt> : GCNPat <
+  ValueType src0_vt = dst_vt, ValueType src1_vt = src0_vt> : PPUPat <
 
   (dst_vt (node (src0_vt (VOP3Mods0 src0_vt:$src0, i32:$src0_modifiers, i1:$clamp, i32:$omods)),
                 (src1_vt (VOP3Mods src1_vt:$src1, i32:$src1_modifiers)))),
@@ -174,9 +174,10 @@ def : GISelVop3Pat2ModsPat <
   int_amdgcn_cvt_pkrtz, V_CVT_PKRTZ_F16_F32_e64, v2f16, f32>;
 
 defm : GISelVop2IntrPat <int_maxnum, V_MAX_F32_e32, f32>;
-def : GISelVop3Pat2ModsPat <int_maxnum, V_MAX_F64, f64>;
+// TODO disable double
+// def : GISelVop3Pat2ModsPat <int_maxnum, V_MAX_F64, f64>;
 defm : GISelVop2IntrPat <int_minnum, V_MIN_F32_e32, f32>;
-def : GISelVop3Pat2ModsPat <int_minnum, V_MIN_F64, f64>;
+// def : GISelVop3Pat2ModsPat <int_minnum, V_MIN_F64, f64>;
 
 // Since GlobalISel is more flexible then SelectionDAG, I think we can get
 // away with adding patterns for integer types and not legalizing all

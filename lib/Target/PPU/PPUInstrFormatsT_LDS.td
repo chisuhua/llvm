@@ -1,5 +1,5 @@
 class DS_Pseudo <string opName, dag outs, dag ins, string asmOps, list<dag> pattern=[]> :
-  PPTInst <outs, ins, "", "", pattern>,
+  PPTInst <outs, ins, opName, asmOps, pattern>,
   PPUMCInstr <opName, PPUEncodingFamily.NONE> {
 
   let LGKM_CNT = 1;

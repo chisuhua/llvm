@@ -82,16 +82,17 @@ add_llvm_target(PPUCodeGen
   PPUMachineScheduler.cpp
   PPUInline.cpp
   PPUFixVGPRCopies.cpp
+  PPUFixSPRCopies.cpp
+  PPUFixupVectorISel.cpp
   PPUAnnotateControlFlow.cpp
   PPUHazardRecognizer.cpp
   )
-#  PPUFixSGPRCopies.cpp
 # PPUNSAReassign.cpp
 # PPUIntrinsicInfo.cpp
 
 # FIXME
 add_subdirectory(AsmParser)
-#add_subdirectory(Disassembler)
+add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)

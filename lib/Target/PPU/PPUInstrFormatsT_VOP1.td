@@ -9,7 +9,7 @@ class VOP1e <bits<8> op, VOPProfile P> : Enc32 {
 }
 
 class VOP1_Pseudo <string opName, VOPProfile P, list<dag> pattern=[], bit VOP1Only = 0> :
-  VOP_Pseudo <opName, !if(VOP1Only, "", "_e32"), P, P.Outs32, P.Ins32, "", pattern> {
+  VOP_Pseudo <opName, !if(VOP1Only, "", "_e32"), P, P.Outs32, P.Ins32, P.Asm32, pattern> {
 
   let AsmOperands = P.Asm32;
 

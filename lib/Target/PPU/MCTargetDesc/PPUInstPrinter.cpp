@@ -225,8 +225,7 @@ void PPUInstPrinter::printOffset(const MCInst *MI, unsigned OpNo,
 void PPUInstPrinter::printFlatOffset(const MCInst *MI, unsigned OpNo,
                                         const MCSubtargetInfo &STI,
                                         raw_ostream &O) {
-    llvm_unreachable("printFlatOffset is WIP");
-    /*
+    // llvm_unreachable("printFlatOffset is WIP");
   uint16_t Imm = MI->getOperand(OpNo).getImm();
   if (Imm != 0) {
     O << ((OpNo == 0)? "offset:" : " offset:");
@@ -237,14 +236,13 @@ void PPUInstPrinter::printFlatOffset(const MCInst *MI, unsigned OpNo,
     if (IsFlatSeg) { // Unsigned offset
       printU16ImmDecOperand(MI, OpNo, O);
     } else {         // Signed offset
-      if (PPU::isGFX10(STI)) {
+      // if (PPU::isGFX10(STI)) {
         O << formatDec(SignExtend32<12>(MI->getOperand(OpNo).getImm()));
-      } else {
-        O << formatDec(SignExtend32<13>(MI->getOperand(OpNo).getImm()));
-      }
+      // } else {
+      //  O << formatDec(SignExtend32<13>(MI->getOperand(OpNo).getImm()));
+      // }
     }
   }
-  */
 }
 
 void PPUInstPrinter::printOffset0(const MCInst *MI, unsigned OpNo,
@@ -410,6 +408,7 @@ void PPUInstPrinter::printRegOperand(unsigned RegNo, raw_ostream &O,
 
 void PPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
                                     const MCSubtargetInfo &STI, raw_ostream &O) {
+    /* FIXME
   if (OpNo == 0) {
     if (MII.get(MI->getOpcode()).TSFlags & PPUInstrFlags::VOP3)
       O << "_e64 ";
@@ -420,6 +419,7 @@ void PPUInstPrinter::printVOPDst(const MCInst *MI, unsigned OpNo,
     else
       O << "_e32 ";
   }
+  */
 
   printOperand(MI, OpNo, STI, O);
 

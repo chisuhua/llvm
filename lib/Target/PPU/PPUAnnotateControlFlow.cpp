@@ -148,13 +148,13 @@ void PPUAnnotateControlFlow::initialize(Module &M, const PPUSubtarget &ST) {
   BoolUndef = UndefValue::get(Boolean);
   IntMaskZero = ConstantInt::get(IntMask, 0);
 
-  If = Intrinsic::getDeclaration(&M, Intrinsic::amdgcn_if, { IntMask });
-  Else = Intrinsic::getDeclaration(&M, Intrinsic::amdgcn_else,
+  If = Intrinsic::getDeclaration(&M, Intrinsic::ppu_if, { IntMask });
+  Else = Intrinsic::getDeclaration(&M, Intrinsic::ppu_else,
                                    { IntMask, IntMask });
-  IfBreak = Intrinsic::getDeclaration(&M, Intrinsic::amdgcn_if_break,
+  IfBreak = Intrinsic::getDeclaration(&M, Intrinsic::ppu_if_break,
                                       { IntMask, IntMask });
-  Loop = Intrinsic::getDeclaration(&M, Intrinsic::amdgcn_loop, { IntMask });
-  EndCf = Intrinsic::getDeclaration(&M, Intrinsic::amdgcn_end_cf, { IntMask });
+  Loop = Intrinsic::getDeclaration(&M, Intrinsic::ppu_loop, { IntMask });
+  EndCf = Intrinsic::getDeclaration(&M, Intrinsic::ppu_end_cf, { IntMask });
 }
 
 /// Is the branch condition uniform or did the StructurizeCFG pass

@@ -56,7 +56,7 @@ public:
   static char ID;
 
 private:
-  bool IsWave32 = false;
+  bool IsWave32 = true;
   MachineFunction *MF = nullptr;
   MachineDominatorTree *DT = nullptr;
   MachinePostDominatorTree *PDT = nullptr;
