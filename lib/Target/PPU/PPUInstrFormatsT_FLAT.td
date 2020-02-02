@@ -194,6 +194,7 @@ multiclass FLAT_Global_Store_Pseudo<string opName, RegisterClass regClass> {
       GlobalSaddrTable<1, opName>;
   }
 }
+
 // FIXME PPU I change saddr/vaddr from 32 to 64
 class FLAT_Scratch_Load_Pseudo <string opName, RegisterClass regClass,
   bit EnableSaddr = 0>: FLAT_Pseudo<
