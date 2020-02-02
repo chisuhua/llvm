@@ -2250,9 +2250,8 @@ def SI_BR_UNDEF : SPseudoInst <(outs), (ins sopp_brtarget:$simm16)> {
   let isBranch = 1;
 }
 
-/*
-def SI_MASKED_UNREACHABLE : SPseudoInst <(outs), (ins),
-  [(int_ppu_unreachable)],
+/* FIXME PPU since PPUAsmPrinter.cpp use it
+def SI_MASKED_UNREACHABLE : SPseudoInst <(outs), (ins), [(int_ppu_unreachable)],
   "; divergent unreachable"> {
   let Size = 0;
   let hasNoSchedulingInfo = 1;

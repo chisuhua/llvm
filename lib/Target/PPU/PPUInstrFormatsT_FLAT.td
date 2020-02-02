@@ -12,6 +12,9 @@ def FLATOffset : ComplexPattern<i64, 3, "SelectFlatOffset<false>", [], [SDNPWant
 def FLATOffsetSigned : ComplexPattern<i64, 3, "SelectFlatOffset<true>", [], [SDNPWantRoot], -10>;
 def FLATSignedAtomic : ComplexPattern<i64, 3, "SelectFlatAtomicSigned", [], [SDNPWantRoot], -10>;
 
+def SCRATCHOffset : ComplexPattern<i32, 3, "SelectFlatOffset<false>", [], [SDNPWantRoot], -10>;
+def SCRATCHOffsetSigned : ComplexPattern<i32, 3, "SelectFlatOffset<true>", [], [SDNPWantRoot], -10>;
+
 //===----------------------------------------------------------------------===//
 // FLAT classes
 //===----------------------------------------------------------------------===//
@@ -191,14 +194,14 @@ multiclass FLAT_Global_Store_Pseudo<string opName, RegisterClass regClass> {
       GlobalSaddrTable<1, opName>;
   }
 }
-// FIXM I change saddr/vaddr from 32 to 64
+// FIXME PPU I change saddr/vaddr from 32 to 64
 class FLAT_Scratch_Load_Pseudo <string opName, RegisterClass regClass,
   bit EnableSaddr = 0>: FLAT_Pseudo<
   opName,
   (outs regClass:$vdst),
   !if(EnableSaddr,
-      (ins SReg_64:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-      (ins VReg_64:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+      (ins SReg_32:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+      (ins VReg_32:$vaddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   " $vdst, "#!if(EnableSaddr, "off", "$vaddr")#!if(EnableSaddr, ", $saddr", ", off")#"$offset$glc$slc$dlc"> {
   let has_data = 0;
   let mayLoad = 1;
@@ -214,8 +217,8 @@ class FLAT_Scratch_Store_Pseudo <string opName, RegisterClass vdataClass, bit En
   opName,
   (outs),
   !if(EnableSaddr,
-    (ins SReg_64:$saddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
-    (ins VReg_64:$vaddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
+    (ins SReg_32:$saddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
+    (ins VReg_32:$vaddr, vdataClass:$vdata, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc)),
   /*
   !if(EnableSaddr,
     (ins vdataClass:$vdata, SReg_64:$saddr, flat_offset:$offset, GLC:$glc, SLC:$slc, DLC:$dlc),
