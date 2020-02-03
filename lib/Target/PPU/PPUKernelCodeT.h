@@ -8,8 +8,8 @@
 /// \file AMDKernelCodeT.h
 //===----------------------------------------------------------------------===//
 
-#ifndef AMDKERNELCODET_H
-#define AMDKERNELCODET_H
+#ifndef PPUKERNELCODET_H
+#define PPUKERNELCODET_H
 
 #include "llvm/MC/SubtargetFeature.h"
 
@@ -652,4 +652,4 @@ typedef struct amd_kernel_code_s {
   uint64_t control_directives[16];
 } amd_kernel_code_t;
 
-#endif // AMDKERNELCODET_H
+#endif // PPUKERNELCODET_H
