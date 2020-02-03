@@ -5,9 +5,9 @@
 define amdgpu_kernel void @v_add_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %in) #0 {
   ; %tid = call i32 @llvm.ppu.nvvm.tid.x() #3
   %tid = call i32 @llvm.ppu.workitem.id.x()
-  %tid.ext = sext i32 %tid to i64
-  ; %gep = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %tid
-  %gep = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %tid.ext
+  ;%tid.ext = sext i32 %tid to i64
+  %gep = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %tid
+
   %b_ptr = getelementptr i32, i32 addrspace(1)* %gep, i32 1
   %a = load volatile i32, i32 addrspace(1)* %gep
   %b = load volatile i32, i32 addrspace(1)* %b_ptr

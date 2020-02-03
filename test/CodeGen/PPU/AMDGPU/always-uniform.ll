@@ -1,7 +1,7 @@
 ; RUN: llc -mtriple amdgcn-amdhsa -mcpu=fiji -amdgpu-scalarize-global-loads -verify-machineinstrs < %s | FileCheck -check-prefix=GCN %s
 
-declare i32 @llvm.amdgcn.workitem.id.x()
-declare i32 @llvm.amdgcn.readfirstlane(i32)
+declare i32 @llvm.ppu.workitem.id.x()
+declare i32 @llvm.ppu.readfirstlane(i32)
 
 ; GCN-LABEL: readfirstlane_uniform
 ; GCN: 	s_load_dwordx2 s{{\[}}[[IN_ADDR:[0-9]+]]:1{{\]}}, s[4:5], 0x0
@@ -10,8 +10,8 @@ declare i32 @llvm.amdgcn.readfirstlane(i32)
 ; GCN:	s_load_dword s{{[0-9]+}}, s{{\[}}[[LOAD_ADDR]]
 
 define amdgpu_kernel void @readfirstlane_uniform(float addrspace(1)* noalias nocapture readonly, float addrspace(1)* noalias nocapture readonly) {
-  %tid = tail call i32 @llvm.amdgcn.workitem.id.x()
-  %scalar = tail call i32 @llvm.amdgcn.readfirstlane(i32 %tid)
+  %tid = tail call i32 @llvm.ppu.workitem.id.x()
+  %scalar = tail call i32 @llvm.ppu.readfirstlane(i32 %tid)
   %idx = zext i32 %scalar to i64
   %gep0 = getelementptr inbounds float, float addrspace(1)* %0, i64 %idx
   %val = load float, float addrspace(1)* %gep0, align 4

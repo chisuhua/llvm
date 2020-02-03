@@ -57,7 +57,7 @@ entry:
 define amdgpu_kernel void @test_inliner(float addrspace(1)* nocapture %a, i32 %n) {
 entry:
   %pvt_arr = alloca [64 x float], align 4, addrspace(5)
-  %tid = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %tid = tail call i32 @llvm.ppu.workitem.id.x()
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i32 %tid
   %tmp2 = load float, float addrspace(1)* %arrayidx, align 4
   %add = add i32 %tid, 1
@@ -91,7 +91,7 @@ define amdgpu_kernel void @test_inliner_multi_pvt_ptr(float addrspace(1)* nocapt
 entry:
   %pvt_arr1 = alloca [32 x float], align 4, addrspace(5)
   %pvt_arr2 = alloca [32 x float], align 4, addrspace(5)
-  %tid = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %tid = tail call i32 @llvm.ppu.workitem.id.x()
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i32 %tid
   %or = or i32 %tid, %n
   %arrayidx4 = getelementptr inbounds [32 x float], [32 x float] addrspace(5)* %pvt_arr1, i32 0, i32 %or
@@ -118,7 +118,7 @@ define amdgpu_kernel void @test_inliner_multi_pvt_ptr_cutoff(float addrspace(1)*
 entry:
   %pvt_arr1 = alloca [32 x float], align 4, addrspace(5)
   %pvt_arr2 = alloca [33 x float], align 4, addrspace(5)
-  %tid = tail call i32 @llvm.amdgcn.workitem.id.x()
+  %tid = tail call i32 @llvm.ppu.workitem.id.x()
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %a, i32 %tid
   %or = or i32 %tid, %n
   %arrayidx4 = getelementptr inbounds [32 x float], [32 x float] addrspace(5)* %pvt_arr1, i32 0, i32 %or
@@ -138,7 +138,7 @@ entry:
   ret void
 }
 
-declare i32 @llvm.amdgcn.workitem.id.x() #1
+declare i32 @llvm.ppu.workitem.id.x() #1
 declare float @_Z3sinf(float) #1
 
 attributes #0 = { noinline }
