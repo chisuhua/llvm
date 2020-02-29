@@ -1,5 +1,5 @@
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX9 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX10 %s
+;; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX9 %s
+;; RUN: llc -march=amdgcn -mcpu=gfx1010 -verify-machineinstrs < %s | FileCheck -check-prefixes=GCN,GFX10 %s
 
 
 ; GCN-LABEL: {{^}}add_var_var_i1:
@@ -29,7 +29,7 @@ define amdgpu_kernel void @add_var_imm_i1(i1 addrspace(1)* %out, i1 addrspace(1)
 ; GFX10: s_not_b32
 define amdgpu_kernel void @add_i1_cf(i1 addrspace(1)* %out, i1 addrspace(1)* %a, i1 addrspace(1)* %b) {
 entry:
-  %tid = call i32 @llvm.amdgcn.workitem.id.x()
+  %tid = call i32 @llvm.ppu.workitem.id.x()
   %d_cmp = icmp ult i32 %tid, 16
   br i1 %d_cmp, label %if, label %else
 
@@ -48,4 +48,4 @@ endif:
   ret void
 }
 
-declare i32 @llvm.amdgcn.workitem.id.x()
+declare i32 @llvm.ppu.workitem.id.x()

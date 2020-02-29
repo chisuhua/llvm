@@ -1,4 +1,4 @@
-; RUN: llc -march=amdgcn -mcpu=gfx900 -verify-machineinstrs -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefix=GFX9 %s
+; RUN: llc -march=ppu -mcpu=gfx900 -verify-machineinstrs -amdgpu-enable-global-sgpr-addr < %s | FileCheck -check-prefix=GFX9 %s
 
 ; Test for a conv2d like sequence of loads.
 
@@ -11,7 +11,7 @@
 
 define hidden amdgpu_kernel void @simpleSaddrs(i64 addrspace(1)* %dst_image, i64 addrspace(1)* %src_image ) {
 entry:
-  %id = call i32 @llvm.amdgcn.workitem.id.x()
+  %id = call i32 @llvm.ppu.workitem.id.x()
   %idx = zext i32 %id to i64
   %gep = getelementptr i64, i64 addrspace(1)* %src_image, i64 %idx
   %ptr0 = getelementptr inbounds i64, i64 addrspace(1)* %gep, i64 1
@@ -97,6 +97,6 @@ bb:
   ret void
 }
 
-declare i32 @llvm.amdgcn.workitem.id.x() #1
+declare i32 @llvm.ppu.workitem.id.x() #1
 attributes #0 = { convergent nounwind }
 attributes #1 = { nounwind readnone speculatable }

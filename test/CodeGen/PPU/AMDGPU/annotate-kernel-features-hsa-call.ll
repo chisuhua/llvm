@@ -1,86 +1,86 @@
-; RUN: opt -S -mtriple=amdgcn-unknown-amdhsa -amdgpu-annotate-kernel-features %s | FileCheck -check-prefix=HSA %s
+; RUN: opt -S -mtriple=ppu-unknown-amdhsa -amdgpu-annotate-kernel-features %s | FileCheck -check-prefix=HSA %s
 
-declare i32 @llvm.amdgcn.workgroup.id.x() #0
-declare i32 @llvm.amdgcn.workgroup.id.y() #0
-declare i32 @llvm.amdgcn.workgroup.id.z() #0
+declare i32 @llvm.ppu.workgroup.id.x() #0
+declare i32 @llvm.ppu.workgroup.id.y() #0
+declare i32 @llvm.ppu.workgroup.id.z() #0
 
-declare i32 @llvm.amdgcn.workitem.id.x() #0
-declare i32 @llvm.amdgcn.workitem.id.y() #0
-declare i32 @llvm.amdgcn.workitem.id.z() #0
+declare i32 @llvm.ppu.workitem.id.x() #0
+declare i32 @llvm.ppu.workitem.id.y() #0
+declare i32 @llvm.ppu.workitem.id.z() #0
 
-declare i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr() #0
-declare i8 addrspace(4)* @llvm.amdgcn.queue.ptr() #0
-declare i8 addrspace(4)* @llvm.amdgcn.kernarg.segment.ptr() #0
-declare i8 addrspace(4)* @llvm.amdgcn.implicitarg.ptr() #0
-declare i64 @llvm.amdgcn.dispatch.id() #0
+declare i8 addrspace(4)* @llvm.ppu.dispatch.ptr() #0
+declare i8 addrspace(4)* @llvm.ppu.queue.ptr() #0
+declare i8 addrspace(4)* @llvm.ppu.kernarg.segment.ptr() #0
+declare i8 addrspace(4)* @llvm.ppu.implicitarg.ptr() #0
+declare i64 @llvm.ppu.dispatch.id() #0
 
 ; HSA: define void @use_workitem_id_x() #1 {
 define void @use_workitem_id_x() #1 {
-  %val = call i32 @llvm.amdgcn.workitem.id.x()
+  %val = call i32 @llvm.ppu.workitem.id.x()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workitem_id_y() #2 {
 define void @use_workitem_id_y() #1 {
-  %val = call i32 @llvm.amdgcn.workitem.id.y()
+  %val = call i32 @llvm.ppu.workitem.id.y()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workitem_id_z() #3 {
 define void @use_workitem_id_z() #1 {
-  %val = call i32 @llvm.amdgcn.workitem.id.z()
+  %val = call i32 @llvm.ppu.workitem.id.z()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workgroup_id_x() #4 {
 define void @use_workgroup_id_x() #1 {
-  %val = call i32 @llvm.amdgcn.workgroup.id.x()
+  %val = call i32 @llvm.ppu.workgroup.id.x()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workgroup_id_y() #5 {
 define void @use_workgroup_id_y() #1 {
-  %val = call i32 @llvm.amdgcn.workgroup.id.y()
+  %val = call i32 @llvm.ppu.workgroup.id.y()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workgroup_id_z() #6 {
 define void @use_workgroup_id_z() #1 {
-  %val = call i32 @llvm.amdgcn.workgroup.id.z()
+  %val = call i32 @llvm.ppu.workgroup.id.z()
   store volatile i32 %val, i32 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_dispatch_ptr() #7 {
 define void @use_dispatch_ptr() #1 {
-  %dispatch.ptr = call i8 addrspace(4)* @llvm.amdgcn.dispatch.ptr()
+  %dispatch.ptr = call i8 addrspace(4)* @llvm.ppu.dispatch.ptr()
   store volatile i8 addrspace(4)* %dispatch.ptr, i8 addrspace(4)* addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_queue_ptr() #8 {
 define void @use_queue_ptr() #1 {
-  %queue.ptr = call i8 addrspace(4)* @llvm.amdgcn.queue.ptr()
+  %queue.ptr = call i8 addrspace(4)* @llvm.ppu.queue.ptr()
   store volatile i8 addrspace(4)* %queue.ptr, i8 addrspace(4)* addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_dispatch_id() #9 {
 define void @use_dispatch_id() #1 {
-  %val = call i64 @llvm.amdgcn.dispatch.id()
+  %val = call i64 @llvm.ppu.dispatch.id()
   store volatile i64 %val, i64 addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_workgroup_id_y_workgroup_id_z() #10 {
 define void @use_workgroup_id_y_workgroup_id_z() #1 {
-  %val0 = call i32 @llvm.amdgcn.workgroup.id.y()
-  %val1 = call i32 @llvm.amdgcn.workgroup.id.z()
+  %val0 = call i32 @llvm.ppu.workgroup.id.y()
+  %val1 = call i32 @llvm.ppu.workgroup.id.z()
   store volatile i32 %val0, i32 addrspace(1)* undef
   store volatile i32 %val1, i32 addrspace(1)* undef
   ret void
@@ -172,7 +172,7 @@ define void @func_indirect_use_workgroup_id_y_workgroup_id_z() #1 {
 
 ; HSA: define void @recursive_use_workitem_id_y() #2 {
 define void @recursive_use_workitem_id_y() #1 {
-  %val = call i32 @llvm.amdgcn.workitem.id.y()
+  %val = call i32 @llvm.ppu.workitem.id.y()
   store volatile i32 %val, i32 addrspace(1)* undef
   call void @recursive_use_workitem_id_y()
   ret void
@@ -226,7 +226,7 @@ define void @indirect_use_group_to_flat_addrspacecast_queue_ptr_gfx9() #1 {
 
 ; HSA: define void @use_kernarg_segment_ptr() #14 {
 define void @use_kernarg_segment_ptr() #1 {
-  %kernarg.segment.ptr = call i8 addrspace(4)* @llvm.amdgcn.kernarg.segment.ptr()
+  %kernarg.segment.ptr = call i8 addrspace(4)* @llvm.ppu.kernarg.segment.ptr()
   store volatile i8 addrspace(4)* %kernarg.segment.ptr, i8 addrspace(4)* addrspace(1)* undef
   ret void
 }
@@ -239,14 +239,14 @@ define void @func_indirect_use_kernarg_segment_ptr() #1 {
 
 ; HSA: define amdgpu_kernel void @kern_use_implicitarg_ptr() #15 {
 define amdgpu_kernel void @kern_use_implicitarg_ptr() #1 {
-  %implicitarg.ptr = call i8 addrspace(4)* @llvm.amdgcn.implicitarg.ptr()
+  %implicitarg.ptr = call i8 addrspace(4)* @llvm.ppu.implicitarg.ptr()
   store volatile i8 addrspace(4)* %implicitarg.ptr, i8 addrspace(4)* addrspace(1)* undef
   ret void
 }
 
 ; HSA: define void @use_implicitarg_ptr() #16 {
 define void @use_implicitarg_ptr() #1 {
-  %implicitarg.ptr = call i8 addrspace(4)* @llvm.amdgcn.implicitarg.ptr()
+  %implicitarg.ptr = call i8 addrspace(4)* @llvm.ppu.implicitarg.ptr()
   store volatile i8 addrspace(4)* %implicitarg.ptr, i8 addrspace(4)* addrspace(1)* undef
   ret void
 }

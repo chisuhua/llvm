@@ -89,11 +89,11 @@ define amdgpu_kernel void @s_addk_v4i32_k0(<4 x i32> addrspace(1)* %out, <4 x i3
 ; SI-DAG: s_addk_i32 {{s[0-9]+}}, 0x47
 ; SI-DAG: s_addk_i32 {{s[0-9]+}}, 0x48
 ; SI: s_endpgm
-define amdgpu_kernel void @s_addk_v8i32_k0(<8 x i32> addrspace(1)* %out, <8 x i32> %b) {
-  %add = add <8 x i32> %b, <i32 65, i32 66, i32 67, i32 68, i32 69, i32 70, i32 71, i32 72>
-  store <8 x i32> %add, <8 x i32> addrspace(1)* %out
-  ret void
-}
+;define amdgpu_kernel void @s_addk_v8i32_k0(<8 x i32> addrspace(1)* %out, <8 x i32> %b) {
+;  %add = add <8 x i32> %b, <i32 65, i32 66, i32 67, i32 68, i32 69, i32 70, i32 71, i32 72>
+;  store <8 x i32> %add, <8 x i32> addrspace(1)* %out
+;  ret void
+;;}
 
 ; SI-LABEL: {{^}}no_s_addk_i32_k0:
 ; SI: s_add_i32 {{s[0-9]+}}, {{s[0-9]+}}, 0x8000{{$}}
@@ -109,13 +109,13 @@ define amdgpu_kernel void @no_s_addk_i32_k0(i32 addrspace(1)* %out, i32 %b) {
 ; SI-LABEL: {{^}}commute_s_addk_i32:
 ; SI: s_addk_i32 s{{[0-9]+}}, 0x800{{$}}
 define amdgpu_kernel void @commute_s_addk_i32(i32 addrspace(1)* %out, i32 %b) #0 {
-  %size = call i32 @llvm.amdgcn.groupstaticsize()
+  %size = call i32 @llvm.ppu.groupstaticsize()
   %add = add i32 %size, %b
   call void asm sideeffect "; foo $0, $1", "v,s"([512 x i32] addrspace(3)* @lds, i32 %add)
   ret void
 }
 
-declare i32 @llvm.amdgcn.groupstaticsize() #1
+declare i32 @llvm.ppu.groupstaticsize() #1
 
 attributes #0 = { nounwind }
 attributes #1 = { nounwind readnone }

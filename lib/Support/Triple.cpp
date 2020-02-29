@@ -214,6 +214,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Hurd: return "hurd";
   case WASI: return "wasi";
   case Emscripten: return "emscripten";
+  case PPS: return "pps";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -522,6 +523,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("hurd", Triple::Hurd)
     .StartsWith("wasi", Triple::WASI)
     .StartsWith("emscripten", Triple::Emscripten)
+    .StartsWith("pps", Triple::PPS)
     .Default(Triple::UnknownOS);
 }
 
@@ -1250,7 +1252,6 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::mipsel:
   case llvm::Triple::nvptx:
   case llvm::Triple::ppc:
-  case llvm::Triple::ppu:
   case llvm::Triple::r600:
   case llvm::Triple::riscv32:
   case llvm::Triple::sparc:
@@ -1291,6 +1292,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::spir64:
   case llvm::Triple::wasm64:
   case llvm::Triple::renderscript64:
+  case llvm::Triple::ppu:
     return 64;
   }
   llvm_unreachable("Invalid architecture value");
@@ -1412,6 +1414,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::x86_64:
   case Triple::wasm64:
   case Triple::renderscript64:
+  case Triple::ppu:
     // Already 64-bit.
     break;
 
@@ -1423,7 +1426,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::mipsel:          T.setArch(Triple::mips64el);   break;
   case Triple::nvptx:           T.setArch(Triple::nvptx64);    break;
   case Triple::ppc:             T.setArch(Triple::ppc64);      break;
-  case Triple::ppu:             T.setArch(Triple::ppu);        break;
+  // case Triple::ppu:             T.setArch(Triple::ppu);        break;
   case Triple::sparc:           T.setArch(Triple::sparcv9);    break;
   case Triple::riscv32:         T.setArch(Triple::riscv64);    break;
   case Triple::x86:             T.setArch(Triple::x86_64);     break;
