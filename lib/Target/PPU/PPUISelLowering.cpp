@@ -6024,7 +6024,7 @@ SDValue PPUTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
 
   case Intrinsic::ppu_groupstaticsize: {
     Triple::OSType OS = getTargetMachine().getTargetTriple().getOS();
-    if (OS == Triple::AMDHSA || OS == Triple::AMDPAL)
+    if (OS == Triple::PPS)
       return Op;
 
     const Module *M = MF.getFunction().getParent();

@@ -26,7 +26,7 @@ namespace PPU {
 //===----------------------------------------------------------------------===//
 // HSA metadata.
 //===----------------------------------------------------------------------===//
-namespace HSAMD {
+namespace PPSMD {
 
 /// HSA metadata major version.
 constexpr uint32_t VersionMajor = 1;
@@ -445,16 +445,17 @@ constexpr uint32_t VersionMajor = 1;
 constexpr uint32_t VersionMinor = 0;
 
 /// HSA metadata beginning assembler directive.
-constexpr char AssemblerDirectiveBegin[] = ".amdgpu_metadata";
+constexpr char AssemblerDirectiveBegin[] = ".ppu_metadata";
 /// HSA metadata ending assembler directive.
-constexpr char AssemblerDirectiveEnd[] = ".end_amdgpu_metadata";
+constexpr char AssemblerDirectiveEnd[] = ".end_ppu_metadata";
 } // end namespace V3
 
-} // end namespace HSAMD
+} // end namespace PPSMD
 
 //===----------------------------------------------------------------------===//
 // PAL metadata.
 //===----------------------------------------------------------------------===//
+/*
 namespace PALMD {
 
 /// PAL metadata (old linear format) assembler directive.
@@ -507,6 +508,7 @@ enum Key : uint32_t {
 };
 
 } // end namespace PALMD
+*/
 } // end namespace PPU
 } // end namespace llvm
 

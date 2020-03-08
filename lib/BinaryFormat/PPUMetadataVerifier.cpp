@@ -1,4 +1,4 @@
-//===- AMDGPUMetadataVerifier.cpp - MsgPack Types ---------------*- C++ -*-===//
+//===- PPUMetadataVerifier.cpp - MsgPack Types ---------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// Implements a verifier for AMDGPU HSA metadata.
+/// Implements a verifier for PPU HSA metadata.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,7 +16,7 @@
 
 namespace llvm {
 namespace PPU {
-namespace HSAMD {
+namespace PPSMD {
 namespace V3 {
 
 bool MetadataVerifier::verifyScalar(
@@ -214,6 +214,8 @@ bool MetadataVerifier::verifyKernel(msgpack::DocNode &Node) {
                                .Case("OpenCL C++", true)
                                .Case("HCC", true)
                                .Case("HIP", true)
+                               .Case("CUDA", true)
+                               .Case("PPS", true)
                                .Case("OpenMP", true)
                                .Case("Assembler", true)
                                .Default(false);
@@ -286,20 +288,20 @@ bool MetadataVerifier::verify(msgpack::DocNode &HSAMetadataRoot) {
   auto &RootMap = HSAMetadataRoot.getMap();
 
   if (!verifyEntry(
-          RootMap, "amdhsa.version", true, [this](msgpack::DocNode &Node) {
+          RootMap, "pps.version", true, [this](msgpack::DocNode &Node) {
             return verifyArray(
                 Node,
                 [this](msgpack::DocNode &Node) { return verifyInteger(Node); }, 2);
           }))
     return false;
   if (!verifyEntry(
-          RootMap, "amdhsa.printf", false, [this](msgpack::DocNode &Node) {
+          RootMap, "pps.printf", false, [this](msgpack::DocNode &Node) {
             return verifyArray(Node, [this](msgpack::DocNode &Node) {
               return verifyScalar(Node, msgpack::Type::String);
             });
           }))
     return false;
-  if (!verifyEntry(RootMap, "amdhsa.kernels", true,
+  if (!verifyEntry(RootMap, "pps.kernels", true,
                    [this](msgpack::DocNode &Node) {
                      return verifyArray(Node, [this](msgpack::DocNode &Node) {
                        return verifyKernel(Node);
@@ -311,6 +313,6 @@ bool MetadataVerifier::verify(msgpack::DocNode &HSAMetadataRoot) {
 }
 
 } // end namespace V3
-} // end namespace HSAMD
-} // end namespace AMDGPU
+} // end namespace PPSMD
+} // end namespace PPU
 } // end namespace llvm

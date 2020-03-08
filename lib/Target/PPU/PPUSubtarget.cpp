@@ -43,6 +43,8 @@ PPUSubtarget &PPUSubtarget::initializeSubtargetDependencies(
   if (CPUName.empty())
     CPUName = Is64Bit ? "generic-ppu64" : "generic-ppu";
   ParseSubtargetFeatures(CPUName, FS);
+  if (IsPPT)
+    Gen = PPUBaseSubtarget::PPT;
   if (Is64Bit) {
     XLenVT = MVT::i64;
     XLen = 64;
@@ -72,12 +74,13 @@ PPUSubtarget &PPUSubtarget::initializeSubtargetDependencies(
   SmallString<256> FullFS("+promote-alloca,+load-store-opt,");
 
   if (isPPSOS()) // Turn on FlatForGlobal for HSA.
-    FullFS += "+flat-for-global,+unaligned-buffer-access,+trap-handler,";
+    FullFS += "+flat-for-global,+code-object-v3,+unaligned-buffer-access,";
+    // FullFS += "+flat-for-global,+unaligned-buffer-access,+trap-handler,";
 
   // FIXME: I don't think think Evergreen has any useful support for
   // denormals, but should be checked. Should we issue a warning somewhere
   // if someone tries to enable these?
-  if (getGeneration() >= PPUSubtarget::PPT) {
+  if (getGeneration() >= PPUBaseSubtarget::PPT) {
     FullFS += "+fp64-fp16-denormals,";
   } else {
     FullFS += "-fp32-denormals,";
@@ -97,7 +100,7 @@ PPUSubtarget &PPUSubtarget::initializeSubtargetDependencies(
   }
   */
 
-  // TODO FullFS += FS;
+  FullFS += FS;
 
   ParseSubtargetFeatures(CPU, FullFS);
 
@@ -353,6 +356,7 @@ unsigned PPUBaseSubtarget::getOccupancyWithLocalMemSize(uint32_t Bytes,
 PPUSubtarget::PPUSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
                                StringRef ABIName, const TargetMachine &TM)
     : PPUBaseSubtarget(TT, CPU, FS)
+    , Gen(IsPPT ? PPUBaseSubtarget::PPT : PPUBaseSubtarget::PPU)
     , InstrItins(getInstrItineraryForCPU(CPU))
     , InstrInfo(initializeSubtargetDependencies(TT, CPU, FS, ABIName))
     , FrameLowering(*this, TargetFrameLowering::StackGrowsDown, getStackAlignment(), 0) // TODO amd is StackGrowsUp

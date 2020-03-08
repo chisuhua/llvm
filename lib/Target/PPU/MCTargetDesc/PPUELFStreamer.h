@@ -56,14 +56,14 @@ public:
   bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
 
   /// \returns True on success, false on failure.
-  // bool EmitHSAMetadata(const PPU::HSAMD::Metadata &HSAMetadata) override;
+  // bool EmitHSAMetadata(const PPU::PPSMD::Metadata &HSAMetadata) override;
 
   /// \returns True on success, false on failure.
   bool EmitCodeEnd() override;
 
-  void EmitAmdhsaKernelDescriptor(
+  void EmitPpsKernelDescriptor(
       const MCSubtargetInfo &STI, StringRef KernelName,
-      const amdhsa::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
+      const pps::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
       uint64_t NextSGPR, bool ReserveVCC, bool ReserveFlatScr,
       bool ReserveXNACK) override;
 

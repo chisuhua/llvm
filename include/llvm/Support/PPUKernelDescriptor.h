@@ -1,4 +1,4 @@
-//===--- AMDHSAKernelDescriptor.h -----------------------------*- C++ -*---===//
+//===--- PPSKernelDescriptor.h -----------------------------*- C++ -*---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// AMDHSA kernel descriptor definitions. For more information, visit
+/// PPS kernel descriptor definitions. For more information, visit
 /// https://llvm.org/docs/AMDGPUUsage.html#kernel-descriptor
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_AMDHSAKERNELDESCRIPTOR_H
-#define LLVM_SUPPORT_AMDHSAKERNELDESCRIPTOR_H
+#ifndef LLVM_SUPPORT_PPSKERNELDESCRIPTOR_H
+#define LLVM_SUPPORT_PPSKERNELDESCRIPTOR_H
 
 #include <cstddef>
 #include <cstdint>
@@ -25,27 +25,27 @@
 
 // Creates enumeration entries used for packing bits into integers. Enumeration
 // entries include bit shift amount, bit width, and bit mask.
-#ifndef AMDHSA_BITS_ENUM_ENTRY
-#define AMDHSA_BITS_ENUM_ENTRY(NAME, SHIFT, WIDTH) \
+#ifndef PPS_BITS_ENUM_ENTRY
+#define PPS_BITS_ENUM_ENTRY(NAME, SHIFT, WIDTH) \
   NAME ## _SHIFT = (SHIFT),                        \
   NAME ## _WIDTH = (WIDTH),                        \
   NAME = (((1 << (WIDTH)) - 1) << (SHIFT))
-#endif // AMDHSA_BITS_ENUM_ENTRY
+#endif // PPS_BITS_ENUM_ENTRY
 
 // Gets bits for specified bit mask from specified source.
-#ifndef AMDHSA_BITS_GET
-#define AMDHSA_BITS_GET(SRC, MSK) ((SRC & MSK) >> MSK ## _SHIFT)
-#endif // AMDHSA_BITS_GET
+#ifndef PPS_BITS_GET
+#define PPS_BITS_GET(SRC, MSK) ((SRC & MSK) >> MSK ## _SHIFT)
+#endif // PPS_BITS_GET
 
 // Sets bits for specified bit mask in specified destination.
-#ifndef AMDHSA_BITS_SET
-#define AMDHSA_BITS_SET(DST, MSK, VAL)  \
+#ifndef PPS_BITS_SET
+#define PPS_BITS_SET(DST, MSK, VAL)  \
   DST &= ~MSK;                          \
   DST |= ((VAL << MSK ## _SHIFT) & MSK)
-#endif // AMDHSA_BITS_SET
+#endif // PPS_BITS_SET
 
 namespace llvm {
-namespace amdhsa {
+namespace pps {
 
 // Floating point rounding modes. Must match hardware definition.
 enum : uint8_t {
@@ -73,7 +73,7 @@ enum : uint8_t {
 
 // Compute program resource register 1. Must match hardware definition.
 #define COMPUTE_PGM_RSRC1(NAME, SHIFT, WIDTH) \
-  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC1_ ## NAME, SHIFT, WIDTH)
+  PPS_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC1_ ## NAME, SHIFT, WIDTH)
 enum : int32_t {
   COMPUTE_PGM_RSRC1(GRANULATED_WORKITEM_VGPR_COUNT, 0, 6),
   COMPUTE_PGM_RSRC1(GRANULATED_WAVEFRONT_SGPR_COUNT, 6, 4),
@@ -98,7 +98,7 @@ enum : int32_t {
 
 // Compute program resource register 2. Must match hardware definition.
 #define COMPUTE_PGM_RSRC2(NAME, SHIFT, WIDTH) \
-  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC2_ ## NAME, SHIFT, WIDTH)
+  PPS_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC2_ ## NAME, SHIFT, WIDTH)
 enum : int32_t {
   COMPUTE_PGM_RSRC2(ENABLE_SGPR_PRIVATE_SEGMENT_WAVEFRONT_OFFSET, 0, 1),
   COMPUTE_PGM_RSRC2(USER_SGPR_COUNT, 1, 5),
@@ -124,7 +124,7 @@ enum : int32_t {
 
 // Compute program resource register 3. Must match hardware definition.
 #define COMPUTE_PGM_RSRC3(NAME, SHIFT, WIDTH) \
-  AMDHSA_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC3_ ## NAME, SHIFT, WIDTH)
+  PPS_BITS_ENUM_ENTRY(COMPUTE_PGM_RSRC3_ ## NAME, SHIFT, WIDTH)
 enum : int32_t {
   COMPUTE_PGM_RSRC3(SHARED_VGPR_COUNT, 0, 4), // GFX10+
   COMPUTE_PGM_RSRC3(RESERVED0, 4, 28),
@@ -133,7 +133,7 @@ enum : int32_t {
 
 // Kernel code properties. Must be kept backwards compatible.
 #define KERNEL_CODE_PROPERTY(NAME, SHIFT, WIDTH) \
-  AMDHSA_BITS_ENUM_ENTRY(KERNEL_CODE_PROPERTY_ ## NAME, SHIFT, WIDTH)
+  PPS_BITS_ENUM_ENTRY(KERNEL_CODE_PROPERTY_ ## NAME, SHIFT, WIDTH)
 enum : int32_t {
   KERNEL_CODE_PROPERTY(ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER, 0, 1),
   KERNEL_CODE_PROPERTY(ENABLE_SGPR_DISPATCH_PTR, 1, 1),
@@ -199,4 +199,4 @@ static_assert(
 } // end namespace amdhsa
 } // end namespace llvm
 
-#endif // LLVM_SUPPORT_AMDHSAKERNELDESCRIPTOR_H
+#endif // LLVM_SUPPORT_PPSKERNELDESCRIPTOR_H
