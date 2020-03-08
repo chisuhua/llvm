@@ -20,7 +20,7 @@
 
 namespace llvm {
 namespace PPU {
-namespace HSAMD {
+namespace PPSMD {
 namespace V3 {
 
 /// Verifier for PPU HSA metadata.
@@ -62,7 +62,7 @@ public:
 };
 
 } // end namespace V3
-} // end namespace HSAMD
+} // end namespace PPSMD
 } // end namespace PPU
 } // end namespace llvm
 

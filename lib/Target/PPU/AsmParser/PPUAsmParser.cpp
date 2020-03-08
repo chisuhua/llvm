@@ -27,7 +27,7 @@
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/PPUMetadata.h"
-#include "llvm/Support/AMDHSAKernelDescriptor.h"
+#include "llvm/Support/PPUKernelDescriptor.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -82,7 +82,7 @@
 
 using namespace llvm;
 using namespace llvm::PPU;
-using namespace llvm::amdhsa;
+using namespace llvm::pps;
 
 
 // TODO we don't use Riscv C
@@ -1397,7 +1397,7 @@ ArrayRef<unsigned> PPUAsmParser::getMatchedVariants() const {
     static const unsigned Variants[] = {PPUAsmVariants::VOP3};
     return makeArrayRef(Variants);
   }
-
+/*
   if (isForcedSDWA()) {
     static const unsigned Variants[] = {PPUAsmVariants::SDWA,
                                         PPUAsmVariants::SDWA9};
@@ -1408,10 +1408,10 @@ ArrayRef<unsigned> PPUAsmParser::getMatchedVariants() const {
     static const unsigned Variants[] = {PPUAsmVariants::DPP};
     return makeArrayRef(Variants);
   }
-
+*/
   static const unsigned Variants[] = {
-    PPUAsmVariants::DEFAULT, PPUAsmVariants::VOP3,
-    PPUAsmVariants::SDWA, PPUAsmVariants::SDWA9, PPUAsmVariants::DPP
+    PPUAsmVariants::DEFAULT, PPUAsmVariants::VOP3 // ,
+    // PPUAsmVariants::SDWA, PPUAsmVariants::SDWA9, PPUAsmVariants::DPP
   };
 
   return makeArrayRef(Variants);
@@ -2221,7 +2221,7 @@ bool PPUAsmParser::ParseDirectiveMajorMinor(uint32_t &Major,
 }
 
 bool PPUAsmParser::ParseDirectivePPUTarget() {
-  if (getSTI().getTargetTriple().getArch() != Triple::amdgcn)
+  if (getSTI().getTargetTriple().getArch() != Triple::ppu)
     return TokError("directive only supported for amdgcn architecture");
 
   std::string Target;
@@ -2294,7 +2294,7 @@ bool PPUAsmParser::ParseDirectivePPSKernel() {
     return TokError("directive only supported for amdgcn architecture");
 
   if (getSTI().getTargetTriple().getOS() != Triple::PPS)
-    return TokError("directive only supported for amdhsa OS");
+    return TokError("directive only supported for pps OS");
 
   StringRef KernelName;
   if (getParser().parseIdentifier(KernelName))
@@ -2321,17 +2321,17 @@ bool PPUAsmParser::ParseDirectivePPSKernel() {
       Lex();
 
     if (getLexer().isNot(AsmToken::Identifier))
-      return TokError("expected .amdhsa_ directive or .end_amdhsa_kernel");
+      return TokError("expected .pps_ directive or .end_pps_kernel");
 
     StringRef ID = getTok().getIdentifier();
     SMRange IDRange = getTok().getLocRange();
     Lex();
 
-    if (ID == ".end_amdhsa_kernel")
+    if (ID == ".end_pps_kernel")
       break;
 
     if (Seen.find(ID) != Seen.end())
-      return TokError(".amdhsa_ directives cannot be repeated");
+      return TokError(".pps_ directives cannot be repeated");
     Seen.insert(ID);
 
     SMLoc ValStart = getTok().getLoc();
@@ -2349,59 +2349,59 @@ bool PPUAsmParser::ParseDirectivePPSKernel() {
 #define PARSE_BITS_ENTRY(FIELD, ENTRY, VALUE, RANGE)                           \
   if (!isUInt<ENTRY##_WIDTH>(VALUE))                                           \
     return OutOfRangeError(RANGE);                                             \
-  AMDHSA_BITS_SET(FIELD, ENTRY, VALUE);
+  PPS_BITS_SET(FIELD, ENTRY, VALUE);
 
-    if (ID == ".amdhsa_group_segment_fixed_size") {
+    if (ID == ".pps_group_segment_fixed_size") {
       if (!isUInt<sizeof(KD.group_segment_fixed_size) * CHAR_BIT>(Val))
         return OutOfRangeError(ValRange);
       KD.group_segment_fixed_size = Val;
-    } else if (ID == ".amdhsa_private_segment_fixed_size") {
+    } else if (ID == ".pps_private_segment_fixed_size") {
       if (!isUInt<sizeof(KD.private_segment_fixed_size) * CHAR_BIT>(Val))
         return OutOfRangeError(ValRange);
       KD.private_segment_fixed_size = Val;
-    } else if (ID == ".amdhsa_user_sgpr_private_segment_buffer") {
+    } else if (ID == ".pps_user_sgpr_private_segment_buffer") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER,
                        Val, ValRange);
       if (Val)
         UserSGPRCount += 4;
-    } else if (ID == ".amdhsa_user_sgpr_dispatch_ptr") {
+    } else if (ID == ".pps_user_sgpr_dispatch_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR, Val,
                        ValRange);
       if (Val)
         UserSGPRCount += 2;
-    } else if (ID == ".amdhsa_user_sgpr_queue_ptr") {
+    } else if (ID == ".pps_user_sgpr_queue_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR, Val,
                        ValRange);
       if (Val)
         UserSGPRCount += 2;
-    } else if (ID == ".amdhsa_user_sgpr_kernarg_segment_ptr") {
+    } else if (ID == ".pps_user_sgpr_kernarg_segment_ptr") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR,
                        Val, ValRange);
       if (Val)
         UserSGPRCount += 2;
-    } else if (ID == ".amdhsa_user_sgpr_dispatch_id") {
+    } else if (ID == ".pps_user_sgpr_dispatch_id") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID, Val,
                        ValRange);
       if (Val)
         UserSGPRCount += 2;
-    } else if (ID == ".amdhsa_user_sgpr_flat_scratch_init") {
+    } else if (ID == ".pps_user_sgpr_flat_scratch_init") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT, Val,
                        ValRange);
       if (Val)
         UserSGPRCount += 2;
-    } else if (ID == ".amdhsa_user_sgpr_private_segment_size") {
+    } else if (ID == ".pps_user_sgpr_private_segment_size") {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_SIZE,
                        Val, ValRange);
       if (Val)
         UserSGPRCount += 1;
-    } else if (ID == ".amdhsa_wavefront_size32") {
+    } else if (ID == ".pps_wavefront_size32") {
       if (IVersion.Major < 10)
         return getParser().Error(IDRange.Start, "directive requires gfx10+",
                                  IDRange);
@@ -2409,141 +2409,141 @@ bool PPUAsmParser::ParseDirectivePPSKernel() {
       PARSE_BITS_ENTRY(KD.kernel_code_properties,
                        KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_system_sgpr_private_segment_wavefront_offset") {
+    } else if (ID == ".pps_system_sgpr_private_segment_wavefront_offset") {
       PARSE_BITS_ENTRY(
           KD.compute_pgm_rsrc2,
           COMPUTE_PGM_RSRC2_ENABLE_SGPR_PRIVATE_SEGMENT_WAVEFRONT_OFFSET, Val,
           ValRange);
-    } else if (ID == ".amdhsa_system_sgpr_workgroup_id_x") {
+    } else if (ID == ".pps_system_sgpr_workgroup_id_x") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_system_sgpr_workgroup_id_y") {
+    } else if (ID == ".pps_system_sgpr_workgroup_id_y") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_Y, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_system_sgpr_workgroup_id_z") {
+    } else if (ID == ".pps_system_sgpr_workgroup_id_z") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_Z, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_system_sgpr_workgroup_info") {
+    } else if (ID == ".pps_system_sgpr_workgroup_info") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_INFO, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_system_vgpr_workitem_id") {
+    } else if (ID == ".pps_system_vgpr_workitem_id") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_VGPR_WORKITEM_ID, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_next_free_vgpr") {
+    } else if (ID == ".pps_next_free_vgpr") {
       VGPRRange = ValRange;
       NextFreeVGPR = Val;
-    } else if (ID == ".amdhsa_next_free_sgpr") {
+    } else if (ID == ".pps_next_free_sgpr") {
       SGPRRange = ValRange;
       NextFreeSGPR = Val;
-    } else if (ID == ".amdhsa_reserve_vcc") {
+    } else if (ID == ".pps_reserve_vcc") {
       if (!isUInt<1>(Val))
         return OutOfRangeError(ValRange);
       ReserveVCC = Val;
-    } else if (ID == ".amdhsa_reserve_flat_scratch") {
+    } else if (ID == ".pps_reserve_flat_scratch") {
       if (IVersion.Major < 7)
         return getParser().Error(IDRange.Start, "directive requires gfx7+",
                                  IDRange);
       if (!isUInt<1>(Val))
         return OutOfRangeError(ValRange);
       ReserveFlatScr = Val;
-    } else if (ID == ".amdhsa_reserve_xnack_mask") {
+    } else if (ID == ".pps_reserve_xnack_mask") {
       if (IVersion.Major < 8)
         return getParser().Error(IDRange.Start, "directive requires gfx8+",
                                  IDRange);
       if (!isUInt<1>(Val))
         return OutOfRangeError(ValRange);
       ReserveXNACK = Val;
-    } else if (ID == ".amdhsa_float_round_mode_32") {
+    } else if (ID == ".pps_float_round_mode_32") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1,
                        COMPUTE_PGM_RSRC1_FLOAT_ROUND_MODE_32, Val, ValRange);
-    } else if (ID == ".amdhsa_float_round_mode_16_64") {
+    } else if (ID == ".pps_float_round_mode_16_64") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1,
                        COMPUTE_PGM_RSRC1_FLOAT_ROUND_MODE_16_64, Val, ValRange);
-    } else if (ID == ".amdhsa_float_denorm_mode_32") {
+    } else if (ID == ".pps_float_denorm_mode_32") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1,
                        COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_32, Val, ValRange);
-    } else if (ID == ".amdhsa_float_denorm_mode_16_64") {
+    } else if (ID == ".pps_float_denorm_mode_16_64") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1,
                        COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_16_64, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_dx10_clamp") {
+    } else if (ID == ".pps_dx10_clamp") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1,
                        COMPUTE_PGM_RSRC1_ENABLE_DX10_CLAMP, Val, ValRange);
-    } else if (ID == ".amdhsa_ieee_mode") {
+    } else if (ID == ".pps_ieee_mode") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_ENABLE_IEEE_MODE,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_fp16_overflow") {
+    } else if (ID == ".pps_fp16_overflow") {
       if (IVersion.Major < 9)
         return getParser().Error(IDRange.Start, "directive requires gfx9+",
                                  IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_FP16_OVFL, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_workgroup_processor_mode") {
+    } else if (ID == ".pps_workgroup_processor_mode") {
       if (IVersion.Major < 10)
         return getParser().Error(IDRange.Start, "directive requires gfx10+",
                                  IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_WGP_MODE, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_memory_ordered") {
+    } else if (ID == ".pps_memory_ordered") {
       if (IVersion.Major < 10)
         return getParser().Error(IDRange.Start, "directive requires gfx10+",
                                  IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_MEM_ORDERED, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_forward_progress") {
+    } else if (ID == ".pps_forward_progress") {
       if (IVersion.Major < 10)
         return getParser().Error(IDRange.Start, "directive requires gfx10+",
                                  IDRange);
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc1, COMPUTE_PGM_RSRC1_FWD_PROGRESS, Val,
                        ValRange);
-    } else if (ID == ".amdhsa_exception_fp_ieee_invalid_op") {
+    } else if (ID == ".pps_exception_fp_ieee_invalid_op") {
       PARSE_BITS_ENTRY(
           KD.compute_pgm_rsrc2,
           COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_IEEE_754_FP_INVALID_OPERATION, Val,
           ValRange);
-    } else if (ID == ".amdhsa_exception_fp_denorm_src") {
+    } else if (ID == ".pps_exception_fp_denorm_src") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_FP_DENORMAL_SOURCE,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_exception_fp_ieee_div_zero") {
+    } else if (ID == ".pps_exception_fp_ieee_div_zero") {
       PARSE_BITS_ENTRY(
           KD.compute_pgm_rsrc2,
           COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_IEEE_754_FP_DIVISION_BY_ZERO, Val,
           ValRange);
-    } else if (ID == ".amdhsa_exception_fp_ieee_overflow") {
+    } else if (ID == ".pps_exception_fp_ieee_overflow") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_IEEE_754_FP_OVERFLOW,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_exception_fp_ieee_underflow") {
+    } else if (ID == ".pps_exception_fp_ieee_underflow") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_IEEE_754_FP_UNDERFLOW,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_exception_fp_ieee_inexact") {
+    } else if (ID == ".pps_exception_fp_ieee_inexact") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_IEEE_754_FP_INEXACT,
                        Val, ValRange);
-    } else if (ID == ".amdhsa_exception_int_div_zero") {
+    } else if (ID == ".pps_exception_int_div_zero") {
       PARSE_BITS_ENTRY(KD.compute_pgm_rsrc2,
                        COMPUTE_PGM_RSRC2_ENABLE_EXCEPTION_INT_DIVIDE_BY_ZERO,
                        Val, ValRange);
     } else {
       return getParser().Error(IDRange.Start,
-                               "unknown .amdhsa_kernel directive", IDRange);
+                               "unknown .pps_kernel directive", IDRange);
     }
 
 #undef PARSE_BITS_ENTRY
   }
 
-  if (Seen.find(".amdhsa_next_free_vgpr") == Seen.end())
-    return TokError(".amdhsa_next_free_vgpr directive is required");
+  if (Seen.find(".pps_next_free_vgpr") == Seen.end())
+    return TokError(".pps_next_free_vgpr directive is required");
 
-  if (Seen.find(".amdhsa_next_free_sgpr") == Seen.end())
-    return TokError(".amdhsa_next_free_sgpr directive is required");
+  if (Seen.find(".pps_next_free_sgpr") == Seen.end())
+    return TokError(".pps_next_free_sgpr directive is required");
 
   unsigned VGPRBlocks;
   unsigned SGPRBlocks;
@@ -2556,22 +2556,22 @@ bool PPUAsmParser::ParseDirectivePPSKernel() {
   if (!isUInt<COMPUTE_PGM_RSRC1_GRANULATED_WORKITEM_VGPR_COUNT_WIDTH>(
           VGPRBlocks))
     return OutOfRangeError(VGPRRange);
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+  PPS_BITS_SET(KD.compute_pgm_rsrc1,
                   COMPUTE_PGM_RSRC1_GRANULATED_WORKITEM_VGPR_COUNT, VGPRBlocks);
 
   if (!isUInt<COMPUTE_PGM_RSRC1_GRANULATED_WAVEFRONT_SGPR_COUNT_WIDTH>(
           SGPRBlocks))
     return OutOfRangeError(SGPRRange);
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
+  PPS_BITS_SET(KD.compute_pgm_rsrc1,
                   COMPUTE_PGM_RSRC1_GRANULATED_WAVEFRONT_SGPR_COUNT,
                   SGPRBlocks);
 
   if (!isUInt<COMPUTE_PGM_RSRC2_USER_SGPR_COUNT_WIDTH>(UserSGPRCount))
     return TokError("too many user SGPRs enabled");
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc2, COMPUTE_PGM_RSRC2_USER_SGPR_COUNT,
+  PPS_BITS_SET(KD.compute_pgm_rsrc2, COMPUTE_PGM_RSRC2_USER_SGPR_COUNT,
                   UserSGPRCount);
 
-  getTargetStreamer().EmitAmdhsaKernelDescriptor(
+  getTargetStreamer().EmitPpsKernelDescriptor(
       getSTI(), KernelName, KD, NextFreeVGPR, NextFreeSGPR, ReserveVCC,
       ReserveFlatScr, ReserveXNACK);
   return false;
@@ -2771,19 +2771,19 @@ bool PPUAsmParser::ParseDirectiveHSAMetadata() {
   const char *AssemblerDirectiveBegin;
   const char *AssemblerDirectiveEnd;
   std::tie(AssemblerDirectiveBegin, AssemblerDirectiveEnd) =
-           std::make_tuple(HSAMD::V3::AssemblerDirectiveBegin,
-                            HSAMD::V3::AssemblerDirectiveEnd);
+           std::make_tuple(PPSMD::V3::AssemblerDirectiveBegin,
+                            PPSMD::V3::AssemblerDirectiveEnd);
 /*
       PPU::IsaInfo::hasCodeObjectV3(&getSTI())
-          ? std::make_tuple(HSAMD::V3::AssemblerDirectiveBegin,
-                            HSAMD::V3::AssemblerDirectiveEnd)
-          : std::make_tuple(HSAMD::AssemblerDirectiveBegin,
-                            HSAMD::AssemblerDirectiveEnd);
+          ? std::make_tuple(PPSMD::V3::AssemblerDirectiveBegin,
+                            PPSMD::V3::AssemblerDirectiveEnd)
+          : std::make_tuple(PPSMD::AssemblerDirectiveBegin,
+                            PPSMD::AssemblerDirectiveEnd);
 */
   if (getSTI().getTargetTriple().getOS() != Triple::PPS) {
     return Error(getParser().getTok().getLoc(),
                  (Twine(AssemblerDirectiveBegin) + Twine(" directive is "
-                 "not available on non-amdhsa OSes")).str());
+                 "not available on non-pps OSes")).str());
   }
 
   std::string HSAMetadataString;
@@ -2791,13 +2791,13 @@ bool PPUAsmParser::ParseDirectiveHSAMetadata() {
                           HSAMetadataString))
     return true;
 
-  //if (IsaInfo::hasCodeObjectV3(&getSTI())) {
+  if (IsaInfo::hasCodeObjectV3(&getSTI())) {
     if (!getTargetStreamer().EmitHSAMetadataV3(HSAMetadataString))
       return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
   //} else {
   //  if (!getTargetStreamer().EmitHSAMetadataV2(HSAMetadataString))
   //    return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
-  //}
+  }
 
   return false;
 }
@@ -2936,7 +2936,7 @@ bool PPUAsmParser::ParseDirectivePPULDS() {
   }
 
   if (parseToken(AsmToken::EndOfStatement,
-                 "unexpected token in '.amdgpu_lds' directive"))
+                 "unexpected token in '.ppu_lds' directive"))
     return true;
 
   Symbol->redefineIfPossible();
@@ -2951,14 +2951,14 @@ bool PPUAsmParser::ParseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
 
   if (PPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
-    if (IDVal == ".amdgcn_target")
+    if (IDVal == ".ppu_target")
       return ParseDirectivePPUTarget();
 
-    if (IDVal == ".amdhsa_kernel")
+    if (IDVal == ".pps_kernel")
       return ParseDirectivePPSKernel();
 
     // TODO: Restructure/combine with PAL metadata directive.
-    if (IDVal == PPU::HSAMD::V3::AssemblerDirectiveBegin)
+    if (IDVal == PPU::PPSMD::V3::AssemblerDirectiveBegin)
       return ParseDirectiveHSAMetadata();
       /*
   } else {
@@ -2977,12 +2977,12 @@ bool PPUAsmParser::ParseDirective(AsmToken DirectiveID) {
     if (IDVal == ".amd_amdgpu_isa")
       return ParseDirectiveISAVersion();
 
-    if (IDVal == PPU::HSAMD::AssemblerDirectiveBegin)
+    if (IDVal == PPU::PPSMD::AssemblerDirectiveBegin)
       return ParseDirectiveHSAMetadata();
       */
   }
 
-  if (IDVal == ".amdgpu_lds")
+  if (IDVal == ".ppu_lds")
     return ParseDirectivePPULDS();
 /*
   if (IDVal == PALMD::AssemblerDirectiveBegin)

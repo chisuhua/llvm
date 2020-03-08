@@ -43,7 +43,7 @@
 
 using namespace llvm;
 
-using namespace PPU::HSAMD;
+using namespace PPU::PPSMD;
 
 #define DEBUG_TYPE "asm-printer"
 
@@ -439,8 +439,8 @@ void PPUAsmPrinter::EmitFunctionBodyEnd() {
 
   SmallString<128> KernelName;
   getNameWithPrefix(KernelName, &MF->getFunction());
-  getTargetStreamer()->EmitAmdhsaKernelDescriptor(
-      STI, KernelName, getAmdhsaKernelDescriptor(*MF, CurrentProgramInfo),
+  getTargetStreamer()->EmitPpsKernelDescriptor(
+      STI, KernelName, getPpsKernelDescriptor(*MF, CurrentProgramInfo),
       CurrentProgramInfo.NumVGPRsForWavesPerEU,
       CurrentProgramInfo.NumSGPRsForWavesPerEU -
           PPU::getNumExtraSGPRs(&STI,
@@ -604,47 +604,47 @@ void PPUAsmPrinter::emitCommonFunctionComments(
                               false);
 }
 
-uint16_t PPUAsmPrinter::getAmdhsaKernelCodeProperties(
+uint16_t PPUAsmPrinter::getPpsKernelCodeProperties(
     const MachineFunction &MF) const {
   const PPUMachineFunctionInfo &MFI = *MF.getInfo<PPUMachineFunctionInfo>();
   uint16_t KernelCodeProperties = 0;
 
   if (MFI.hasPrivateSegmentBuffer()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER;
   }
   if (MFI.hasDispatchPtr()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
   }
   if (MFI.hasQueuePtr()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
   }
   if (MFI.hasKernargSegmentPtr()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR;
   }
   if (MFI.hasDispatchID()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID;
   }
   if (MFI.hasFlatScratchInit()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT;
   }
   if (MF.getSubtarget<PPUSubtarget>().isWave32()) {
     KernelCodeProperties |=
-        amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
+        pps::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
   }
 
   return KernelCodeProperties;
 }
 
-amdhsa::kernel_descriptor_t PPUAsmPrinter::getAmdhsaKernelDescriptor(
+pps::kernel_descriptor_t PPUAsmPrinter::getPpsKernelDescriptor(
     const MachineFunction &MF,
     const PPTProgramInfo &PI) const {
-  amdhsa::kernel_descriptor_t KernelDescriptor;
+  pps::kernel_descriptor_t KernelDescriptor;
   memset(&KernelDescriptor, 0x0, sizeof(KernelDescriptor));
 
   assert(isUInt<32>(PI.ScratchSize));
@@ -655,7 +655,7 @@ amdhsa::kernel_descriptor_t PPUAsmPrinter::getAmdhsaKernelDescriptor(
   KernelDescriptor.private_segment_fixed_size = PI.ScratchSize;
   KernelDescriptor.compute_pgm_rsrc1 = PI.ComputePGMRSrc1;
   KernelDescriptor.compute_pgm_rsrc2 = PI.ComputePGMRSrc2;
-  KernelDescriptor.kernel_code_properties = getAmdhsaKernelCodeProperties(MF);
+  KernelDescriptor.kernel_code_properties = getPpsKernelCodeProperties(MF);
 
   return KernelDescriptor;
 }

@@ -37,8 +37,8 @@ class StringRef;
 class PPUBaseSubtarget : public PPUGenSubtargetInfo {
 public:
   enum Generation {
-    PPU = 0,
-    PPT = 1,
+    PPU = 0,                // PPU is single scalar exectution with function stack as riscv, PPU can run multple thread in on Hardware unit
+    PPT = 1,                // PPT is warp thread exectution
   };
 
 private:
@@ -57,7 +57,6 @@ protected:
   bool HasInv2PiInlineImm {false};
 
   bool HasFminFmaxLegacy {false};
-  bool EnablePPT {true};
 
   // Used as options.
   /*
@@ -310,7 +309,7 @@ public:
   };
 
 protected:
-  Generation Gen {PPT};
+  Generation Gen;
   InstrItineraryData InstrItins;
   int LDSBankCount {0};
   unsigned MaxPrivateElementSize {0};

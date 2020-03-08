@@ -34,7 +34,7 @@ static cl::opt<bool> VerifyHSAMetadata(
     cl::desc("Verify PPU HSA Metadata"));
 
 namespace PPU {
-namespace HSAMD {
+namespace PPSMD {
 
 //===----------------------------------------------------------------------===//
 // HSAMetadataStreamerV3
@@ -206,7 +206,7 @@ void MetadataStreamerV3::emitVersion() {
   auto Version = HSAMetadataDoc->getArrayNode();
   Version.push_back(Version.getDocument()->getNode(VersionMajor));
   Version.push_back(Version.getDocument()->getNode(VersionMinor));
-  getRootMetadata("amdhsa.version") = Version;
+  getRootMetadata("pps.version") = Version;
 }
 
 void MetadataStreamerV3::emitPrintf(const Module &Mod) {
@@ -219,7 +219,7 @@ void MetadataStreamerV3::emitPrintf(const Module &Mod) {
     if (Op->getNumOperands())
       Printf.push_back(Printf.getDocument()->getNode(
           cast<MDString>(Op->getOperand(0))->getString(), /*Copy=*/true));
-  getRootMetadata("amdhsa.printf") = Printf;
+  getRootMetadata("pps.printf") = Printf;
 }
 
 void MetadataStreamerV3::emitKernelLanguage(const Function &Func,
@@ -467,7 +467,7 @@ bool MetadataStreamerV3::emitTo(PPUTargetStreamer &TargetStreamer) {
 void MetadataStreamerV3::begin(const Module &Mod) {
   emitVersion();
   emitPrintf(Mod);
-  getRootMetadata("amdhsa.kernels") = HSAMetadataDoc->getArrayNode();
+  getRootMetadata("pps.kernels") = HSAMetadataDoc->getArrayNode();
 }
 
 void MetadataStreamerV3::end() {
@@ -490,7 +490,7 @@ void MetadataStreamerV3::emitKernel(const MachineFunction &MF,
          Func.getCallingConv() == CallingConv::SPIR_KERNEL);
 
   auto Kernels =
-      getRootMetadata("amdhsa.kernels").getArray(/*Convert=*/true);
+      getRootMetadata("pps.kernels").getArray(/*Convert=*/true);
 
   {
     Kern[".name"] = Kern.getDocument()->getNode(Func.getName());
@@ -504,6 +504,6 @@ void MetadataStreamerV3::emitKernel(const MachineFunction &MF,
   Kernels.push_back(Kern);
 }
 
-} // end namespace HSAMD
+} // end namespace PPSMD
 } // end namespace PPU
 } // end namespace llvm

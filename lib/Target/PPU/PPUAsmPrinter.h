@@ -57,7 +57,7 @@ private:
   PPTProgramInfo CurrentProgramInfo;
   DenseMap<const Function *, PPTFunctionResourceInfo> CallGraphResourceInfo;
 
-  std::unique_ptr<PPU::HSAMD::MetadataStreamer> HSAMetadataStream;
+  std::unique_ptr<PPU::PPSMD::MetadataStreamer> HSAMetadataStream;
 
   MCCodeEmitter *DumpCodeInstEmitter = nullptr;
 
@@ -81,10 +81,10 @@ private:
                                   uint64_t CodeSize,
                                   const PPUMachineFunction* MFI);
 
-  uint16_t getAmdhsaKernelCodeProperties(
+  uint16_t getPpsKernelCodeProperties(
       const MachineFunction &MF) const;
 
-  amdhsa::kernel_descriptor_t getAmdhsaKernelDescriptor(
+  pps::kernel_descriptor_t getPpsKernelDescriptor(
       const MachineFunction &MF,
       const PPTProgramInfo &PI) const;
 

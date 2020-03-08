@@ -37,10 +37,15 @@ class PPUTTIImpl : public BasicTTIImplBase<PPUTTIImpl> {
 
   const FeatureBitset InlineFeatureIgnoreList = {
     // Codegen control options which don't matter.
+    PPU::FeatureEnableLoadStoreOpt,
     PPU::FeatureEnablePPUScheduler,
+    PPU::FeatureEnableUnsafeDSOffsetFolding,
     PPU::FeaturePromoteAlloca,
     PPU::FeatureFlatForGlobal,
+    // TODO PPU::FeatureUnalignedBufferAccess,
+    // TODO PPU::FeatureUnalignedScratchAccess,
 
+    // TODO PPU::FeatureAutoWaitcntBeforeBarrier,
     // Property of the kernel/environment which can't actually differ.
     PPU::FeatureCodeObjectV3,
   };

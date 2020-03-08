@@ -232,13 +232,18 @@ void streamIsaVersion(const MCSubtargetInfo *STI, raw_ostream &Stream) {
 
   Stream << TargetTriple.getArchName() << '-'
          << TargetTriple.getVendorName() << '-'
+         << TargetTriple.getOSName();
+
+/* TODO we use ppu--pps for simple
+  Stream << TargetTriple.getArchName() << '-'
+         << TargetTriple.getVendorName() << '-'
          << TargetTriple.getOSName() << '-'
          << TargetTriple.getEnvironmentName() << '-'
          << "gfx"
          << Version.Major
          << Version.Minor
          << Version.Stepping;
-
+*/
   // if (hasXNACK(*STI))
   //   Stream << "+xnack";
   // if (hasSRAMECC(*STI))
@@ -534,31 +539,31 @@ void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
   */
 }
 
-amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
+pps::kernel_descriptor_t getDefaultPPUKernelDescriptor(
     const MCSubtargetInfo *STI) {
   IsaVersion Version = getIsaVersion(STI->getCPU());
 
-  amdhsa::kernel_descriptor_t KD;
+  pps::kernel_descriptor_t KD;
   memset(&KD, 0, sizeof(KD));
 /*
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
-                  amdhsa::COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_16_64,
-                  amdhsa::FLOAT_DENORM_MODE_FLUSH_NONE);
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
-                  amdhsa::COMPUTE_PGM_RSRC1_ENABLE_DX10_CLAMP, 1);
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
-                  amdhsa::COMPUTE_PGM_RSRC1_ENABLE_IEEE_MODE, 1);
-  AMDHSA_BITS_SET(KD.compute_pgm_rsrc2,
-                  amdhsa::COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X, 1);
+  PPS_BITS_SET(KD.compute_pgm_rsrc1,
+                  pps::COMPUTE_PGM_RSRC1_FLOAT_DENORM_MODE_16_64,
+                  pps::FLOAT_DENORM_MODE_FLUSH_NONE);
+  PPS_BITS_SET(KD.compute_pgm_rsrc1,
+                  pps::COMPUTE_PGM_RSRC1_ENABLE_DX10_CLAMP, 1);
+  PPS_BITS_SET(KD.compute_pgm_rsrc1,
+                  pps::COMPUTE_PGM_RSRC1_ENABLE_IEEE_MODE, 1);
+  PPS_BITS_SET(KD.compute_pgm_rsrc2,
+                  pps::COMPUTE_PGM_RSRC2_ENABLE_SGPR_WORKGROUP_ID_X, 1);
   if (Version.Major >= 10) {
-    AMDHSA_BITS_SET(KD.kernel_code_properties,
-                    amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
+    PPS_BITS_SET(KD.kernel_code_properties,
+                    pps::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32,
                     STI->getFeatureBits().test(FeatureWavefrontSize32) ? 1 : 0);
-    AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
-                    amdhsa::COMPUTE_PGM_RSRC1_WGP_MODE,
+    PPS_BITS_SET(KD.compute_pgm_rsrc1,
+                    pps::COMPUTE_PGM_RSRC1_WGP_MODE,
                     STI->getFeatureBits().test(FeatureCuMode) ? 0 : 1);
-    AMDHSA_BITS_SET(KD.compute_pgm_rsrc1,
-                    amdhsa::COMPUTE_PGM_RSRC1_MEM_ORDERED, 1);
+    PPS_BITS_SET(KD.compute_pgm_rsrc1,
+                    pps::COMPUTE_PGM_RSRC1_MEM_ORDERED, 1);
   }
   */
   return KD;

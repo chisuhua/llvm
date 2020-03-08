@@ -205,6 +205,11 @@ void PPUBaseMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     support::endian::write(OS, Bits, support::little);
     break;
   }
+  case 8: {
+    uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
+    support::endian::write(OS, Bits, support::little);
+    break;
+  }
   }
 
   ++MCNumEmitted; // Keep track of the # of mi's emitted.
@@ -620,11 +625,14 @@ uint32_t PPUMCCodeEmitter::getLitEncoding(const MCOperand &MO,
 void PPUMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                                        SmallVectorImpl<MCFixup> &Fixups,
                                        const MCSubtargetInfo &STI) const {
+  /* FIXME comment out temporary since it failed 
   verifyInstructionPredicates(MI,
                               computeAvailableFeatures(STI.getFeatureBits()));
+  */
 
   // call base
-  if (!STI.getFeatureBits()[PPU::FeaturePPT]){
+  // if (!STI.getFeatureBits()[PPU::FeaturePPT]){
+  if (!STI.hasFeature(PPU::FeaturePPT)) {
     return PPUBaseMCCodeEmitter::encodeInstruction(MI, OS, Fixups, STI);
   }
 

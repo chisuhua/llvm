@@ -33,7 +33,7 @@ struct PPTProgramInfo;
 class Type;
 
 namespace PPU {
-namespace HSAMD {
+namespace PPSMD {
 
 class MetadataStreamer {
 public:
@@ -119,7 +119,7 @@ public:
 };
 
 
-} // end namespace HSAMD
+} // end namespace PPSMD
 } // end namespace PPU
 } // end namespace llvm
 

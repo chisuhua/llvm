@@ -459,7 +459,7 @@ int getMCOpcode(uint16_t Opcode, unsigned Gen);
 void initDefaultPPUKernelCodeT(amd_kernel_code_t &Header,
                                const MCSubtargetInfo *STI);
 
-amdhsa::kernel_descriptor_t getDefaultPPUKernelDescriptor(
+pps::kernel_descriptor_t getDefaultPPUKernelDescriptor(
     const MCSubtargetInfo *STI);
 
 bool isGroupSegment(const GlobalValue *GV);

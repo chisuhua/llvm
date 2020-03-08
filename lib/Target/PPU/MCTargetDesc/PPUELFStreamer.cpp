@@ -37,7 +37,7 @@
 
 using namespace llvm;
 using namespace llvm::PPU;
-using namespace llvm::PPU::HSAMD;
+using namespace llvm::PPU::PPSMD;
 
 // This part is for ELF object output.
 PPUTargetELFStreamer::PPUTargetELFStreamer(MCStreamer &S,
@@ -257,9 +257,9 @@ bool PPUTargetELFStreamer::EmitHSAMetadata(msgpack::Document &HSAMetadataDoc,
 }
 /*
 bool PPUTargetELFStreamer::EmitHSAMetadata(
-    const PPU::HSAMD::Metadata &HSAMetadata) {
+    const PPU::PPSMD::Metadata &HSAMetadata) {
   std::string HSAMetadataString;
-  if (HSAMD::toString(HSAMetadata, HSAMetadataString))
+  if (PPSMD::toString(HSAMetadata, HSAMetadataString))
     return false;
 
   // Create two labels to mark the beginning and end of the desc field
@@ -293,9 +293,9 @@ bool PPUTargetELFStreamer::EmitCodeEnd() {
   return true;
 }
 
-void PPUTargetELFStreamer::EmitAmdhsaKernelDescriptor(
+void PPUTargetELFStreamer::EmitPpsKernelDescriptor(
     const MCSubtargetInfo &STI, StringRef KernelName,
-    const amdhsa::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
+    const pps::kernel_descriptor_t &KernelDescriptor, uint64_t NextVGPR,
     uint64_t NextSGPR, bool ReserveVCC, bool ReserveFlatScr,
     bool ReserveXNACK) {
   auto &Streamer = getStreamer();
@@ -324,7 +324,7 @@ void PPUTargetELFStreamer::EmitAmdhsaKernelDescriptor(
   Streamer.EmitLabel(KernelDescriptorSymbol);
   Streamer.EmitBytes(StringRef(
       (const char*)&(KernelDescriptor),
-      offsetof(amdhsa::kernel_descriptor_t, kernel_code_entry_byte_offset)));
+      offsetof(pps::kernel_descriptor_t, kernel_code_entry_byte_offset)));
   // FIXME: Remove the use of VK_AMDGPU_REL64 in the expression below. The
   // expression being created is:
   //   (start of kernel code) - (start of kernel descriptor)
@@ -338,9 +338,9 @@ void PPUTargetELFStreamer::EmitAmdhsaKernelDescriptor(
       sizeof(KernelDescriptor.kernel_code_entry_byte_offset));
   Streamer.EmitBytes(StringRef(
       (const char*)&(KernelDescriptor) +
-          offsetof(amdhsa::kernel_descriptor_t, kernel_code_entry_byte_offset) +
+          offsetof(pps::kernel_descriptor_t, kernel_code_entry_byte_offset) +
           sizeof(KernelDescriptor.kernel_code_entry_byte_offset),
       sizeof(KernelDescriptor) -
-          offsetof(amdhsa::kernel_descriptor_t, kernel_code_entry_byte_offset) -
+          offsetof(pps::kernel_descriptor_t, kernel_code_entry_byte_offset) -
           sizeof(KernelDescriptor.kernel_code_entry_byte_offset)));
 }

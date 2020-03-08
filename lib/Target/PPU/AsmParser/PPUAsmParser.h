@@ -27,7 +27,7 @@
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/PPUMetadata.h"
-#include "llvm/Support/AMDHSAKernelDescriptor.h"
+#include "llvm/Support/PPUKernelDescriptor.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -80,7 +80,7 @@
 
 using namespace llvm;
 using namespace llvm::PPU;
-using namespace llvm::amdhsa;
+using namespace llvm::pps;
 
 // Include the auto-generated portion of the compress emitter.
 // #define GEN_COMPRESS_INSTR
@@ -1915,6 +1915,7 @@ public:
       PPU::IsaVersion ISA = {0, 0, 0}; // PPU::getIsaVersion(getSTI().getCPU());
       MCContext &Ctx = getContext();
       if (PPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+          /*
         MCSymbol *Sym =
             Ctx.getOrCreateSymbol(Twine(".amdgcn.gfx_generation_number"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Major, Ctx));
@@ -1922,9 +1923,11 @@ public:
         Sym->setVariableValue(MCConstantExpr::create(ISA.Minor, Ctx));
         Sym = Ctx.getOrCreateSymbol(Twine(".amdgcn.gfx_generation_stepping"));
         Sym->setVariableValue(MCConstantExpr::create(ISA.Stepping, Ctx));
+        */
       }
 
       if (PPU::IsaInfo::hasCodeObjectV3(&getSTI())) {
+          // FIXME add more regkind
         initializeGprCountSymbol(IS_VGPR);
         initializeGprCountSymbol(IS_SGPR);
       }
