@@ -10,8 +10,11 @@
 #include "MCTargetDesc/PPUMCExpr.h"
 #include "MCTargetDesc/PPUMCTargetDesc.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -48,6 +51,34 @@ unsigned PPUELFObjectWriter::getRelocType(MCContext &Ctx,
                                             const MCValue &Target,
                                             const MCFixup &Fixup,
                                             bool IsPCRel) const {
+/*
+  if (const auto *SymA = Target.getSymA()) {
+    // SCRATCH_RSRC_DWORD[01] is a special global variable that represents
+    // the scratch buffer.
+    if (SymA->getSymbol().getName() == "SCRATCH_RSRC_DWORD0" ||
+        SymA->getSymbol().getName() == "SCRATCH_RSRC_DWORD1")
+      return ELF::R_PPU_ABS32_LO;
+  }
+*/
+  switch (Target.getAccessVariant()) {
+  default:
+    break;
+  case MCSymbolRefExpr::VK_GOTPCREL:
+    return ELF::R_PPU_GOTPCREL;
+  case MCSymbolRefExpr::VK_AMDGPU_GOTPCREL32_LO:
+    return ELF::R_PPU_GOTPCREL32_LO;
+  case MCSymbolRefExpr::VK_AMDGPU_GOTPCREL32_HI:
+    return ELF::R_PPU_GOTPCREL32_HI;
+  case MCSymbolRefExpr::VK_AMDGPU_REL32_LO:
+    return ELF::R_PPU_REL32_LO;
+  case MCSymbolRefExpr::VK_AMDGPU_REL32_HI:
+    return ELF::R_PPU_REL32_HI;
+  case MCSymbolRefExpr::VK_AMDGPU_REL64:
+    return ELF::R_PPU_REL64;
+  }
+  // above is from AMD
+
+
   const MCExpr *Expr = Fixup.getValue();
   // Determine the type of the relocation
   unsigned Kind = Fixup.getTargetKind();
@@ -92,9 +123,11 @@ unsigned PPUELFObjectWriter::getRelocType(MCContext &Ctx,
     if (Expr->getKind() == MCExpr::Target &&
         cast<PPUMCExpr>(Expr)->getKind() == PPUMCExpr::VK_PPU_32_PCREL)
       return ELF::R_PPU_32_PCREL;
-    return ELF::R_PPU_32;
+    // return ELF::R_PPU_32;
+    return ELF::R_PPU_ABS32;
   case FK_Data_8:
-    return ELF::R_PPU_64;
+    // return ELF::R_PPU_64;
+    return ELF::R_PPU_ABS64;
   case FK_Data_Add_1:
     return ELF::R_PPU_ADD8;
   case FK_Data_Add_2:
@@ -133,6 +166,18 @@ unsigned PPUELFObjectWriter::getRelocType(MCContext &Ctx,
     return ELF::R_PPU_RELAX;
   case PPU::fixup_ppu_align:
     return ELF::R_PPU_ALIGN;
+  // TODO schi these 4 case is from AMD 
+  /*
+  case FK_PCRel_4:
+    return ELF::R_PPU_REL32;
+  case FK_Data_4:
+  case FK_SecRel_4:
+    return ELF::R_PPU_ABS32;
+  case FK_Data_8:
+    return ELF::R_PPU_ABS64;
+    */
+  case FK_SecRel_4:
+    return ELF::R_PPU_ABS32;
   }
 }
 

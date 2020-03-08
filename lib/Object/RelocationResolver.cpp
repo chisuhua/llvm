@@ -388,8 +388,8 @@ static uint64_t resolveRISCV(RelocationRef R, uint64_t S, uint64_t A) {
 static bool supportsPPU(uint64_t Type) {
   switch (Type) {
   case ELF::R_PPU_NONE:
-  case ELF::R_PPU_32:
-  case ELF::R_PPU_64:
+  case ELF::R_PPU_ABS32:
+  case ELF::R_PPU_ABS64:
   case ELF::R_PPU_SET6:
   case ELF::R_PPU_SUB6:
   case ELF::R_PPU_ADD8:
@@ -411,9 +411,9 @@ static uint64_t resolvePPU(RelocationRef R, uint64_t S, uint64_t A) {
   switch (R.getType()) {
   case ELF::R_PPU_NONE:
     return A;
-  case ELF::R_PPU_32:
+  case ELF::R_PPU_ABS32:
     return (S + RA) & 0xFFFFFFFF;
-  case ELF::R_PPU_64:
+  case ELF::R_PPU_ABS64:
     return S + RA;
   case ELF::R_PPU_SET6:
     return (A + (S + RA)) & 0xFF;
