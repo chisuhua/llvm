@@ -51,9 +51,9 @@ public:
   //                                            StringRef VendorName,
   //                                            StringRef ArchName) = 0;
 
-  virtual void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) = 0;
+  // virtual void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) = 0;
 
-  virtual void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) = 0;
+  // virtual void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) = 0;
 
   virtual void emitPPULDS(MCSymbol *Symbol, unsigned Size,
                              unsigned Align) = 0;
@@ -62,19 +62,19 @@ public:
   // virtual bool EmitISAVersion(StringRef IsaVersionString) = 0;
 
   /// \returns True on success, false on failure.
-  virtual bool EmitHSAMetadataV3(StringRef HSAMetadataString);
+  virtual bool EmitPPSMetadataV3(StringRef PPSMetadataString);
 
   /// Emit HSA Metadata
   ///
   /// When \p Strict is true, known metadata elements must already be
   /// well-typed. When \p Strict is false, known types are inferred and
-  /// the \p HSAMetadata structure is updated with the correct types.
+  /// the \p PPSMetadata structure is updated with the correct types.
   ///
   /// \returns True on success, false on failure.
-  virtual bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) = 0;
+  virtual bool EmitPPSMetadata(msgpack::Document &PPSMetadata, bool Strict) = 0;
 
   /// \returns True on success, false on failure.
-  // virtual bool EmitHSAMetadata(const PPU::PPSMD::Metadata &HSAMetadata) = 0;
+  // virtual bool EmitPPSMetadata(const PPU::PPSMD::Metadata &PPSMetadata) = 0;
 
   /// \returns True on success, false on failure.
   virtual bool EmitCodeEnd() = 0;
@@ -116,9 +116,9 @@ public:
   //                                   uint32_t Stepping, StringRef VendorName,
   //                                   StringRef ArchName) override;
 
-  void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) override;
+  // void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) override;
 
-  void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
+  // void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
 
   void emitPPULDS(MCSymbol *Sym, unsigned Size, unsigned Align) override;
 
@@ -126,10 +126,10 @@ public:
   // bool EmitISAVersion(StringRef IsaVersionString) override;
 
   /// \returns True on success, false on failure.
-  bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
+  bool EmitPPSMetadata(msgpack::Document &PPSMetadata, bool Strict) override;
 
   /// \returns True on success, false on failure.
-  // bool EmitHSAMetadata(const PPU::PPSMD::Metadata &HSAMetadata) override;
+  // bool EmitPPSMetadata(const PPU::PPSMD::Metadata &PPSMetadata) override;
 
   /// \returns True on success, false on failure.
   bool EmitCodeEnd() override;

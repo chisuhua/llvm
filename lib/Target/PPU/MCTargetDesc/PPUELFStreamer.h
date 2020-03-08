@@ -43,9 +43,9 @@ public:
   //                                   uint32_t Stepping, StringRef VendorName,
   //                                   StringRef ArchName) override;
 
-  void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) override;
+  //void EmitAMDKernelCodeT(const amd_kernel_code_t &Header) override;
 
-  void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
+  //void EmitAMDGPUSymbolType(StringRef SymbolName, unsigned Type) override;
 
   void emitPPULDS(MCSymbol *Sym, unsigned Size, unsigned Align) override;
 
@@ -53,10 +53,10 @@ public:
   // bool EmitISAVersion(StringRef IsaVersionString) override;
 
   /// \returns True on success, false on failure.
-  bool EmitHSAMetadata(msgpack::Document &HSAMetadata, bool Strict) override;
+  bool EmitPPSMetadata(msgpack::Document &PPSMetadata, bool Strict) override;
 
   /// \returns True on success, false on failure.
-  // bool EmitHSAMetadata(const PPU::PPSMD::Metadata &HSAMetadata) override;
+  // bool EmitPPSMetadata(const PPU::PPSMD::Metadata &PPSMetadata) override;
 
   /// \returns True on success, false on failure.
   bool EmitCodeEnd() override;

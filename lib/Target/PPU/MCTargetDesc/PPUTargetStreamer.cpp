@@ -66,12 +66,12 @@ void PPUTargetAsmStreamer::emitDirectiveOptionNoRelax() {
   OS << "\t.option\tnorelax\n";
 }
 
-bool PPUTargetStreamer::EmitHSAMetadataV3(StringRef HSAMetadataString) {
-  msgpack::Document HSAMetadataDoc;
+bool PPUTargetStreamer::EmitPPSMetadataV3(StringRef PPSMetadataString) {
+  msgpack::Document PPSMetadataDoc;
 
-  if (!HSAMetadataDoc.fromYAML(HSAMetadataString))
+  if (!PPSMetadataDoc.fromYAML(PPSMetadataString))
     return false;
-  return EmitHSAMetadata(HSAMetadataDoc, false);
+  return EmitPPSMetadata(PPSMetadataDoc, false);
 }
 
 StringRef PPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
@@ -129,7 +129,6 @@ PPUTargetAsmStreamer::EmitDirectiveHSACodeObjectISA(uint32_t Major,
         ",\"" << VendorName << "\",\"" << ArchName << "\"\n";
 
 }
-*/
 
 void
 PPUTargetAsmStreamer::EmitAMDKernelCodeT(const amd_kernel_code_t &Header) {
@@ -147,6 +146,7 @@ void PPUTargetAsmStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
       break;
   }
 }
+*/
 
 void PPUTargetAsmStreamer::emitPPULDS(MCSymbol *Symbol, unsigned Size,
                                             unsigned Align) {
@@ -160,28 +160,28 @@ bool PPUTargetAsmStreamer::EmitISAVersion(StringRef IsaVersionString) {
   return true;
 }
 
-bool PPUTargetAsmStreamer::EmitHSAMetadata(
-    const PPU::PPSMD::Metadata &HSAMetadata) {
-  std::string HSAMetadataString;
-  if (PPSMD::toString(HSAMetadata, HSAMetadataString))
+bool PPUTargetAsmStreamer::EmitPPSMetadata(
+    const PPU::PPSMD::Metadata &PPSMetadata) {
+  std::string PPSMetadataString;
+  if (PPSMD::toString(PPSMetadata, PPSMetadataString))
     return false;
 
   OS << '\t' << AssemblerDirectiveBegin << '\n';
-  OS << HSAMetadataString << '\n';
+  OS << PPSMetadataString << '\n';
   OS << '\t' << AssemblerDirectiveEnd << '\n';
   return true;
 }
 */
 
-bool PPUTargetAsmStreamer::EmitHSAMetadata(
-    msgpack::Document &HSAMetadataDoc, bool Strict) {
+bool PPUTargetAsmStreamer::EmitPPSMetadata(
+    msgpack::Document &PPSMetadataDoc, bool Strict) {
   V3::MetadataVerifier Verifier(Strict);
-  if (!Verifier.verify(HSAMetadataDoc.getRoot()))
+  if (!Verifier.verify(PPSMetadataDoc.getRoot()))
     return false;
 
-  std::string HSAMetadataString;
-  raw_string_ostream StrOS(HSAMetadataString);
-  HSAMetadataDoc.toYAML(StrOS);
+  std::string PPSMetadataString;
+  raw_string_ostream StrOS(PPSMetadataString);
+  PPSMetadataDoc.toYAML(StrOS);
 
   OS << '\t' << V3::AssemblerDirectiveBegin << '\n';
   OS << StrOS.str() << '\n';

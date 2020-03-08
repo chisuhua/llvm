@@ -213,7 +213,7 @@ PPUAsmPrinter::PPUAsmPrinter(TargetMachine &TM,
                                    std::unique_ptr<MCStreamer> Streamer)
   : AsmPrinter(TM, std::move(Streamer)) {
     if (PPU::hasCodeObjectV3(getGlobalSTI()))
-      HSAMetadataStream.reset(new MetadataStreamerV3());
+      PPSMetadataStream.reset(new MetadataStreamerV3());
 }
 
 StringRef PPUAsmPrinter::getPassName() const {
@@ -403,7 +403,7 @@ void PPUAsmPrinter::EmitFunctionBodyStart() {
   // FIXME hwo to enitm deive only not by PPSOS
   // if (STM.isPPSOS())
   if (PPU::hasCodeObjectV3(getGlobalSTI())) {
-    HSAMetadataStream->emitKernel(*MF, CurrentProgramInfo);
+    PPSMetadataStream->emitKernel(*MF, CurrentProgramInfo);
   }
 }
 
@@ -539,7 +539,7 @@ void PPUAsmPrinter::EmitStartOfAsmFile(Module &M) {
 
   // if (TM.getTargetTriple().getOS() == Triple::PPS)
   if (PPU::hasCodeObjectV3(getGlobalSTI()))
-    HSAMetadataStream->begin(M);
+    PPSMetadataStream->begin(M);
 
 }
 
@@ -552,8 +552,8 @@ void PPUAsmPrinter::EmitEndOfAsmFile(Module &M) {
   // Emit HSA Metadata (NT_AMD_AMDGPU_HSA_METADATA).
   // if (TM.getTargetTriple().getOS() == Triple::PPS) {
   if (PPU::hasCodeObjectV3(getGlobalSTI())) {
-    HSAMetadataStream->end();
-    bool Success = HSAMetadataStream->emitTo(*getTargetStreamer());
+    PPSMetadataStream->end();
+    bool Success = PPSMetadataStream->emitTo(*getTargetStreamer());
     (void)Success;
     assert(Success && "Malformed HSA Metadata");
   }

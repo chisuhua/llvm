@@ -1,4 +1,4 @@
-//===--- PPUHSAMetadataStreamer.h ----------------------------*- C++ -*-===//
+//===--- PPUPPSMetadataStreamer.h ----------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// PPU HSA Metadata Streamer.
+/// PPU PPS Metadata Streamer.
 ///
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUHSAMETADATASTREAMER_H
-#define LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUHSAMETADATASTREAMER_H
+#ifndef LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUPPSMETADATASTREAMER_H
+#define LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUPPSMETADATASTREAMER_H
 
 #include "PPU.h"
 #include "PPUKernelCodeT.h"
@@ -51,12 +51,12 @@ public:
 
 class MetadataStreamerV3 final : public MetadataStreamer {
 private:
-  std::unique_ptr<msgpack::Document> HSAMetadataDoc =
+  std::unique_ptr<msgpack::Document> PPSMetadataDoc =
       std::make_unique<msgpack::Document>();
 
-  void dump(StringRef HSAMetadataString) const;
+  void dump(StringRef PPSMetadataString) const;
 
-  void verify(StringRef HSAMetadataString) const;
+  void verify(StringRef PPSMetadataString) const;
 
   Optional<StringRef> getAccessQualifier(StringRef AccQual) const;
 
@@ -71,7 +71,7 @@ private:
 
   msgpack::ArrayDocNode getWorkGroupDimensions(MDNode *Node) const;
 
-  msgpack::MapDocNode getHSAKernelProps(const MachineFunction &MF,
+  msgpack::MapDocNode getPPSKernelProps(const MachineFunction &MF,
                                         const PPTProgramInfo &ProgramInfo) const;
 
   void emitVersion();
@@ -97,11 +97,11 @@ private:
                             msgpack::ArrayDocNode Args);
 
   msgpack::DocNode &getRootMetadata(StringRef Key) {
-    return HSAMetadataDoc->getRoot().getMap(/*Convert=*/true)[Key];
+    return PPSMetadataDoc->getRoot().getMap(/*Convert=*/true)[Key];
   }
 
-  msgpack::DocNode &getHSAMetadataRoot() {
-    return HSAMetadataDoc->getRoot();
+  msgpack::DocNode &getPPSMetadataRoot() {
+    return PPSMetadataDoc->getRoot();
   }
 
 public:
@@ -123,4 +123,4 @@ public:
 } // end namespace PPU
 } // end namespace llvm
 
-#endif // LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUHSAMETADATASTREAMER_H
+#endif // LLVM_LIB_TARGET_PPU_MCTARGETDESC_PPUPPSMETADATASTREAMER_H

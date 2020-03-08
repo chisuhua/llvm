@@ -1792,9 +1792,9 @@ private:
   // bool ParseDirectivePPUHsaKernel();
 
   // bool ParseDirectiveISAVersion();
-  bool ParseDirectiveHSAMetadata();
-  bool ParseDirectivePALMetadataBegin();
-  bool ParseDirectivePALMetadata();
+  bool ParseDirectivePPSMetadata();
+  // bool ParseDirectivePALMetadataBegin();
+  // bool ParseDirectivePALMetadata();
   bool ParseDirectivePPULDS();
 
   /// Common code to parse out a block of text (typically YAML) between start and

@@ -170,7 +170,6 @@ PPUTargetELFStreamer::EmitDirectiveHSACodeObjectISA(uint32_t Major,
              OS.EmitIntValue(0, 1); // NULL terminte ArchName
            });
 }
-*/
 
 void
 PPUTargetELFStreamer::EmitAMDKernelCodeT(const amd_kernel_code_t &Header) {
@@ -187,6 +186,7 @@ void PPUTargetELFStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
       getStreamer().getContext().getOrCreateSymbol(SymbolName));
   Symbol->setType(Type);
 }
+*/
 
 void PPUTargetELFStreamer::emitPPULDS(MCSymbol *Symbol, unsigned Size,
                                             unsigned Align) {
@@ -229,14 +229,14 @@ bool PPUTargetELFStreamer::EmitISAVersion(StringRef IsaVersionString) {
 }
 */
 
-bool PPUTargetELFStreamer::EmitHSAMetadata(msgpack::Document &HSAMetadataDoc,
+bool PPUTargetELFStreamer::EmitPPSMetadata(msgpack::Document &PPSMetadataDoc,
                                               bool Strict) {
   V3::MetadataVerifier Verifier(Strict);
-  if (!Verifier.verify(HSAMetadataDoc.getRoot()))
+  if (!Verifier.verify(PPSMetadataDoc.getRoot()))
     return false;
 
-  std::string HSAMetadataString;
-  HSAMetadataDoc.writeToBlob(HSAMetadataString);
+  std::string PPSMetadataString;
+  PPSMetadataDoc.writeToBlob(PPSMetadataString);
 
   // Create two labels to mark the beginning and end of the desc field
   // and a MCExpr to calculate the size of the desc field.
@@ -250,16 +250,16 @@ bool PPUTargetELFStreamer::EmitHSAMetadata(msgpack::Document &HSAMetadataDoc,
   EmitNote(ElfNote::NoteNameV3, DescSZ, ELF::NT_AMDGPU_METADATA,
            [&](MCELFStreamer &OS) {
              OS.EmitLabel(DescBegin);
-             OS.EmitBytes(HSAMetadataString);
+             OS.EmitBytes(PPSMetadataString);
              OS.EmitLabel(DescEnd);
            });
   return true;
 }
 /*
-bool PPUTargetELFStreamer::EmitHSAMetadata(
-    const PPU::PPSMD::Metadata &HSAMetadata) {
-  std::string HSAMetadataString;
-  if (PPSMD::toString(HSAMetadata, HSAMetadataString))
+bool PPUTargetELFStreamer::EmitPPSMetadata(
+    const PPU::PPSMD::Metadata &PPSMetadata) {
+  std::string PPSMetadataString;
+  if (PPSMD::toString(PPSMetadata, PPSMetadataString))
     return false;
 
   // Create two labels to mark the beginning and end of the desc field
@@ -274,7 +274,7 @@ bool PPUTargetELFStreamer::EmitHSAMetadata(
   EmitNote(ElfNote::NoteNameV2, DescSZ, ELF::NT_AMD_AMDGPU_HSA_METADATA,
            [&](MCELFStreamer &OS) {
              OS.EmitLabel(DescBegin);
-             OS.EmitBytes(HSAMetadataString);
+             OS.EmitBytes(PPSMetadataString);
              OS.EmitLabel(DescEnd);
            });
   return true;

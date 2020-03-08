@@ -39,7 +39,7 @@ add_llvm_target(PPUCodeGen
   PPUILPSched.cpp
   PPULegalizerInfo.cpp
   PPUMCInstLower.cpp
-  PPUHSAMetadataStreamer.cpp
+  PPUPPSMetadataStreamer.cpp
   PPUMergeBaseOffset.cpp
   PPUMachineFunction.cpp
   PPUMachineFunctionInfo.cpp

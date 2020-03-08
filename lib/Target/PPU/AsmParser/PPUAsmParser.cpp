@@ -2767,7 +2767,7 @@ bool PPUAsmParser::ParseDirectiveISAVersion() {
 }
 */
 
-bool PPUAsmParser::ParseDirectiveHSAMetadata() {
+bool PPUAsmParser::ParseDirectivePPSMetadata() {
   const char *AssemblerDirectiveBegin;
   const char *AssemblerDirectiveEnd;
   std::tie(AssemblerDirectiveBegin, AssemblerDirectiveEnd) =
@@ -2786,16 +2786,16 @@ bool PPUAsmParser::ParseDirectiveHSAMetadata() {
                  "not available on non-pps OSes")).str());
   }
 
-  std::string HSAMetadataString;
+  std::string PPSMetadataString;
   if (ParseToEndDirective(AssemblerDirectiveBegin, AssemblerDirectiveEnd,
-                          HSAMetadataString))
+                          PPSMetadataString))
     return true;
 
   if (IsaInfo::hasCodeObjectV3(&getSTI())) {
-    if (!getTargetStreamer().EmitHSAMetadataV3(HSAMetadataString))
+    if (!getTargetStreamer().EmitPPSMetadataV3(PPSMetadataString))
       return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
   //} else {
-  //  if (!getTargetStreamer().EmitHSAMetadataV2(HSAMetadataString))
+  //  if (!getTargetStreamer().EmitPPSMetadataV2(PPSMetadataString))
   //    return Error(getParser().getTok().getLoc(), "invalid HSA metadata");
   }
 
@@ -2959,7 +2959,7 @@ bool PPUAsmParser::ParseDirective(AsmToken DirectiveID) {
 
     // TODO: Restructure/combine with PAL metadata directive.
     if (IDVal == PPU::PPSMD::V3::AssemblerDirectiveBegin)
-      return ParseDirectiveHSAMetadata();
+      return ParseDirectivePPSMetadata();
       /*
   } else {
     if (IDVal == ".hsa_code_object_version")
@@ -2978,7 +2978,7 @@ bool PPUAsmParser::ParseDirective(AsmToken DirectiveID) {
       return ParseDirectiveISAVersion();
 
     if (IDVal == PPU::PPSMD::AssemblerDirectiveBegin)
-      return ParseDirectiveHSAMetadata();
+      return ParseDirectivePPSMetadata();
       */
   }
 

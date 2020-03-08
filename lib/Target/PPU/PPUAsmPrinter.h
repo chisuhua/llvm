@@ -16,7 +16,7 @@
 
 #include "PPU.h"
 #include "PPUKernelCodeT.h"
-#include "PPUHSAMetadataStreamer.h"
+#include "PPUPPSMetadataStreamer.h"
 #include "PPTProgramInfo.h"
 #include "MCTargetDesc/PPUTargetStreamer.h"
 #include "llvm/ADT/StringRef.h"
@@ -57,7 +57,7 @@ private:
   PPTProgramInfo CurrentProgramInfo;
   DenseMap<const Function *, PPTFunctionResourceInfo> CallGraphResourceInfo;
 
-  std::unique_ptr<PPU::PPSMD::MetadataStreamer> HSAMetadataStream;
+  std::unique_ptr<PPU::PPSMD::MetadataStreamer> PPSMetadataStream;
 
   MCCodeEmitter *DumpCodeInstEmitter = nullptr;
 

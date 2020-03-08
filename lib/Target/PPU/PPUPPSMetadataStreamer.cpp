@@ -1,4 +1,4 @@
-//===--- PPUHSAMetadataStreamer.cpp --------------------------*- C++ -*-===//
+//===--- PPUPPSMetadataStreamer.cpp --------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 //
 /// \file
-/// PPU HSA Metadata Streamer.
+/// PPU PPS Metadata Streamer.
 ///
 //
 //===----------------------------------------------------------------------===//
 
-#include "PPUHSAMetadataStreamer.h"
+#include "PPUPPSMetadataStreamer.h"
 #include "PPU.h"
 #include "PPUSubtarget.h"
 #include "MCTargetDesc/PPUTargetStreamer.h"
@@ -26,41 +26,41 @@
 
 namespace llvm {
 
-static cl::opt<bool> DumpHSAMetadata(
+static cl::opt<bool> DumpPPSMetadata(
     "ppu-dump-hsa-metadata",
-    cl::desc("Dump PPU HSA Metadata"));
-static cl::opt<bool> VerifyHSAMetadata(
+    cl::desc("Dump PPU PPS Metadata"));
+static cl::opt<bool> VerifyPPSMetadata(
     "ppu-verify-hsa-metadata",
-    cl::desc("Verify PPU HSA Metadata"));
+    cl::desc("Verify PPU PPS Metadata"));
 
 namespace PPU {
 namespace PPSMD {
 
 //===----------------------------------------------------------------------===//
-// HSAMetadataStreamerV3
+// PPSMetadataStreamerV3
 //===----------------------------------------------------------------------===//
 
-void MetadataStreamerV3::dump(StringRef HSAMetadataString) const {
-  errs() << "PPU HSA Metadata:\n" << HSAMetadataString << '\n';
+void MetadataStreamerV3::dump(StringRef PPSMetadataString) const {
+  errs() << "PPU PPS Metadata:\n" << PPSMetadataString << '\n';
 }
 
-void MetadataStreamerV3::verify(StringRef HSAMetadataString) const {
-  errs() << "PPU HSA Metadata Parser Test: ";
+void MetadataStreamerV3::verify(StringRef PPSMetadataString) const {
+  errs() << "PPU PPS Metadata Parser Test: ";
 
-  msgpack::Document FromHSAMetadataString;
+  msgpack::Document FromPPSMetadataString;
 
-  if (!FromHSAMetadataString.fromYAML(HSAMetadataString)) {
+  if (!FromPPSMetadataString.fromYAML(PPSMetadataString)) {
     errs() << "FAIL\n";
     return;
   }
 
-  std::string ToHSAMetadataString;
-  raw_string_ostream StrOS(ToHSAMetadataString);
-  FromHSAMetadataString.toYAML(StrOS);
+  std::string ToPPSMetadataString;
+  raw_string_ostream StrOS(ToPPSMetadataString);
+  FromPPSMetadataString.toYAML(StrOS);
 
-  errs() << (HSAMetadataString == StrOS.str() ? "PASS" : "FAIL") << '\n';
-  if (HSAMetadataString != ToHSAMetadataString) {
-    errs() << "Original input: " << HSAMetadataString << '\n'
+  errs() << (PPSMetadataString == StrOS.str() ? "PASS" : "FAIL") << '\n';
+  if (PPSMetadataString != ToPPSMetadataString) {
+    errs() << "Original input: " << PPSMetadataString << '\n'
            << "Produced output: " << StrOS.str() << '\n';
   }
 }
@@ -192,7 +192,7 @@ std::string MetadataStreamerV3::getTypeName(Type *Ty, bool Signed) const {
 
 msgpack::ArrayDocNode
 MetadataStreamerV3::getWorkGroupDimensions(MDNode *Node) const {
-  auto Dims = HSAMetadataDoc->getArrayNode();
+  auto Dims = PPSMetadataDoc->getArrayNode();
   if (Node->getNumOperands() != 3)
     return Dims;
 
@@ -203,7 +203,7 @@ MetadataStreamerV3::getWorkGroupDimensions(MDNode *Node) const {
 }
 
 void MetadataStreamerV3::emitVersion() {
-  auto Version = HSAMetadataDoc->getArrayNode();
+  auto Version = PPSMetadataDoc->getArrayNode();
   Version.push_back(Version.getDocument()->getNode(VersionMajor));
   Version.push_back(Version.getDocument()->getNode(VersionMinor));
   getRootMetadata("pps.version") = Version;
@@ -214,7 +214,7 @@ void MetadataStreamerV3::emitPrintf(const Module &Mod) {
   if (!Node)
     return;
 
-  auto Printf = HSAMetadataDoc->getArrayNode();
+  auto Printf = PPSMetadataDoc->getArrayNode();
   for (auto Op : Node->operands())
     if (Op->getNumOperands())
       Printf.push_back(Printf.getDocument()->getNode(
@@ -265,7 +265,7 @@ void MetadataStreamerV3::emitKernelAttrs(const Function &Func,
 void MetadataStreamerV3::emitKernelArgs(const Function &Func,
                                         msgpack::MapDocNode Kern) {
   unsigned Offset = 0;
-  auto Args = HSAMetadataDoc->getArrayNode();
+  auto Args = PPSMetadataDoc->getArrayNode();
   for (auto &Arg : Func.args())
     emitKernelArg(Arg, Offset, Args);
 
@@ -429,13 +429,13 @@ void MetadataStreamerV3::emitHiddenKernelArgs(const Function &Func,
 }
 
 msgpack::MapDocNode
-MetadataStreamerV3::getHSAKernelProps(const MachineFunction &MF,
+MetadataStreamerV3::getPPSKernelProps(const MachineFunction &MF,
                                       const PPTProgramInfo &ProgramInfo) const {
   const PPUSubtarget &STM = MF.getSubtarget<PPUSubtarget>();
   const PPUMachineFunctionInfo &MFI = *MF.getInfo<PPUMachineFunctionInfo>();
   const Function &F = MF.getFunction();
 
-  auto Kern = HSAMetadataDoc->getMapNode();
+  auto Kern = PPSMetadataDoc->getMapNode();
 
   unsigned MaxKernArgAlign;
   Kern[".kernarg_segment_size"] = Kern.getDocument()->getNode(
@@ -461,30 +461,30 @@ MetadataStreamerV3::getHSAKernelProps(const MachineFunction &MF,
 }
 
 bool MetadataStreamerV3::emitTo(PPUTargetStreamer &TargetStreamer) {
-  return TargetStreamer.EmitHSAMetadata(*HSAMetadataDoc, true);
+  return TargetStreamer.EmitPPSMetadata(*PPSMetadataDoc, true);
 }
 
 void MetadataStreamerV3::begin(const Module &Mod) {
   emitVersion();
   emitPrintf(Mod);
-  getRootMetadata("pps.kernels") = HSAMetadataDoc->getArrayNode();
+  getRootMetadata("pps.kernels") = PPSMetadataDoc->getArrayNode();
 }
 
 void MetadataStreamerV3::end() {
-  std::string HSAMetadataString;
-  raw_string_ostream StrOS(HSAMetadataString);
-  HSAMetadataDoc->toYAML(StrOS);
+  std::string PPSMetadataString;
+  raw_string_ostream StrOS(PPSMetadataString);
+  PPSMetadataDoc->toYAML(StrOS);
 
-  if (DumpHSAMetadata)
+  if (DumpPPSMetadata)
     dump(StrOS.str());
-  if (VerifyHSAMetadata)
+  if (VerifyPPSMetadata)
     verify(StrOS.str());
 }
 
 void MetadataStreamerV3::emitKernel(const MachineFunction &MF,
                                     const PPTProgramInfo &ProgramInfo) {
   auto &Func = MF.getFunction();
-  auto Kern = getHSAKernelProps(MF, ProgramInfo);
+  auto Kern = getPPSKernelProps(MF, ProgramInfo);
 
   assert(Func.getCallingConv() == CallingConv::AMDGPU_KERNEL ||
          Func.getCallingConv() == CallingConv::SPIR_KERNEL);
